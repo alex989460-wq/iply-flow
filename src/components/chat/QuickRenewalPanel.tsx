@@ -2259,70 +2259,74 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
         </div>
       </ScrollArea>
       
-      {/* Vplay Test Result - Fixed at bottom */}
+      {/* Vplay Test Result - Fixed at bottom with glassmorphism */}
       {vplayTestResult && (
-        <div className="flex-shrink-0 p-3 border-t border-border bg-background">
-          <div className="p-2.5 bg-violet-500/10 border border-violet-500/30 rounded-lg space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-violet-600 dark:text-violet-400">
-                <CheckCircle className="h-4 w-4" />
-                <span className="text-xs font-semibold">Teste Gerado!</span>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 text-muted-foreground/80 hover:text-foreground"
-                onClick={() => setVplayTestResult(null)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <pre className="text-xs text-foreground whitespace-pre-wrap bg-background/50 p-2 rounded max-h-24 overflow-y-auto select-text font-mono break-words">
-              {vplayTestResult}
-            </pre>
-            {(() => {
-              const links = vplayTestResult.match(/https?:\/\/\S+/gi) || [];
-              const m3u = links.find((l) => /output=ts|type=m3u/i.test(l)) || links[0] || '';
-              const hls = links.find((l) => /output=hls/i.test(l)) || '';
-              const user = vplayTestResult.match(/username[=:\s]+([^\s&|,]+)/i)?.[1]
-                || vplayTestResult.match(/usu[áa]rio:\s*([^\s]+)/i)?.[1] || '';
-              const pass = vplayTestResult.match(/password[=:\s]+([^\s&|,]+)/i)?.[1]
-                || vplayTestResult.match(/senha:\s*([^\s]+)/i)?.[1] || '';
-              const copy = async (txt: string, label: string) => {
-                if (!txt) { toast.error(`Nada para copiar (${label})`); return; }
-                const ok = await copyText(txt);
-                if (ok) toast.success(`${label} copiado!`);
-              };
-              return (
-                <div className="space-y-1.5">
-                  <Button
-                    size="sm"
-                    className="w-full h-8 bg-violet-600 hover:bg-violet-700 text-white"
-                    onClick={() => copy(vplayTestResult, 'Teste completo')}
-                  >
-                    <Copy className="h-3.5 w-3.5 mr-1.5" />
-                    Copiar tudo
-                  </Button>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    <Button size="sm" variant="outline" className="h-7 text-[11px] px-1"
-                      onClick={() => copy(m3u, 'Lista M3U')}>
-                      Lista M3U
-                    </Button>
-                    <Button size="sm" variant="outline" className="h-7 text-[11px] px-1"
-                      onClick={() => copy(hls || m3u, 'Link HLS')}>
-                      Link HLS
-                    </Button>
-                    <Button size="sm" variant="outline" className="h-7 text-[11px] px-1"
-                      onClick={() => copy(user && pass ? `Usuário: ${user}\nSenha: ${pass}` : '', 'Usuário e senha')}>
-                      Usuário/Senha
-                    </Button>
-                  </div>
+        <div className="flex-shrink-0 p-3 border-t border-border bg-background/80 backdrop-blur-2xl">
+          <Card className="border-violet-500/30 bg-violet-500/10 backdrop-blur-xl shadow-lg rounded-2xl overflow-hidden relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 via-transparent to-transparent pointer-events-none" />
+            <CardContent className="p-3 space-y-2 relative z-10">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-violet-600 dark:text-violet-400">
+                  <CheckCircle className="h-4 w-4" />
+                  <span className="text-xs font-bold">Teste Gerado!</span>
                 </div>
-              );
-            })()}
-          </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 rounded-full text-muted-foreground/80 hover:text-foreground hover:bg-background/50"
+                  onClick={() => setVplayTestResult(null)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <pre className="text-xs text-foreground whitespace-pre-wrap bg-background/50 p-2.5 rounded-xl border border-violet-500/20 max-h-24 overflow-y-auto select-text font-mono break-words">
+                {vplayTestResult}
+              </pre>
+              {(() => {
+                const links = vplayTestResult.match(/https?:\/\/\S+/gi) || [];
+                const m3u = links.find((l) => /output=ts|type=m3u/i.test(l)) || links[0] || '';
+                const hls = links.find((l) => /output=hls/i.test(l)) || '';
+                const user = vplayTestResult.match(/username[=:\s]+([^\s&|,]+)/i)?.[1]
+                  || vplayTestResult.match(/usu[áa]rio:\s*([^\s]+)/i)?.[1] || '';
+                const pass = vplayTestResult.match(/password[=:\s]+([^\s&|,]+)/i)?.[1]
+                  || vplayTestResult.match(/senha:\s*([^\s]+)/i)?.[1] || '';
+                const copy = async (txt: string, label: string) => {
+                  if (!txt) { toast.error(`Nada para copiar (${label})`); return; }
+                  const ok = await copyText(txt);
+                  if (ok) toast.success(`${label} copiado!`);
+                };
+                return (
+                  <div className="space-y-1.5">
+                    <Button
+                      size="sm"
+                      className="w-full h-9 rounded-xl bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-500/20 transition-all active:scale-[0.98]"
+                      onClick={() => copy(vplayTestResult, 'Teste completo')}
+                    >
+                      <Copy className="h-3.5 w-3.5 mr-1.5" />
+                      Copiar tudo
+                    </Button>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <Button size="sm" variant="outline" className="h-8 text-[10px] px-1 rounded-xl border-violet-500/30 hover:bg-violet-500/10 hover:text-violet-600"
+                        onClick={() => copy(m3u, 'Lista M3U')}>
+                        Lista M3U
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-8 text-[10px] px-1 rounded-xl border-violet-500/30 hover:bg-violet-500/10 hover:text-violet-600"
+                        onClick={() => copy(hls || m3u, 'Link HLS')}>
+                        Link HLS
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-8 text-[10px] px-1 rounded-xl border-violet-500/30 hover:bg-violet-500/10 hover:text-violet-600"
+                        onClick={() => copy(user && pass ? `Usuário: ${user}\nSenha: ${pass}` : '', 'Usuário e senha')}>
+                        Usuário/Senha
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
         </div>
       )}
+
     </div>
   );
 }
