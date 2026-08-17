@@ -74,8 +74,28 @@ def try_solve_captcha(sb, attempts=4, force=False):
         return {"status": "not_detected"}
 
 
+    def widget_token(sb):
+        """Valor do input cf-turnstile-response (widget embutido em formulários)."""
+        try:
+            return sb.execute_script(
+                "const el=document.querySelector('[name=\"cf-turnstile-response\"]');"
+                "return el && el.value ? el.value : '';"
+            ) or ""
+        except Exception:
+            return ""
+
+    def solved(sb):
+        if force and widget_token(sb):
+            return True
+        if force:
+            return False
+        return not re.search(r"just a moment|verify you are human|cf-chl", _page(sb), re.I)
+
     last_error = ""
     for attempt in range(attempts):
+        if solved(sb):
+            return {"status": "solve_finished", "provider": "seleniumbase",
+                    "handler": "auto", "attempt": attempt + 1}
         for handler in ("uc_gui_click_captcha", "uc_gui_handle_captcha", "uc_gui_handle_cf"):
             fn = getattr(sb, handler, None)
             if not fn:
@@ -86,7 +106,7 @@ def try_solve_captcha(sb, attempts=4, force=False):
             except Exception as exc:
                 last_error = str(exc)
                 continue
-            if not re.search(r"just a moment|verify you are human|cf-chl", _page(sb), re.I):
+            if solved(sb):
                 return {"status": "solve_finished", "provider": "seleniumbase",
                         "handler": handler, "attempt": attempt + 1}
         # Recarrega em UC mode: às vezes o desafio só passa no segundo open.
@@ -95,7 +115,7 @@ def try_solve_captcha(sb, attempts=4, force=False):
             sb.sleep(3)
         except Exception as exc:
             last_error = str(exc)
-        if not re.search(r"just a moment|verify you are human|cf-chl", _page(sb), re.I):
+        if solved(sb):
             return {"status": "solve_finished", "provider": "seleniumbase",
                     "handler": "reconnect", "attempt": attempt + 1}
 
@@ -110,10 +130,12 @@ def browser_session(payload):
     steps = payload.get("steps") or []
     capture = payload.get("capture")
     wait_ms = int(payload.get("wait_ms") or 5000)
+    force_captcha = bool(payload.get("force_captcha"))
 
     with BROWSER_LOCK, new_sb() as sb:
         sb.uc_open_with_reconnect(url, reconnect_time=8)
-        captcha = try_solve_captcha(sb)
+        captcha = try_solve_captcha(sb, force=force_captcha)
+
 
         steps_log = []
         for step in steps:
