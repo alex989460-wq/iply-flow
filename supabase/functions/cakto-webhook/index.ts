@@ -1430,10 +1430,11 @@ serve(async (req) => {
             console.log(`[Cakto] 📌 ${allRemoved.length} cliente(s) filtrado(s) enviado(s) para revisão manual.`);
           } else {
             // Case: phone did not match ANY customer at all (wrong number)
+            const customerNameCakto = customer?.name || customer?.full_name || caktoData?.name || `(Telefone não cadastrado) ${phone}`;
             const { error: pmrErr } = await supabaseAdmin.from('pending_manual_renewals').insert({
               owner_id: pmrOwnerId,
               customer_id: null,
-              customer_name: `(Telefone não cadastrado) ${phone}`,
+              customer_name: customerNameCakto,
               customer_phone: phoneDigits,
               username: null,
               server_id: null,
@@ -1445,7 +1446,7 @@ serve(async (req) => {
               reason: 'phone_not_found',
               source: 'cakto',
               error_details: {
-                message: `⚠️ Pagamento Cakto recebido (R$ ${amountNumeric.toFixed(2)}) mas telefone não corresponde a nenhum cliente. Verifique se o número foi digitado errado.`,
+                message: `⚠️ Pagamento Cakto recebido de ${customerNameCakto} (R$ ${amountNumeric.toFixed(2)}) mas telefone não corresponde a nenhum cliente. Verifique se o número foi digitado errado.`,
                 payment_phone: phone,
                 searched_variants: [...searchVariants],
                 cakto_id: caktoId || null,
@@ -2189,7 +2190,8 @@ serve(async (req) => {
             title: (c.username || c.name).substring(0, 20),
           }));
 
-          const interactiveText = `⚠️ *Pagamento requer decisão*\n\n📞 Telefone: ${phoneDigits}\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n\n🧩 Motivo: *${conflictReason}*\n\n👥 *${conflictCustomers.length} clientes encontrados:*\n${customerList}\n\nIdentifique falhas, erros de lógica e bugs no código fornecido. Forneça a correção exata para cada problema encontrado, acompanhada de uma explicação clara sobre a causa raiz e a solução aplicada, garantindo que o código funcione perfeitamente e sem erros. veja por que nao renovou automatica e corrija para renovar os proximos , veja que ela pagou 60,00 que é o valor para duas telas\n\n👇 Escolha qual renovar:`;
+          const customerNameCakto = customer?.name || customer?.full_name || caktoData?.name || '-';
+          const interactiveText = `⚠️ *Pagamento de ${customerNameCakto} requer decisão*\n\n📞 Telefone: ${phoneDigits}\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n\n🧩 Motivo: *${conflictReason}*\n\n👥 *${conflictCustomers.length} clientes encontrados:*\n${customerList}\n\nIdentifique falhas, erros de lógica e bugs no código fornecido. Forneça a correção exata para cada problema encontrado, acompanhada de uma explicação clara sobre a causa raiz e a solução aplicada, garantindo que o código funcione perfeitamente e sem erros. veja por que nao renovou automatica e corrija para renovar os proximos , veja que ela pagou 60,00 que é o valor para duas telas\n\n👇 Escolha qual renovar:`;
 
           let buttonsSent = false;
           try {
@@ -2225,7 +2227,8 @@ serve(async (req) => {
               return `👤 *${c.name}* (${c.username || '-'})\n🔗 ${link}`;
             }).join('\n\n');
 
-            const adminMsg = `⚠️ *Atenção: Pagamento requer decisão manual*\n\n📞 Telefone: ${phoneDigits}\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n🧩 Motivo: *${conflictReason}*\n\n${customerLinks}\n\n👆 *Clique no link do cliente que deseja renovar*\n⏳ Pagamento registrado mas *NÃO confirmado*.`;
+            const customerNameCakto = customer?.name || customer?.full_name || caktoData?.name || '-';
+            const adminMsg = `⚠️ *Atenção: Pagamento de ${customerNameCakto} requer decisão manual*\n\n📞 Telefone: ${phoneDigits}\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n🧩 Motivo: *${conflictReason}*\n\n${customerLinks}\n\n👆 *Clique no link do cliente que deseja renovar*\n⏳ Pagamento registrado mas *NÃO confirmado*.`;
 
             await fetch(
               `${supabaseUrl}/functions/v1/crm-oficial-sync`,
