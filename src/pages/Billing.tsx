@@ -747,8 +747,12 @@ export default function Billing() {
   });
 
   const [sendingType, setSendingType] = useState<string | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [wasCancelled, setWasCancelled] = useState(false);
+  const cancelRef = useRef(false);
   const BATCH_SIZE = 6;
   const BATCH_DELAY_MS = 500; // short pause between batches
+
 
   const handleSendBillings = async (billingType?: BillingType, forceResend: boolean = false) => {
     if (!hasValidSession) {
