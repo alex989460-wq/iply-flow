@@ -1281,7 +1281,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
       {!isMobile && (
         <div className="p-4 border-b border-border/40 bg-background/20 space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/80 flex items-center gap-2">
               <RefreshCw className="h-3 w-3 text-primary animate-pulse-slow" />
               Renovação Rápida
             </h2>
@@ -1329,7 +1329,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
             </div>
           </div>
           <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground/80" />
             <Input
               placeholder="Telefone ou usuário..."
               value={searchTerm}
@@ -1369,7 +1369,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
         <div className="p-4 space-y-3">
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
+              <Search className="absolute left-3 top-3 h-5 w-5 text-muted-foreground/80" />
               <Input
                 placeholder="Buscar por telefone ou usuário..."
                 value={searchTerm}
@@ -1423,7 +1423,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
           {/* Search Results */}
           {!selectedCustomer && !showNewCustomerForm && (isSearching || (searchResults && searchResults.length > 0)) && (
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground mb-2">{isSearching ? 'Buscando...' : 'Resultados:'}</p>
+              <p className="text-xs text-muted-foreground/80 mb-2">{isSearching ? 'Buscando...' : 'Resultados:'}</p>
               {(searchResults ?? []).map((customer) => (
                 <Card
                   key={customer.id}
@@ -1434,7 +1434,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium truncate">{customer.name}</p>
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground/80">
                           <PhoneFlagBadge phone={customer.phone} size="xs" />
                           <span>{customer.phone}</span>
                           {customer.username && (
@@ -1446,11 +1446,11 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                         </div>
                         <div className="flex items-center gap-2 text-xs mt-0.5">
                           <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3 text-muted-foreground" />
+                            <Calendar className="h-3 w-3 text-muted-foreground/80" />
                             <span className={
                               customer.due_date && isCustomerOverdue(customer.due_date)
                                 ? 'text-destructive font-medium' 
-                                : 'text-muted-foreground'
+                                : 'text-muted-foreground/80'
                             }>
                               {formatDate(customer.due_date)}
                             </span>
@@ -1471,7 +1471,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
           {/* No results message */}
           {!selectedCustomer && !showNewCustomerForm && searchTerm.length >= 3 && !isSearching && searchResults?.length === 0 && (
             <div className="text-center py-4">
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground/80">
                 Nenhum cliente encontrado
               </p>
             </div>
@@ -1513,7 +1513,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                   </div>
                   
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Status:</span>
+                    <span className="text-muted-foreground/80">Status:</span>
                     <Select value={editedStatus} onValueChange={setEditedStatus}>
                       <SelectTrigger className="h-7 w-[130px] text-xs">
                         <SelectValue />
@@ -1530,7 +1530,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                   {/* Username & Password Grid */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground flex items-center gap-1">
+                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground/80 flex items-center gap-1">
                         <User className="h-3 w-3" />
                         Usuário(s):
                       </label>
@@ -1543,7 +1543,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     </div>
                     
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground flex items-center gap-1">
+                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground/80 flex items-center gap-1">
                         <Key className="h-3 w-3" />
                         Senha:
                       </label>
@@ -1553,7 +1553,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                         </span>
                         {selectedCustomer.password && (
                           <Copy 
-                            className="h-3 w-3 text-muted-foreground opacity-0 group-hover/pw:opacity-100 hover:text-primary cursor-pointer transition-all" 
+                            className="h-3 w-3 text-muted-foreground/80 opacity-0 group-hover/pw:opacity-100 hover:text-primary cursor-pointer transition-all" 
                             onClick={() => handleCopyMessage(selectedCustomer.password!)}
                           />
                         )}
@@ -1564,7 +1564,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                   {/* Grid for Selectors */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground">Telas:</label>
+                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground/80">Telas:</label>
                       <Select 
                         value={selectedScreens.toString()} 
                         onValueChange={(v) => setSelectedScreens(parseInt(v))}
@@ -1583,7 +1583,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     </div>
                     
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground flex items-center gap-1">
+                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground/80 flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
                         Vencimento:
                       </label>
@@ -1596,7 +1596,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground">Plano:</label>
+                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground/80">Plano:</label>
                       <Select 
                         value={selectedPlanId || ''} 
                         onValueChange={(v) => {
@@ -1623,7 +1623,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground flex items-center gap-1">
+                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground/80 flex items-center gap-1">
                         <Server className="h-3 w-3" />
                         Servidor:
                       </label>
@@ -1645,9 +1645,9 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                   {/* Editable Price & Save Row */}
                   <div className="flex items-end gap-3">
                     <div className="flex-1 space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground">Valor:</label>
+                      <label className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground/80">Valor:</label>
                       <div className="relative">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/80">R$</span>
                         <Input
                           type="number"
                           step="0.01"
@@ -1694,10 +1694,10 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                         </DialogTitle>
                       </DialogHeader>
                       <div className="space-y-3">
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-muted-foreground/80">
                           Você está prestes a excluir <strong className="text-foreground">{selectedCustomer.name}</strong>. Esta ação é permanente.
                         </p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-muted-foreground/80">
                           Para confirmar, digite <strong className="text-destructive">excluir</strong> abaixo:
                         </p>
                         <Input
@@ -1804,7 +1804,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                       </div>
                     </div>
                     {selectedCustomer.extra_months > 0 && (
-                      <p className="text-[10px] text-muted-foreground">
+                      <p className="text-[10px] text-muted-foreground/80">
                         Meses extras são abatidos automaticamente na próxima renovação e não disparam renovação no servidor.
                       </p>
                     )}
@@ -1924,7 +1924,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
 
           {/* Empty state */}
           {!selectedCustomer && searchTerm.length < 3 && (
-            <div className="text-center py-6 text-muted-foreground">
+            <div className="text-center py-6 text-muted-foreground/80">
               <Phone className="h-8 w-8 mx-auto mb-2 opacity-50" />
               <p className="text-sm">Digite telefone ou usuário para buscar</p>
             </div>
@@ -1933,7 +1933,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
           {/* Quick Messages Section - Compact Chip Design */}
           <Collapsible open={isLinksOpen} onOpenChange={setIsLinksOpen}>
             <div className="flex items-center justify-between px-2 py-1 bg-secondary/10 rounded-lg">
-              <CollapsibleTrigger className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:text-primary transition-colors group">
+              <CollapsibleTrigger className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 hover:text-primary transition-colors group">
                 <div className="p-1 rounded-md bg-primary/10 group-hover:bg-primary/20 transition-all">
                   {isLinksOpen ? <ChevronUp className="h-3 w-3 text-primary" /> : <ChevronDown className="h-3 w-3 text-primary" />}
                 </div>
@@ -1988,7 +1988,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
 
                     {/* Existing messages - drag to reorder */}
                     {quickMessages.length > 0 && (
-                      <p className="text-xs text-muted-foreground px-1">
+                      <p className="text-xs text-muted-foreground/80 px-1">
                         Arraste pelo ícone <GripVertical className="inline h-3 w-3" /> para reordenar as mensagens.
                       </p>
                     )}
@@ -2031,7 +2031,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                                         <div className="flex items-center gap-2">
                                           <button
                                             type="button"
-                                            className="cursor-grab active:cursor-grabbing touch-none p-1 -ml-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                                            className="cursor-grab active:cursor-grabbing touch-none p-1 -ml-1 rounded hover:bg-muted text-muted-foreground/80 hover:text-foreground"
                                             aria-label="Arrastar para reordenar"
                                             {...listeners}
                                             {...attributes}
@@ -2043,7 +2043,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                                         </div>
                                         <Badge variant="secondary" className="text-xs">{msg.category}</Badge>
                                       </div>
-                                      <p className="text-xs text-muted-foreground line-clamp-2">{msg.content}</p>
+                                      <p className="text-xs text-muted-foreground/80 line-clamp-2">{msg.content}</p>
                                       <div className="flex gap-2">
                                         <Button size="sm" variant="outline" onClick={() => setEditingMessage(msg)}>
                                           Editar
@@ -2100,7 +2100,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                           {msg.title}
                         </span>
                         <Copy
-                          className="flex-shrink-0 h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary transition-opacity"
+                          className="flex-shrink-0 h-2.5 w-2.5 text-muted-foreground/80 opacity-0 group-hover:opacity-100 hover:text-primary transition-opacity"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleCopyMessage(msg.content);
@@ -2112,8 +2112,8 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                 </div>
               ) : (
                 <div className="text-center py-4 bg-muted/20 rounded-md border border-dashed border-border">
-                  <MessageSquare className="h-6 w-6 mx-auto text-muted-foreground/50 mb-1" />
-                  <p className="text-[10px] text-muted-foreground">Nenhuma mensagem</p>
+                  <MessageSquare className="h-6 w-6 mx-auto text-muted-foreground/80/50 mb-1" />
+                  <p className="text-[10px] text-muted-foreground/80">Nenhuma mensagem</p>
                   <Button
                     variant="link"
                     size="sm"
@@ -2137,7 +2137,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                           </div>
                           <div className="min-w-0">
                             <p className="text-xs font-semibold text-foreground truncate leading-tight">{selectedQuickMessage.title}</p>
-                            <p className="text-[9px] text-muted-foreground leading-tight">{selectedQuickMessage.category}</p>
+                            <p className="text-[9px] text-muted-foreground/80 leading-tight">{selectedQuickMessage.category}</p>
                           </div>
                         </div>
                         <Button
@@ -2168,7 +2168,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
               </div>
               <div className="flex-1">
                 <h3 className="text-sm font-semibold text-violet-600 dark:text-violet-400">Gerar Teste</h3>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-[10px] text-muted-foreground/80">
                   {vplayServers.length > 0 ? `${vplayServers.length} servidor${vplayServers.length > 1 ? 'es' : ''} configurado${vplayServers.length > 1 ? 's' : ''}` : 'Nenhum servidor'}
                 </p>
               </div>
@@ -2252,7 +2252,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                className="h-6 w-6 text-muted-foreground/80 hover:text-foreground"
                 onClick={() => setVplayTestResult(null)}
               >
                 <X className="h-4 w-4" />
