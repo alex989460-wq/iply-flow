@@ -798,10 +798,12 @@ export default function Billing() {
       }
 
       const customers = startData.customers || [];
-      let skippedCount = startData.skipped || 0;
+      const initialSkipped = startData.skipped || 0;
+      let skippedCount = initialSkipped;
       const totalToProcess = customers.length;
+      const TOTAL = totalToProcess + initialSkipped;
 
-      setProgressStats({ sent: 0, errors: 0, skipped: skippedCount, total: totalToProcess + skippedCount });
+      setProgressStats({ sent: 0, errors: 0, skipped: skippedCount, total: TOTAL });
 
       if (totalToProcess === 0) {
         toast({
@@ -828,7 +830,7 @@ export default function Billing() {
             sent: totalSent,
             errors: totalErrors,
             skipped: skippedCount,
-            total: totalToProcess + startData.skipped,
+            total: TOTAL,
           });
           toast({ title: 'Envio cancelado', description: `${remaining} cobranças não foram enviadas.` });
           break;
@@ -925,7 +927,7 @@ export default function Billing() {
           sent: totalSent,
           errors: totalErrors,
           skipped: skippedCount,
-          total: totalToProcess + skippedCount,
+          total: TOTAL,
         });
 
         // Delay between batches (except for the last one)
