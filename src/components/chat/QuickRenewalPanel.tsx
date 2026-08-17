@@ -1422,41 +1422,44 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
 
           {/* Search Results */}
           {!selectedCustomer && !showNewCustomerForm && (isSearching || (searchResults && searchResults.length > 0)) && (
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground/80 mb-2">{isSearching ? 'Buscando...' : 'Resultados:'}</p>
+            <div className="space-y-2">
+              <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground/60 mb-2 flex items-center gap-2">
+                <Search className="h-3 w-3" />
+                {isSearching ? 'Buscando...' : `Resultados (${searchResults?.length || 0})`}
+              </p>
               {(searchResults ?? []).map((customer) => (
                 <Card
                   key={customer.id}
-                  className="cursor-pointer hover:bg-accent/50 transition-colors"
+                  className="cursor-pointer border-border/20 bg-background/40 backdrop-blur-2xl hover:bg-background/60 hover:border-primary/30 hover:shadow-lg transition-all duration-300 rounded-2xl overflow-hidden group/card"
                   onClick={() => handleSelectCustomer(customer)}
                 >
-                  <CardContent className="p-2">
+                  <CardContent className="p-3 relative z-10">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{customer.name}</p>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <p className="text-sm font-bold truncate group-hover/card:text-primary transition-colors">{customer.name}</p>
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground/80">
                           <PhoneFlagBadge phone={customer.phone} size="xs" />
                           <span>{customer.phone}</span>
                           {customer.username && (
                             <>
-                              <span>•</span>
-                              <span className="font-mono">{customer.username}</span>
+                              <span className="text-muted-foreground/40">•</span>
+                              <span className="font-mono text-[10px]">{customer.username}</span>
                             </>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 text-xs mt-0.5">
+                        <div className="flex items-center gap-2 text-xs">
                           <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3 text-muted-foreground/80" />
+                            <Calendar className="h-3 w-3 text-muted-foreground/60" />
                             <span className={
                               customer.due_date && isCustomerOverdue(customer.due_date)
-                                ? 'text-destructive font-medium' 
+                                ? 'text-destructive font-bold' 
                                 : 'text-muted-foreground/80'
                             }>
                               {formatDate(customer.due_date)}
                             </span>
                           </div>
                           {customer.server && (
-                            <span className="text-blue-400 font-medium">{customer.server.server_name}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-primary/10 text-primary font-medium">{customer.server.server_name}</span>
                           )}
                         </div>
                       </div>
@@ -1467,6 +1470,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
               ))}
             </div>
           )}
+
 
           {/* No results message */}
           {!selectedCustomer && !showNewCustomerForm && searchTerm.length >= 3 && !isSearching && searchResults?.length === 0 && (
