@@ -604,7 +604,7 @@ Deno.serve(async (req) => {
       }
 
       const months = Math.max(1, Number(body?.months || 1));
-      const result = await renewClient(base, login.token!, clientId, months);
+      const result = await renewClient(base, loginToken, clientId, months);
       return json({
         success: result.ok,
         client_id: clientId,
