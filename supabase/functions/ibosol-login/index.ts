@@ -46,46 +46,74 @@ export async function ibosolBrowserLogin(email: string, password: string) {
     );
   }
 
+  // O agente abre a página de login (o Cloudflare/Turnstile gera o captcha_token
+  // dentro dela) e, de dentro do navegador, chama a API de login com esse token.
+  const js = `
+    const done = arguments[arguments.length - 1];
+    (async () => {
+      const t0 = Date.now();
+      const read = () => {
+        const el = document.querySelector('[name="cf-turnstile-response"], #captcha_token');
+        return el && el.value ? el.value : "";
+      };
+      let tok = "";
+      while (!tok && Date.now() - t0 < 90000) {
+        tok = read();
+        if (!tok) await new Promise((r) => setTimeout(r, 1000));
+      }
+      if (!tok) return done({ error: "turnstile_vazio" });
+      try {
+        const r = await fetch("https://backend-apis.ibosol.com/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({
+            email: ${JSON.stringify(email)},
+            password: ${JSON.stringify(password)},
+            captcha_token: tok,
+          }),
+        });
+        const body = await r.text();
+        done({ status: r.status, body: body.slice(0, 4000) });
+      } catch (e) {
+        done({ error: String(e) });
+      }
+    })();
+  `;
+
   const res = await fetch(base + "/", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-sigma-proxy-secret": secret },
-    body: JSON.stringify({
-      browser: true,
-      url: LOGIN_URL,
-      wait_ms: 9000,
-      steps: [
-        { selector: "#email", value: email },
-        { selector: "#password", value: password },
-        { selector: "button[type='submit']", click: true, wait_ms: 9000 },
-      ],
-    }),
+    body: JSON.stringify({ browser: true, url: LOGIN_URL, wait_ms: 3000, js }),
   });
 
   const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`Agente respondeu HTTP ${res.status}: ${text.slice(0, 200)}`);
-  }
+  if (!res.ok) throw new Error(`Agente respondeu HTTP ${res.status}: ${text.slice(0, 200)}`);
 
   let data: any;
   try { data = JSON.parse(text); } catch { throw new Error("Resposta inválida do agente de navegador."); }
 
-  const token = extractToken(data.storage || {});
-  if (token) return { token, final_url: data.final_url, captcha: data.captcha };
-
-  const captcha = data.captcha || {};
-  if (captcha.status && !["not_detected", "solve_finished"].includes(captcha.status)) {
+  const r = data.js_result;
+  if (!r) {
     throw new Error(
-      `O Cloudflare bloqueou o login automático (${captcha.message || captcha.status}). Tente novamente em alguns minutos ou cole o token manualmente.`,
+      "O agente da VPS está desatualizado (sem suporte a JS). Atualize o script seleniumbase_agent.py para a versão 1.3.0.",
     );
   }
-
-  const html = String(data.html || "").toLowerCase();
-  if (html.includes("invalid credentials") || html.includes("credenciais") || html.includes("unauthorized")) {
-    throw new Error("E-mail ou senha do IBO Sol incorretos.");
+  if (r.error === "turnstile_vazio") {
+    throw new Error("O Cloudflare não liberou o captcha do IBO Sol. Tente novamente em alguns minutos.");
   }
+  if (r.error) throw new Error(`Falha no login automático: ${r.error}`);
 
+  let payload: any = {};
+  try { payload = JSON.parse(r.body || "{}"); } catch { /* resposta não-JSON */ }
+
+  const token: string | undefined =
+    payload?.data?.token || payload?.token || payload?.data?.access_token;
+  if (token) return { token: String(token), final_url: data.final_url, captcha: data.captcha };
+
+  const msg = payload?.msg || payload?.message ||
+    (r.status === 401 || r.status === 422 ? "E-mail ou senha do IBO Sol incorretos." : "");
   throw new Error(
-    "O login foi enviado, mas o token não apareceu no painel. Confira e-mail/senha e tente de novo — se persistir, cole o token manualmente.",
+    msg || `O IBO Sol respondeu HTTP ${r.status} sem token. Cole o token manualmente se persistir.`,
   );
 }
 
