@@ -324,35 +324,48 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-2">
-                        <Label className="text-[10px] uppercase font-bold text-muted-foreground/70 ml-1">Usuário</Label>
+                        <div className="flex items-center justify-between px-1">
+                          <Label className="text-[10px] uppercase font-black tracking-widest text-muted-foreground/60">Usuário</Label>
+                          {editedUsername && (
+                             <Copy 
+                               className="h-3 w-3 text-muted-foreground/40 hover:text-primary cursor-pointer transition-colors" 
+                               onClick={() => {
+                                 navigator.clipboard.writeText(editedUsername);
+                                 toast.success('Usuário copiado!');
+                               }}
+                             />
+                          )}
+                        </div>
                         <div className="relative group">
-                          <User className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                          <User className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/60 group-focus-within:text-primary transition-colors" />
                           <Input
                             value={editedUsername}
                             onChange={(e) => setEditedUsername(e.target.value)}
-                            className="pl-9 bg-background/50 border-border/50 focus:border-primary/50 focus:ring-primary/20 transition-all h-9 text-sm rounded-lg"
+                            className="pl-9 bg-background/50 border-border/50 focus:border-primary/50 transition-all h-10 text-sm rounded-xl font-mono shadow-sm"
                             placeholder="user1, user2"
                           />
                         </div>
                       </div>
                       
                       <div className="space-y-2">
-                        <Label className="text-[10px] uppercase font-bold text-muted-foreground/70 ml-1">Senha</Label>
+                        <div className="flex items-center justify-between px-1">
+                          <Label className="text-[10px] uppercase font-black tracking-widest text-muted-foreground/60">Senha</Label>
+                          {selectedCustomer.password && (
+                             <Copy 
+                               className="h-3 w-3 text-muted-foreground/40 hover:text-primary cursor-pointer transition-colors" 
+                               onClick={() => {
+                                 navigator.clipboard.writeText(selectedCustomer.password!);
+                                 toast.success('Senha copiada!');
+                               }}
+                             />
+                          )}
+                        </div>
                         <div className="relative group">
-                          <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                          <div className="pl-9 pr-3 bg-background/30 border border-border/30 h-9 text-sm rounded-lg flex items-center justify-between group/pw">
-                            <span className="font-mono text-xs truncate">
+                          <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/60 group-focus-within:text-primary transition-colors" />
+                          <div className="pl-9 pr-3 bg-background/20 border border-border/50 h-10 text-sm rounded-xl flex items-center justify-between group/pw shadow-sm">
+                            <span className="font-mono text-xs truncate font-bold text-foreground/80">
                               {selectedCustomer.password || '—'}
                             </span>
-                            {selectedCustomer.password && (
-                              <Copy 
-                                className="h-3 w-3 text-muted-foreground opacity-0 group-hover/pw:opacity-100 hover:text-primary cursor-pointer transition-all" 
-                                onClick={() => {
-                                  navigator.clipboard.writeText(selectedCustomer.password!);
-                                  toast.success('Senha copiada!');
-                                }}
-                              />
-                            )}
                           </div>
                         </div>
                       </div>
@@ -360,20 +373,20 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
 
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-2">
-                        <Label className="text-[10px] uppercase font-bold text-muted-foreground/70 ml-1">Telas</Label>
+                        <Label className="text-[10px] uppercase font-black tracking-widest text-muted-foreground/60 px-1">Telas</Label>
                         <Select 
                           value={selectedScreens.toString()} 
                           onValueChange={(v) => setSelectedScreens(parseInt(v))}
                         >
-                          <SelectTrigger className="bg-background/50 border-border/50 h-9 text-sm rounded-lg">
+                          <SelectTrigger className="bg-background/50 border-border/50 h-10 text-sm rounded-xl shadow-sm hover:border-primary/30 transition-colors">
                             <div className="flex items-center gap-2">
-                              <Monitor className="h-3.5 w-3.5 text-muted-foreground" />
+                              <Monitor className="h-4 w-4 text-primary/60" />
                               <SelectValue />
                             </div>
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="rounded-xl border-border/50 backdrop-blur-xl">
                             {[1, 2, 3, 4, 5].map((num) => (
-                              <SelectItem key={num} value={num.toString()}>
+                              <SelectItem key={num} value={num.toString()} className="rounded-lg">
                                 {num} {num === 1 ? 'tela' : 'telas'}
                               </SelectItem>
                             ))}
@@ -382,16 +395,16 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
                       </div>
                       
                       <div className="space-y-2">
-                        <Label className="text-[10px] uppercase font-bold text-muted-foreground/70 ml-1">Vencimento</Label>
+                        <Label className="text-[10px] uppercase font-black tracking-widest text-muted-foreground/60 px-1">Vencimento</Label>
                         <div className="relative group">
-                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary/60 group-focus-within:text-primary transition-colors" />
                           <Input
                             type="date"
                             value={editedDueDate}
                             onChange={(e) => setEditedDueDate(e.target.value)}
                             className={cn(
-                              "pl-9 bg-background/50 border-border/50 focus:border-primary/50 focus:ring-primary/20 transition-all h-9 text-sm rounded-lg",
-                              isCustomerOverdue(editedDueDate) ? 'text-destructive font-bold' : ''
+                              "pl-9 bg-background/50 border-border/50 focus:border-primary/50 transition-all h-10 text-sm rounded-xl shadow-sm",
+                              isCustomerOverdue(editedDueDate) ? 'text-destructive font-black' : 'font-bold'
                             )}
                           />
                         </div>
