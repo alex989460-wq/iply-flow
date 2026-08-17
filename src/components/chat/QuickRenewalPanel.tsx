@@ -1779,6 +1779,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                           <span className="text-xs font-bold">Plano Vencido</span>
                         </div>
                         <Button
+                          variant="outline"
                           className="w-full h-9 rounded-xl text-xs font-semibold bg-gradient-to-r from-destructive/20 to-destructive/10 hover:from-destructive/30 hover:to-destructive/20 border border-destructive/30 text-destructive transition-all active:scale-[0.98]"
                           onClick={handleCopyOverdueMessage}
                         >
