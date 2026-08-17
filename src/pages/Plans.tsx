@@ -283,13 +283,13 @@ export default function Plans() {
             { icon: CreditCard, label: 'Mínimo', value: money(stats.min), color: 'text-amber-500' },
           ].map((s) => (
             <Card key={s.label} className="bg-card/40 backdrop-blur-md border-border/50 p-4 rounded-2xl hover:bg-card/60 transition-all group overflow-hidden relative">
-              <div className="relative flex items-center gap-4">
+              <div className="relative flex items-center gap-3 sm:gap-4">
                 <div className={cn("w-10 h-10 rounded-xl bg-background/50 border border-border/50 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-110 transition-transform", s.color)}>
                   <s.icon className="w-5 h-5" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">{s.label}</p>
-                  <p className="text-xl font-black text-foreground">{s.value}</p>
+                  <p className="text-base sm:text-xl font-black text-foreground truncate">{s.value}</p>
                 </div>
               </div>
             </Card>
