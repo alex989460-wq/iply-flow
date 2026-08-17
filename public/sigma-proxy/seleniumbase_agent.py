@@ -59,33 +59,49 @@ def new_sb():
               incognito=False, page_load_strategy="eager")
 
 
-def try_solve_captcha(sb):
-    """Tenta passar pelo Cloudflare/Turnstile. Retorna o status para o SuperGestor."""
-    html = ""
+def _page(sb, limit=4000):
     try:
-        html = sb.get_page_source()[:4000]
+        return sb.get_page_source()[:limit]
     except Exception:
-        pass
+        return ""
+
+
+def try_solve_captcha(sb, attempts=4):
+    """Tenta passar pelo Cloudflare/Turnstile. Retorna o status para o SuperGestor."""
     marks = r"just a moment|cf-chl|challenge-platform|cf-turnstile|g-recaptcha|h-captcha|verify you are human"
+    html = _page(sb)
     if not re.search(marks, html, re.I):
         return {"status": "not_detected"}
-    try:
-        sb.uc_gui_click_captcha()  # clica no checkbox / turnstile como humano
-        sb.sleep(3)
-    except Exception as exc:
+
+    last_error = ""
+    for attempt in range(attempts):
+        for handler in ("uc_gui_click_captcha", "uc_gui_handle_captcha", "uc_gui_handle_cf"):
+            fn = getattr(sb, handler, None)
+            if not fn:
+                continue
+            try:
+                fn()
+                sb.sleep(4)
+            except Exception as exc:
+                last_error = str(exc)
+                continue
+            if not re.search(r"just a moment|verify you are human|cf-chl", _page(sb), re.I):
+                return {"status": "solve_finished", "provider": "seleniumbase",
+                        "handler": handler, "attempt": attempt + 1}
+        # Recarrega em UC mode: às vezes o desafio só passa no segundo open.
         try:
-            sb.uc_gui_handle_captcha()
+            sb.uc_open_with_reconnect(sb.get_current_url(), reconnect_time=6)
             sb.sleep(3)
-        except Exception:
-            return {"status": "failed", "provider": "seleniumbase", "message": str(exc)}
-    try:
-        html2 = sb.get_page_source()[:4000]
-    except Exception:
-        html2 = ""
-    if re.search(r"just a moment|verify you are human", html2, re.I):
-        return {"status": "failed", "provider": "seleniumbase",
-                "message": "O desafio continuou na tela após o clique automático."}
-    return {"status": "solve_finished", "provider": "seleniumbase"}
+        except Exception as exc:
+            last_error = str(exc)
+        if not re.search(r"just a moment|verify you are human|cf-chl", _page(sb), re.I):
+            return {"status": "solve_finished", "provider": "seleniumbase",
+                    "handler": "reconnect", "attempt": attempt + 1}
+
+    return {"status": "failed", "provider": "seleniumbase",
+            "message": "O desafio do Cloudflare continuou na tela após várias tentativas."
+                       + (f" Último erro: {last_error}" if last_error else "")}
+
 
 
 def browser_session(payload):
@@ -95,7 +111,7 @@ def browser_session(payload):
     wait_ms = int(payload.get("wait_ms") or 5000)
 
     with BROWSER_LOCK, new_sb() as sb:
-        sb.uc_open_with_reconnect(url, reconnect_time=4)
+        sb.uc_open_with_reconnect(url, reconnect_time=8)
         captcha = try_solve_captcha(sb)
 
         steps_log = []
@@ -193,7 +209,7 @@ def relay_fetch(payload):
     origin = origin.group(0) if origin else url
 
     with BROWSER_LOCK, new_sb() as sb:
-        sb.uc_open_with_reconnect(origin, reconnect_time=4)
+        sb.uc_open_with_reconnect(origin, reconnect_time=8)
         try_solve_captcha(sb)
         script = (
             "const done = arguments[arguments.length-1];"
@@ -243,7 +259,7 @@ class Handler(BaseHTTPRequestHandler):
             except BaseException as exc:  # SeleniumBase pode chamar sys.exit()
                 return self._send(502, {"ok": False, "browser": "falhou",
                                         "error": f"{type(exc).__name__}: {exc}"})
-        self._send(200, {"ok": True, "engine": "seleniumbase", "version": "1.1.0"})
+        self._send(200, {"ok": True, "engine": "seleniumbase", "version": "1.2.0"})
 
     def do_POST(self):
         if self.headers.get("x-sigma-proxy-secret", "") != SECRET:
