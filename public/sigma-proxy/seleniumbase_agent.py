@@ -59,19 +59,20 @@ def new_sb():
               incognito=False, page_load_strategy="eager")
 
 
-def _page(sb, limit=4000):
+def _page(sb, limit=200000):
     try:
         return sb.get_page_source()[:limit]
     except Exception:
         return ""
 
 
-def try_solve_captcha(sb, attempts=4):
+def try_solve_captcha(sb, attempts=4, force=False):
     """Tenta passar pelo Cloudflare/Turnstile. Retorna o status para o SuperGestor."""
     marks = r"just a moment|cf-chl|challenge-platform|cf-turnstile|g-recaptcha|h-captcha|verify you are human"
     html = _page(sb)
-    if not re.search(marks, html, re.I):
+    if not force and not re.search(marks, html, re.I):
         return {"status": "not_detected"}
+
 
     last_error = ""
     for attempt in range(attempts):
