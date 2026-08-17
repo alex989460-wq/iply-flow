@@ -3668,6 +3668,28 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
       <KnowledgeBaseDialog open={showKbDialog} onOpenChange={setShowKbDialog} />
     </>
   );
-  return embed ? __content : <DashboardLayout noPadding>{__content}</DashboardLayout>;
+  return embed ? (
+    <EvolutionLayout 
+      sidebar={null} 
+      panelCollapsed={panelCollapsed} 
+      setPanelCollapsed={setPanelCollapsed} 
+      showRenewalPanel={showRenewalPanel}
+      selectedPhone={selectedPhone}
+    >
+      {__content}
+    </EvolutionLayout>
+  ) : (
+    <DashboardLayout noPadding>
+      <EvolutionLayout 
+        sidebar={null} 
+        panelCollapsed={panelCollapsed} 
+        setPanelCollapsed={setPanelCollapsed} 
+        showRenewalPanel={showRenewalPanel}
+        selectedPhone={selectedPhone}
+      >
+        {__content}
+      </EvolutionLayout>
+    </DashboardLayout>
+  );
 }
 
