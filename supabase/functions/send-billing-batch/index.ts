@@ -740,7 +740,8 @@ Deno.serve(async (req) => {
     if (action === 'start') {
       const filterBillingType = body?.billing_type || null;
       const forceResend = body?.force === true; // Force resend bypasses duplicate check
-      console.log('[Billing Batch] Starting - filter:', filterBillingType, 'force:', forceResend);
+      const onlyErrors = body?.only_errors === true;
+      console.log('[Billing Batch] Starting - filter:', filterBillingType, 'force:', forceResend, 'onlyErrors:', onlyErrors);
 
       // Fetch customers
       let customerQuery = supabase
@@ -768,30 +769,40 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Pre-fetch billing logs for today (skip if force resend)
+      // Pre-fetch billing logs for today
       let sentByCustomerAndType = new Set<string>();
       let sentByPhoneAndType = new Set<string>();
+      let errorByCustomerAndType = new Set<string>();
 
-      if (!forceResend) {
-        const { data: existingLogs } = await supabase
-          .from('billing_logs')
-          .select('customer_id, billing_type, message, whatsapp_status')
-          .gte('sent_at', `${today}T00:00:00`)
-          .lte('sent_at', `${today}T23:59:59`);
+      const { data: existingLogs } = await supabase
+        .from('billing_logs')
+        .select('customer_id, billing_type, message, whatsapp_status')
+        .gte('sent_at', `${today}T00:00:00`)
+        .lte('sent_at', `${today}T23:59:59`);
 
-        // Build sets for deduplication
-        for (const log of existingLogs || []) {
-          if (log.whatsapp_status !== 'sent') continue;
+      // Build sets for deduplication and error tracking
+      for (const log of existingLogs || []) {
+        if (log.whatsapp_status === 'sent') {
           sentByCustomerAndType.add(`${log.customer_id}:${log.billing_type}`);
           const phoneMatch = log.message?.match(/\[(\d+)\]/);
           if (phoneMatch) {
             const normalizedLogPhone = normalizePhone(phoneMatch[1]);
             sentByPhoneAndType.add(`${normalizedLogPhone}:${log.billing_type}`);
           }
+        } else if (log.whatsapp_status === 'error') {
+          errorByCustomerAndType.add(`${log.customer_id}:${log.billing_type}`);
         }
-        console.log(`[Billing Batch] Found ${sentByCustomerAndType.size} existing logs to skip`);
+      }
+
+      if (forceResend) {
+        console.log('[Billing Batch] FORCE RESEND enabled - ignoring existing logs for total reset');
+        sentByCustomerAndType.clear();
+        sentByPhoneAndType.clear();
+        errorByCustomerAndType.clear();
+      } else if (onlyErrors) {
+        console.log('[Billing Batch] ONLY ERRORS enabled - filtering for failed attempts today');
       } else {
-        console.log('[Billing Batch] FORCE RESEND enabled - ignoring existing logs');
+        console.log(`[Billing Batch] Normal mode: skipping ${sentByCustomerAndType.size} successful logs`);
       }
 
       // Filter customers
@@ -811,15 +822,24 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Skip duplicate check only if NOT force resend
+        // Logic for skipping or including customers
         if (!forceResend) {
-          if (sentByCustomerAndType.has(`${customer.id}:${billingType}`)) {
+          // If in "only errors" mode, we only want customers who ARE in errorByCustomerAndType
+          if (onlyErrors) {
+            if (!errorByCustomerAndType.has(`${customer.id}:${billingType}`)) {
+              skippedCount++;
+              continue;
+            }
+          } 
+          // Otherwise (normal mode), we skip those who have already been sent successfully
+          else if (sentByCustomerAndType.has(`${customer.id}:${billingType}`)) {
             skippedCount++;
             continue;
           }
 
           const normalizedPhone = normalizePhone(customer.phone);
-          if (sentByPhoneAndType.has(`${normalizedPhone}:${billingType}`)) {
+          // Also skip by phone to avoid double spending on multi-screen accounts
+          if (!onlyErrors && sentByPhoneAndType.has(`${normalizedPhone}:${billingType}`)) {
             skippedCount++;
             continue;
           }
