@@ -5,7 +5,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -28,10 +28,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useToast } from '@/hooks/use-toast';
-import { Plus, Loader2, CreditCard, Pencil, Trash2, Bot, Search, ChevronLeft, ChevronRight, Wallet, CalendarDays, TrendingUp, Server } from 'lucide-react';
+import { toast } from 'sonner';
+import { 
+  Plus, Loader2, CreditCard, Pencil, Trash2, Search, Wallet, 
+  CalendarDays, TrendingUp, Server, Filter, Download
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { Database } from '@/integrations/supabase/types';
+import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
 
 type PaymentMethod = Database['public']['Enums']['payment_method'];
 
@@ -45,7 +50,6 @@ export default function Payments() {
     payment_date: new Date().toISOString().split('T')[0],
   });
 
-  // Filters & pagination
   const [search, setSearch] = useState('');
   const deferredSearch = useDeferredValue(search);
   const [methodFilter, setMethodFilter] = useState<string>('all');
@@ -55,12 +59,10 @@ export default function Payments() {
   const [currentPage, setCurrentPage] = useState<number>(1);
 
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   const { data: payments, isLoading } = useQuery({
     queryKey: ['payments'],
     queryFn: async () => {
-      // Paginated fetch to bypass 1000-row Supabase limit
       const pageSizeFetch = 1000;
       let from = 0;
       const all: any[] = [];
@@ -105,46 +107,24 @@ export default function Payments() {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       setIsOpen(false);
       resetForm();
-      toast({ title: 'Pagamento registrado com sucesso!' });
+      toast.success('Pagamento registrado!');
     },
     onError: (error: Error) => {
-      toast({ title: 'Erro ao registrar pagamento', description: error.message, variant: 'destructive' });
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
-      const { error } = await supabase
-        .from('payments')
-        .update(data)
-        .eq('id', id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['payments'] });
-      setIsOpen(false);
-      resetForm();
-      toast({ title: 'Pagamento atualizado com sucesso!' });
-    },
-    onError: (error: Error) => {
-      toast({ title: 'Erro ao atualizar pagamento', description: error.message, variant: 'destructive' });
+      toast.error('Erro ao registrar: ' + error.message);
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('payments')
-        .delete()
-        .eq('id', id);
+      const { error } = await supabase.from('payments').delete().eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payments'] });
-      toast({ title: 'Pagamento excluído com sucesso!' });
+      toast.success('Pagamento removido!');
     },
     onError: (error: Error) => {
-      toast({ title: 'Erro ao excluir pagamento', description: error.message, variant: 'destructive' });
+      toast.error('Erro ao excluir: ' + error.message);
     },
   });
 
@@ -158,44 +138,7 @@ export default function Payments() {
     setEditingPayment(null);
   };
 
-  const handleCustomerChange = (customerId: string) => {
-    const customer = customers?.find(c => c.id === customerId);
-    setFormData({
-      ...formData,
-      customer_id: customerId,
-      amount: customer?.plans?.price ? Number(customer.plans.price) : 0,
-    });
-  };
-
-  const handleEdit = (payment: any) => {
-    setEditingPayment(payment);
-    setFormData({
-      customer_id: payment.customer_id,
-      amount: payment.amount,
-      method: payment.method,
-      payment_date: payment.payment_date,
-    });
-    setIsOpen(true);
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editingPayment) {
-      updateMutation.mutate({ id: editingPayment.id, data: formData });
-    } else {
-      createMutation.mutate(formData);
-    }
-  };
-
-  const getMethodLabel = (method: PaymentMethod) => {
-    const labels: Record<string, string> = {
-      pix: 'PIX',
-      dinheiro: 'Dinheiro',
-      transferencia: 'Transferência',
-      cartao_credito: 'Cartão de Crédito',
-    };
-    return labels[method] || method;
-  };
+  const money = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
   const getSourceKey = (src: string) => {
     if (src.startsWith('cakto')) return 'cakto';
@@ -204,18 +147,8 @@ export default function Payments() {
     return 'manual';
   };
 
-  const getServerName = (p: any) => p?.customers?.servers?.server_name || '';
+  const getServerName = (p: any) => p?.customers?.servers?.server_name || 'Sem servidor';
 
-  const serverOptions = useMemo(() => {
-    const set = new Set<string>();
-    (payments || []).forEach((p: any) => {
-      const n = getServerName(p);
-      if (n) set.add(n);
-    });
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [payments]);
-
-  // Filter
   const filteredPayments = useMemo(() => {
     if (!payments) return [];
     const term = deferredSearch.trim().toLowerCase();
@@ -227,7 +160,7 @@ export default function Payments() {
       }
       if (serverFilter !== 'all') {
         const srvName = getServerName(p);
-        if (serverFilter === '__none__' ? !!srvName : srvName !== serverFilter) return false;
+        if (serverFilter === '__none__' ? srvName !== 'Sem servidor' : srvName !== serverFilter) return false;
       }
       if (term) {
         const name = (p.customers?.name || '').toLowerCase();
@@ -240,391 +173,245 @@ export default function Payments() {
     });
   }, [payments, deferredSearch, methodFilter, sourceFilter, serverFilter]);
 
-  const totalFiltered = filteredPayments.length;
-  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
-  const safePage = Math.min(currentPage, totalPages);
-  const startIdx = (safePage - 1) * pageSize;
-  const pagePayments = filteredPayments.slice(startIdx, startIdx + pageSize);
-
-  // Resumo dos pagamentos filtrados
   const summary = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0];
     const monthStr = todayStr.slice(0, 7);
-    let total = 0, month = 0, today = 0, monthCount = 0;
+    let total = 0, month = 0, today = 0;
     const byServer = new Map<string, number>();
     for (const p of filteredPayments as any[]) {
       const amt = Number(p.amount) || 0;
       total += amt;
       const d = String(p.payment_date || '');
-      if (d.startsWith(monthStr)) { month += amt; monthCount++; }
+      if (d.startsWith(monthStr)) month += amt;
       if (d === todayStr) today += amt;
-      const srv = getServerName(p) || 'Sem servidor';
+      const srv = getServerName(p);
       byServer.set(srv, (byServer.get(srv) || 0) + amt);
     }
     const topServers = Array.from(byServer.entries()).sort((a, b) => b[1] - a[1]).slice(0, 4);
-    return { total, month, today, monthCount, count: filteredPayments.length, topServers };
+    return { total, month, today, count: filteredPayments.length, topServers };
   }, [filteredPayments]);
 
-  const money = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
-
-  const handleSearchChange = (v: string) => { setSearch(v); setCurrentPage(1); };
-  const handleMethodChange = (v: string) => { setMethodFilter(v); setCurrentPage(1); };
-  const handleSourceChange = (v: string) => { setSourceFilter(v); setCurrentPage(1); };
-  const handleServerChange = (v: string) => { setServerFilter(v); setCurrentPage(1); };
+  const serverOptions = useMemo(() => {
+    const set = new Set<string>();
+    (payments || []).forEach((p: any) => {
+      const n = p?.customers?.servers?.server_name;
+      if (n) set.add(n);
+    });
+    return Array.from(set).sort();
+  }, [payments]);
 
   return (
     <DashboardLayout>
-      <div className="space-y-4 sm:space-y-5 animate-fade-in">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-              <CreditCard className="w-5 h-5 text-primary" />
+      <div className="space-y-6 animate-fade-in max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        {/* Modern Header */}
+        <div className="relative overflow-hidden rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl p-6 shadow-2xl">
+          <div className="pointer-events-none absolute -top-24 -right-16 w-64 h-64 rounded-full bg-emerald-500/10 blur-3xl" />
+          <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center shadow-lg shadow-emerald-500/10">
+                <Wallet className="w-7 h-7 text-emerald-500" />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">Pagamentos</h1>
+                <p className="text-muted-foreground text-sm font-medium">Controle total do fluxo financeiro</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Pagamentos</h1>
-              <p className="text-muted-foreground text-sm mt-0.5">Recebimentos por origem, método e servidor</p>
-            </div>
-          </div>
-          <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if (!open) resetForm(); }}>
-            <DialogTrigger asChild>
-              <Button variant="glow">
-                <Plus className="w-4 h-4 mr-2" />
-                Novo Pagamento
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="bg-card border-border">
-              <DialogHeader>
-                <DialogTitle>{editingPayment ? 'Editar Pagamento' : 'Registrar Pagamento'}</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Cliente</Label>
-                  <Select
-                    value={formData.customer_id}
-                    onValueChange={handleCustomerChange}
-                    disabled={!!editingPayment}
-                  >
-                    <SelectTrigger className="bg-secondary/50">
-                      <SelectValue placeholder="Selecione o cliente" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {customers?.map((customer) => (
-                        <SelectItem key={customer.id} value={customer.id}>
-                          {customer.name} - {customer.phone}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Valor (R$)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={formData.amount}
-                    onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) })}
-                    min={0}
-                    required
-                    className="bg-secondary/50"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Método</Label>
-                  <Select
-                    value={formData.method}
-                    onValueChange={(value: PaymentMethod) => setFormData({ ...formData, method: value })}
-                  >
-                    <SelectTrigger className="bg-secondary/50">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pix">PIX</SelectItem>
-                      <SelectItem value="dinheiro">Dinheiro</SelectItem>
-                      <SelectItem value="transferencia">Transferência</SelectItem>
-                      <SelectItem value="cartao_credito">Cartão de Crédito</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Data do Pagamento</Label>
-                  <Input
-                    type="date"
-                    value={formData.payment_date}
-                    onChange={(e) => setFormData({ ...formData, payment_date: e.target.value })}
-                    required
-                    className="bg-secondary/50"
-                  />
-                </div>
-                <Button 
-                  type="submit" 
-                  className="w-full" 
-                  disabled={createMutation.isPending || updateMutation.isPending || !formData.customer_id}
-                >
-                  {(createMutation.isPending || updateMutation.isPending) && (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  )}
-                  {editingPayment ? 'Salvar Alterações' : 'Registrar'}
+            <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if (!open) resetForm(); }}>
+              <DialogTrigger asChild>
+                <Button className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-xl shadow-emerald-500/20 rounded-xl px-6 h-12 active:scale-95 transition-all">
+                  <Plus className="w-5 h-5 mr-2" />
+                  Registrar Pagamento
                 </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent className="bg-background/80 backdrop-blur-2xl border-border/50 rounded-3xl shadow-2xl">
+                <DialogHeader>
+                  <DialogTitle className="text-xl font-bold">Novo Pagamento</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={(e) => { e.preventDefault(); createMutation.mutate(formData); }} className="space-y-5 pt-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Cliente</Label>
+                    <Select value={formData.customer_id} onValueChange={(v) => {
+                      const c = customers?.find(x => x.id === v);
+                      setFormData({ ...formData, customer_id: v, amount: c?.plans?.price ? Number(c.plans.price) : 0 });
+                    }}>
+                      <SelectTrigger className="h-11 bg-background/50 border-border/50 rounded-xl">
+                        <SelectValue placeholder="Selecione o cliente" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {customers?.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>{c.name} ({c.phone})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Valor (R$)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={formData.amount}
+                        onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) })}
+                        className="h-11 bg-background/50 border-border/50 rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Método</Label>
+                      <Select value={formData.method} onValueChange={(v: any) => setFormData({ ...formData, method: v })}>
+                        <SelectTrigger className="h-11 bg-background/50 border-border/50 rounded-xl">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pix">PIX</SelectItem>
+                          <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                          <SelectItem value="transferencia">Transferência</SelectItem>
+                          <SelectItem value="cartao_credito">Cartão</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <Button type="submit" className="w-full h-12 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-500/20 transition-all">
+                    Confirmar Recebimento
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
-        {/* Resumo */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { icon: Wallet, label: 'Total filtrado', value: money(summary.total) },
-            { icon: CalendarDays, label: 'Recebido no mês', value: money(summary.month) },
-            { icon: TrendingUp, label: 'Recebido hoje', value: money(summary.today) },
-            { icon: CreditCard, label: 'Pagamentos', value: String(summary.count) },
+            { icon: Wallet, label: 'Total', value: money(summary.total), color: 'text-emerald-500' },
+            { icon: CalendarDays, label: 'Mensal', value: money(summary.month), color: 'text-sky-500' },
+            { icon: TrendingUp, label: 'Hoje', value: money(summary.today), color: 'text-amber-500' },
+            { icon: CreditCard, label: 'Transações', value: String(summary.count), color: 'text-primary' },
           ].map((s) => (
-            <Card key={s.label} className="glass-card border-border/50 p-3 sm:p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                  <s.icon className="w-4 h-4 text-primary" />
+            <Card key={s.label} className="bg-card/40 backdrop-blur-md border-border/50 p-4 rounded-2xl group overflow-hidden relative">
+              <div className="relative flex items-center gap-4">
+                <div className={cn("w-10 h-10 rounded-xl bg-background/50 border border-border/50 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-110 transition-transform", s.color)}>
+                  <s.icon className="w-5 h-5" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground truncate">{s.label}</p>
-                  <p className="text-lg font-bold text-foreground truncate">{s.value}</p>
+                  <p className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">{s.label}</p>
+                  <p className="text-xl font-black text-foreground">{s.value}</p>
                 </div>
               </div>
             </Card>
           ))}
         </div>
 
-        {/* Recebido por servidor */}
-        {summary.topServers.length > 0 && (
-          <Card className="glass-card border-border/50 p-3 sm:p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Server className="w-4 h-4 text-primary" />
-              <span className="text-sm font-semibold text-foreground">Recebido por servidor</span>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              {summary.topServers.map(([name, value]) => {
-                const pct = summary.total > 0 ? (value / summary.total) * 100 : 0;
-                return (
-                  <div key={name} className="rounded-xl border border-border/50 bg-background/40 p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-medium text-foreground truncate">{name}</span>
-                      <span className="text-xs text-success font-semibold">{money(value)}</span>
-                    </div>
-                    <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
-                      <div className="h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
-                    </div>
-                    <p className="text-[10px] text-muted-foreground mt-1">{pct.toFixed(1)}% do total</p>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
-        )}
-
-        {/* Filters */}
-        <Card className="glass-card border-border/50 p-3 sm:p-4">
-          <div className="flex flex-col lg:flex-row gap-2 lg:items-center">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por nome, usuário, telefone ou servidor..."
-                value={search}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                className="pl-9 bg-background/50 border-border/50 h-10"
-              />
-            </div>
-            <Select value={serverFilter} onValueChange={handleServerChange}>
-              <SelectTrigger className="w-full lg:w-[190px] bg-background/50 border-border/50 h-10">
-                <SelectValue placeholder="Servidor" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos Servidores</SelectItem>
-                <SelectItem value="__none__">Sem servidor</SelectItem>
-                {serverOptions.map((s) => (
-                  <SelectItem key={s} value={s}>{s}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={methodFilter} onValueChange={handleMethodChange}>
-              <SelectTrigger className="w-full lg:w-[170px] bg-background/50 border-border/50 h-10">
-                <SelectValue placeholder="Método" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos Métodos</SelectItem>
-                <SelectItem value="pix">PIX</SelectItem>
-                <SelectItem value="dinheiro">Dinheiro</SelectItem>
-                <SelectItem value="transferencia">Transferência</SelectItem>
-                <SelectItem value="cartao_credito">Cartão de Crédito</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={sourceFilter} onValueChange={handleSourceChange}>
-              <SelectTrigger className="w-full lg:w-[160px] bg-background/50 border-border/50 h-10">
-                <SelectValue placeholder="Origem" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas Origens</SelectItem>
-                <SelectItem value="cakto">Cakto</SelectItem>
-                <SelectItem value="checkout">Checkout / Efí</SelectItem>
-                <SelectItem value="mercadopago">Mercado Pago</SelectItem>
-                <SelectItem value="manual">Manual</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="flex items-center gap-2 px-2">
-              <span className="text-xs text-muted-foreground whitespace-nowrap">Mostrar</span>
-              <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1); }}>
-                <SelectTrigger className="w-[80px] bg-background/50 border-border/50 h-10">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="15">15</SelectItem>
-                  <SelectItem value="25">25</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                  <SelectItem value="100">100</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+        {/* Filters and List */}
+        <div className="space-y-4">
+          <div className="flex flex-col lg:flex-row gap-3">
+             <div className="relative flex-1 group">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-emerald-500 transition-colors" />
+                <Input
+                  placeholder="Filtrar pagamentos..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-11 h-11 bg-card/40 backdrop-blur-md border-border/50 rounded-2xl focus:border-emerald-500/50 shadow-lg"
+                />
+             </div>
+             <div className="flex gap-2">
+               <Select value={serverFilter} onValueChange={setServerFilter}>
+                 <SelectTrigger className="h-11 w-40 bg-card/40 backdrop-blur-md border-border/50 rounded-2xl">
+                   <Filter className="w-3.5 h-3.5 mr-2 opacity-50" />
+                   <SelectValue placeholder="Servidor" />
+                 </SelectTrigger>
+                 <SelectContent>
+                   <SelectItem value="all">Todos</SelectItem>
+                   <SelectItem value="__none__">Sem servidor</SelectItem>
+                   {serverOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                 </SelectContent>
+               </Select>
+               <Select value={methodFilter} onValueChange={setMethodFilter}>
+                 <SelectTrigger className="h-11 w-36 bg-card/40 backdrop-blur-md border-border/50 rounded-2xl">
+                   <CreditCard className="w-3.5 h-3.5 mr-2 opacity-50" />
+                   <SelectValue placeholder="Método" />
+                 </SelectTrigger>
+                 <SelectContent>
+                   <SelectItem value="all">Todos</SelectItem>
+                   <SelectItem value="pix">PIX</SelectItem>
+                   <SelectItem value="cartao_credito">Cartão</SelectItem>
+                   <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                 </SelectContent>
+               </Select>
+             </div>
           </div>
-        </Card>
 
-        <Card className="glass-card border-border/50">
-          <CardContent className="p-0 overflow-x-auto">
-            {isLoading ? (
-              <div className="flex items-center justify-center h-48">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              </div>
-            ) : pagePayments.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
-                <CreditCard className="w-12 h-12 mb-4 opacity-50" />
-                <p>Nenhum pagamento encontrado</p>
-              </div>
-            ) : (
+          <Card className="bg-card/40 backdrop-blur-md border-border/50 rounded-3xl overflow-hidden shadow-2xl">
+            <div className="overflow-x-auto">
               <Table>
-                <TableHeader>
-                  <TableRow className="border-border hover:bg-transparent">
-                     <TableHead>Cliente</TableHead>
-                     <TableHead>Usuário</TableHead>
-                     <TableHead>Servidor</TableHead>
-                     <TableHead>Valor</TableHead>
-                     <TableHead>Método</TableHead>
-                     <TableHead>Origem</TableHead>
-                     <TableHead>Data</TableHead>
-                     <TableHead className="text-right">Ações</TableHead>
-                   </TableRow>
-                 </TableHeader>
-                 <TableBody>
-                   {pagePayments.map((payment: any) => (
-                     <TableRow key={payment.id} className="table-row-hover border-border">
-                       <TableCell className="font-medium">{payment.customers?.name}</TableCell>
-                       <TableCell className="text-muted-foreground">{payment.customers?.username || '—'}</TableCell>
-                       <TableCell>
-                         {getServerName(payment) ? (
-                           <Badge variant="outline" className="gap-1 text-xs border-border/60">
-                             <Server className="w-3 h-3" />
-                             {getServerName(payment)}
+                <TableHeader className="bg-background/50">
+                  <TableRow className="hover:bg-transparent border-border/50">
+                    <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground py-4 px-6">Cliente</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground py-4 px-6">Valor</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground py-4 px-6">Data</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground py-4 px-6">Método</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground py-4 px-6">Origem</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground py-4 px-6 text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow><TableCell colSpan={6} className="h-40 text-center text-muted-foreground font-medium">Carregando...</TableCell></TableRow>
+                  ) : filteredPayments.length === 0 ? (
+                    <TableRow><TableCell colSpan={6} className="h-40 text-center text-muted-foreground font-medium">Nenhum pagamento encontrado.</TableCell></TableRow>
+                  ) : (
+                    filteredPayments.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((p: any) => (
+                      <TableRow key={p.id} className="hover:bg-primary/5 transition-colors border-border/50 group">
+                        <TableCell className="py-4 px-6">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">{p.customers?.name || 'Cliente Removido'}</span>
+                            <span className="text-[10px] font-bold text-muted-foreground/60 uppercase">{getServerName(p)}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-4 px-6">
+                          <span className="text-sm font-black text-foreground">{money(Number(p.amount))}</span>
+                        </TableCell>
+                        <TableCell className="py-4 px-6">
+                           <span className="text-xs font-bold text-muted-foreground">{format(new Date(p.payment_date), 'dd MMM, yyyy', { locale: ptBR })}</span>
+                        </TableCell>
+                        <TableCell className="py-4 px-6">
+                           <Badge variant="secondary" className="bg-background/50 rounded-lg text-[9px] font-black uppercase tracking-tighter">
+                             {p.method}
                            </Badge>
-                         ) : (
-                           <span className="text-muted-foreground text-xs">—</span>
-                         )}
-                       </TableCell>
-                      <TableCell className="text-success font-semibold">
-                        {money(Number(payment.amount))}
-                      </TableCell>
-                      <TableCell>{getMethodLabel(payment.method)}</TableCell>
-                      <TableCell>
-                        {(() => {
-                          const src = String(payment.source || '');
-                          const key = getSourceKey(src);
-                          if (key === 'cakto') {
-                            return (
-                              <Badge variant="secondary" className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 gap-1">
-                                <Bot className="w-3 h-3" />
-                                Cakto
-                              </Badge>
-                            );
-                          }
-                          if (key === 'mercadopago') {
-                            return (
-                              <Badge variant="secondary" className="bg-sky-500/20 text-sky-400 border-sky-500/30 gap-1">
-                                <Bot className="w-3 h-3" />
-                                Mercado Pago
-                              </Badge>
-                            );
-                          }
-                          if (key === 'checkout') {
-                            const isEfi = src.startsWith('efi:');
-                            return (
-                              <Badge variant="secondary" className="bg-blue-500/20 text-blue-400 border-blue-500/30 gap-1">
-                                <Bot className="w-3 h-3" />
-                                {isEfi ? 'Efí Pix' : 'Checkout'}
-                              </Badge>
-                            );
-                          }
-                          return (
-                            <Badge variant="outline" className="text-muted-foreground gap-1">
-                              Manual
-                            </Badge>
-                          );
-                        })()}
-                      </TableCell>
-                      <TableCell>
-                        {payment.payment_date.split('-').reverse().join('/')}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEdit(payment)}
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => deleteMutation.mutate(payment.id)}
-                            disabled={deleteMutation.isPending}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                        <TableCell className="py-4 px-6">
+                           <Badge variant="outline" className={cn("rounded-lg text-[9px] font-black uppercase tracking-tighter border-2", 
+                             p.source?.includes('cakto') ? 'border-violet-500/30 text-violet-500' : 
+                             p.source?.includes('mp') ? 'border-sky-500/30 text-sky-500' : 
+                             'border-muted text-muted-foreground'
+                           )}>
+                             {getSourceKey(String(p.source || ''))}
+                           </Badge>
+                        </TableCell>
+                        <TableCell className="py-4 px-6 text-right">
+                           <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-all rounded-lg" onClick={() => deleteMutation.mutate(p.id)}>
+                             <Trash2 className="w-4 h-4" />
+                           </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
+            </div>
+            {filteredPayments.length > pageSize && (
+              <div className="p-4 border-t border-border/50 flex items-center justify-between bg-background/30">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase">Mostrando {(currentPage - 1) * pageSize + 1} a {Math.min(currentPage * pageSize, filteredPayments.length)} de {filteredPayments.length}</p>
+                <div className="flex gap-2">
+                   <Button variant="outline" size="sm" className="h-8 px-4 rounded-xl font-bold" disabled={currentPage === 1} onClick={() => setCurrentPage(c => c - 1)}>Anterior</Button>
+                   <Button variant="outline" size="sm" className="h-8 px-4 rounded-xl font-bold" disabled={currentPage * pageSize >= filteredPayments.length} onClick={() => setCurrentPage(c => c + 1)}>Próxima</Button>
+                </div>
+              </div>
             )}
-          </CardContent>
-        </Card>
-
-        {/* Pagination */}
-        {totalFiltered > 0 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-sm">
-            <div className="text-muted-foreground">
-              Mostrando <span className="font-medium text-foreground">{startIdx + 1} - {Math.min(startIdx + pageSize, totalFiltered)}</span> de <span className="font-medium text-foreground">{totalFiltered}</span> pagamentos
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={safePage <= 1}
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <span className="text-muted-foreground px-2">
-                Página <span className="font-medium text-foreground">{safePage}</span> de <span className="font-medium text-foreground">{totalPages}</span>
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={safePage >= totalPages}
-              >
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        )}
+          </Card>
+        </div>
       </div>
     </DashboardLayout>
   );
 }
+
+import { ptBR } from 'date-fns/locale';
