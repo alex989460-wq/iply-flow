@@ -1479,18 +1479,23 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
 
           {/* Selected Customer Details */}
           {selectedCustomer && (
-            <Card className="border-primary/20 bg-primary/5 shadow-inner overflow-hidden">
-              <CardHeader className="p-3 pb-2">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <User className="h-4 w-4" />
-                  <Input
-                    value={editedName}
-                    onChange={(e) => setEditedName(e.target.value)}
-                    className="h-7 text-sm font-semibold border-dashed"
-                  />
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-3 pt-0 space-y-3">
+            <div className="space-y-4 animate-in slide-in-from-right-4 duration-500">
+              <Card className="border-border/30 bg-card/50 backdrop-blur-2xl shadow-xl overflow-hidden rounded-3xl relative group/card">
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent pointer-events-none" />
+                <CardHeader className="p-4 pb-2 relative z-10">
+                  <CardTitle className="text-sm flex items-center gap-3">
+                    <div className="p-2 rounded-2xl bg-primary/10 text-primary group-hover/card:scale-110 transition-transform duration-500 shadow-inner">
+                      <User className="h-4 w-4" />
+                    </div>
+                    <Input
+                      value={editedName}
+                      onChange={(e) => setEditedName(e.target.value)}
+                      className="h-8 text-base font-bold bg-transparent border-none focus:ring-0 p-0 shadow-none selection:bg-primary/20"
+                      placeholder="Nome do cliente"
+                    />
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0 space-y-4 relative z-10">
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center gap-2">
                     <PhoneFlagBadge phone={editedPhone} size="sm" />
