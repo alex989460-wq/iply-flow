@@ -2163,7 +2163,10 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
   const __content = (
     <>
 
-      <div className={`flex flex-col md:flex-row ${embed ? 'h-full' : 'h-[calc(100dvh-4rem)] lg:h-[100dvh]'} animate-fade-in bg-background`}>
+      <div className={cn(
+        "flex flex-col md:flex-row animate-fade-in bg-background overflow-hidden",
+        embed ? 'h-full' : 'h-[calc(100dvh-4rem)] lg:h-[100dvh]'
+      )}>
         {/* Conversations sidebar */}
         <div className={cn(
           'flex flex-col border-r border-border bg-card/30',
@@ -3137,18 +3140,51 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
           )}
         </div>
 
-        {/* Quick Renewal Panel — mesmo design da API Oficial */}
+        {/* Modernized Sidebar Toggle for Desktop */}
         {!isMobile && (
-          <div className="w-[420px] xl:w-[460px] h-full border-l bg-background flex flex-col shrink-0">
-            <div className="flex items-center gap-2 px-3 py-2 border-b text-sm font-semibold">
-              <Zap className="h-4 w-4 text-emerald-500" />
-              Renovação rápida
+          <aside 
+            className={cn(
+              "h-full border-l border-border/50 bg-card/40 backdrop-blur-3xl flex flex-col shrink-0 transition-all duration-500 ease-in-out relative group shadow-2xl",
+              panelCollapsed ? "w-14" : "w-[420px] xl:w-[460px]"
+            )}
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setPanelCollapsed(!panelCollapsed)}
+              className="absolute -left-5 top-24 z-20 w-10 h-10 rounded-2xl border border-border/50 bg-background/80 backdrop-blur-xl shadow-2xl opacity-0 group-hover:opacity-100 transition-all hover:scale-110 active:scale-95"
+            >
+              <ChevronLeft className={cn("h-5 w-5 text-primary transition-transform duration-500", panelCollapsed && "rotate-180")} />
+            </Button>
+
+            <div className={cn(
+              "flex items-center gap-3 px-5 py-4 border-b border-border/50 bg-background/20 transition-opacity duration-300",
+              panelCollapsed ? "opacity-0 invisible" : "opacity-100"
+            )}>
+              <div className="w-8 h-8 rounded-xl bg-emerald-500/20 flex items-center justify-center shadow-inner">
+                <Zap className="h-4 w-4 text-emerald-500 fill-emerald-500/20" />
+              </div>
+              <span className="tracking-[0.2em] uppercase text-[10px] font-black text-foreground/70">Renovação rápida</span>
             </div>
-            <div className="flex-1 min-h-0 overflow-hidden">
+            
+            <div className={cn(
+              "flex-1 min-h-0 overflow-hidden transition-all duration-500",
+              panelCollapsed ? "opacity-0 invisible scale-95" : "opacity-100 scale-100"
+            )}>
               <QuickRenewalPanel initialPhone={selectedPhone && !selectedPhone.startsWith('status') ? selectedPhone : null} />
             </div>
-          </div>
+
+            {panelCollapsed && (
+              <div className="absolute inset-0 flex flex-col items-center pt-6 pointer-events-none space-y-4">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                  <Zap className="h-4 w-4 text-emerald-500/40" />
+                </div>
+                <div className="w-px h-full bg-gradient-to-b from-emerald-500/20 to-transparent" />
+              </div>
+            )}
+          </aside>
         )}
+
         {isMobile && showRenewalPanel && (
           <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm animate-in fade-in slide-in-from-bottom-4 duration-200">
             <div className="flex flex-col h-full">
