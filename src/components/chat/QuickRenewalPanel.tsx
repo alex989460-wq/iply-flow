@@ -457,6 +457,3 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
     </>
   );
 }
-    </div>
-  );
-}
