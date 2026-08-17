@@ -45,7 +45,56 @@ async function pingIbosol(token: string) {
   }
 }
 
+function findToken(storage: Record<string, unknown>): string | null {
+  const isToken = (v: unknown) => typeof v === "string" && /^\d{3,}\|[A-Za-z0-9]{20,}$/.test(v.trim());
+  for (const raw of Object.values(storage || {})) {
+    if (isToken(raw)) return String(raw).trim();
+    if (typeof raw !== "string" || !/^[[{]/.test(raw.trim())) continue;
+    try {
+      const found: string[] = [];
+      const walk = (n: unknown) => {
+        if (isToken(n)) { found.push(String(n).trim()); return; }
+        if (Array.isArray(n)) return n.forEach(walk);
+        if (n && typeof n === "object") Object.values(n as any).forEach(walk);
+      };
+      walk(JSON.parse(raw));
+      if (found.length) return found[0];
+    } catch { /* ignora */ }
+  }
+  return null;
+}
+
+async function tryRelogin(email: string, password: string): Promise<string | null> {
+  const base = (Deno.env.get("SIGMA_PROXY_URL") || "").replace(/\/+$/, "");
+  if (!base) return null;
+  try {
+    const res = await fetch(base + "/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-sigma-proxy-secret": Deno.env.get("SIGMA_PROXY_SECRET") || "",
+      },
+      body: JSON.stringify({
+        browser: true,
+        url: "https://ibosol.com/login",
+        wait_ms: 9000,
+        steps: [
+          { selector: "#email", value: email },
+          { selector: "#password", value: password },
+          { selector: "button[type='submit']", click: true, wait_ms: 9000 },
+        ],
+      }),
+    });
+    if (!res.ok) { await res.body?.cancel(); return null; }
+    const data = await res.json();
+    return findToken(data.storage || {});
+  } catch {
+    return null;
+  }
+}
+
 serve(async (req) => {
+
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   const jh = { ...cors, "Content-Type": "application/json" };
   try {
