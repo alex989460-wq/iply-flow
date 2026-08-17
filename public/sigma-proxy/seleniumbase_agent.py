@@ -157,7 +157,7 @@ def browser_session(payload):
                 steps_log.append({"selector": selector, "ok": False, "error": str(exc)})
 
         # Alguns painéis só mostram o captcha depois do submit.
-        retry = try_solve_captcha(sb)
+        retry = try_solve_captcha(sb, force=force_captcha)
         if retry.get("status") == "solve_finished":
             captcha = retry
             submit = next((s for s in steps if s.get("click") and s.get("selector")), None)
