@@ -3654,41 +3654,6 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
                   </div>
                 )}
 
-                <div className="flex justify-end gap-2 pt-1">
-                  <Button size="sm" variant="outline" onClick={() => setShowAutoReplySettings(false)}>Cancelar</Button>
-                  <Button
-                    size="sm"
-                    disabled={autoReplySaving}
-                    onClick={async () => {
-                      if (!user) return;
-                      setAutoReplySaving(true);
-                      const { error } = await supabase
-                        .from('evolution_settings')
-                        .update({
-                          autoreply_enabled: autoReply.enabled,
-                          autoreply_only_outside_hours: autoReply.only_outside_hours,
-                          autoreply_business_start: autoReply.business_start,
-                          autoreply_business_end: autoReply.business_end,
-                          autoreply_disabled_phones: autoReply.disabled_phones,
-                          autoreply_absence_enabled: autoReply.absence_enabled,
-                          autoreply_absence_message: autoReply.absence_message,
-                          autoreply_absence_cooldown_hours: autoReply.absence_cooldown_hours,
-                        } as any)
-                        .eq('user_id', user.id);
-
-                      setAutoReplySaving(false);
-                      if (error) {
-                        toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
-                        return;
-                      }
-                      toast({ title: autoReply.enabled ? '🤖 Auto-atendimento ATIVO' : 'Auto-atendimento desativado' });
-                      setShowAutoReplySettings(false);
-                    }}
-                  >
-                    {autoReplySaving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : null}
-                    Salvar
-                  </Button>
-                </div>
     </>
   );
   return embed ? (
