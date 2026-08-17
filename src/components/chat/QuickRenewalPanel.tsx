@@ -1832,7 +1832,6 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                       )}
                   </div>
 
-                  <div className="pt-2 border-t border-border space-y-2">
                   {/* Extra Months Confirmation Dialog */}
                   {showExtraMonthsConfirm && selectedCustomer.extra_months > 0 && (
                     <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2">
