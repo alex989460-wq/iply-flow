@@ -140,6 +140,101 @@ export default function ActivationApps() {
   const ibosol = panelCreds.find((c: any) => c.panel_type === 'ibosol');
   const iboPro = panelCreds.find((c: any) => c.panel_type === 'iboplayerpro');
 
+  const [duplecastForm, setDuplecastForm] = useState({ username: '', password: '', is_enabled: true });
+  const [clouddyForm, setClouddyForm] = useState({ base_url: 'https://console.clouddy.online', cookie: '', is_enabled: true });
+  const [ibosolForm, setIbosolForm] = useState({ token: '', is_enabled: true });
+  const [iboProForm, setIboProForm] = useState({ username: '', password: '', is_enabled: true });
+  const [showPass, setShowPass] = useState(false);
+  const [showClCookie, setShowClCookie] = useState(false);
+  const [showIboTok, setShowIboTok] = useState(false);
+  const [showIboProPass, setShowIboProPass] = useState(false);
+
+  useEffect(() => {
+    if (duplecast) setDuplecastForm({ username: duplecast.username || '', password: duplecast.password || '', is_enabled: duplecast.is_enabled ?? true });
+  }, [duplecast?.id, duplecast?.updated_at]);
+
+  useEffect(() => {
+    if (clouddy) setClouddyForm({ base_url: clouddy.username || 'https://console.clouddy.online', cookie: clouddy.password || '', is_enabled: clouddy.is_enabled ?? true });
+  }, [clouddy?.id, clouddy?.updated_at]);
+
+  useEffect(() => {
+    if (ibosol) setIbosolForm({ token: ibosol.password || '', is_enabled: ibosol.is_enabled ?? true });
+  }, [ibosol?.id, ibosol?.updated_at]);
+
+  useEffect(() => {
+    if (iboPro) setIboProForm({ username: iboPro.username || '', password: iboPro.password || '', is_enabled: iboPro.is_enabled ?? true });
+  }, [iboPro?.id, iboPro?.updated_at]);
+
+  const upsertPanel = async (payload: any) => {
+    const { error } = await (supabase as any)
+      .from('activation_panel_credentials')
+      .upsert({ user_id: user?.id, ...payload }, { onConflict: 'user_id,panel_type' });
+    if (error) throw error;
+  };
+
+  const panelSaved = (msg: string) => {
+    queryClient.invalidateQueries({ queryKey: ['activation-panel-credentials'] });
+    toast.success(msg);
+  };
+
+  const saveDuplecast = useMutation({
+    mutationFn: async () => {
+      if (!duplecastForm.username.trim() || !duplecastForm.password.trim()) throw new Error('E-mail e senha do painel Duplecast são obrigatórios');
+      await upsertPanel({ panel_type: 'duplecast', username: duplecastForm.username.trim(), password: duplecastForm.password, is_enabled: duplecastForm.is_enabled });
+    },
+    onSuccess: () => panelSaved('Credenciais Duplecast salvas!'),
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const saveClouddy = useMutation({
+    mutationFn: async () => {
+      if (!clouddyForm.base_url.trim() || !clouddyForm.cookie.trim()) throw new Error('URL do painel e cookie da sessão Clouddy são obrigatórios');
+      await upsertPanel({ panel_type: 'clouddy', username: clouddyForm.base_url.trim().replace(/\/+$/, ''), password: clouddyForm.cookie.trim(), is_enabled: clouddyForm.is_enabled });
+    },
+    onSuccess: () => panelSaved('Credenciais Clouddy salvas!'),
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const saveIbosol = useMutation({
+    mutationFn: async () => {
+      if (!ibosolForm.token.trim()) throw new Error('Token do IBO Sol é obrigatório');
+      await upsertPanel({ panel_type: 'ibosol', username: 'https://backend-apis.ibosol.com', password: ibosolForm.token.trim(), is_enabled: ibosolForm.is_enabled });
+    },
+    onSuccess: () => panelSaved('Token IBO Sol salvo!'),
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const saveIboPro = useMutation({
+    mutationFn: async () => {
+      if (!iboProForm.username.trim() || !iboProForm.password.trim()) throw new Error('E-mail e senha do IBO Player Pro são obrigatórios');
+      await upsertPanel({ panel_type: 'iboplayerpro', username: iboProForm.username.trim(), password: iboProForm.password, is_enabled: iboProForm.is_enabled });
+    },
+    onSuccess: () => panelSaved('Credenciais IBO Player Pro salvas!'),
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const togglePanelEnabled = useMutation({
+    mutationFn: async ({ panel_type, value }: { panel_type: string; value: boolean }) => {
+      const { error } = await (supabase as any)
+        .from('activation_panel_credentials')
+        .update({ is_enabled: value })
+        .eq('user_id', user?.id)
+        .eq('panel_type', panel_type);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['activation-panel-credentials'] });
+      toast.success(vars.value ? 'Painel ativado' : 'Painel desativado');
+    },
+    onError: (e: any) => toast.error(e.message || 'Não foi possível alterar o status do painel'),
+  });
+
+  const handleToggle = (panel_type: string, exists: boolean, value: boolean, setLocal: (v: boolean) => void) => {
+    setLocal(value);
+    if (exists) togglePanelEnabled.mutate({ panel_type, value });
+  };
+
+
   const updateRequestStatus = useMutation({
     mutationFn: async ({ id, action }: { id: string; action: 'activate' | 'reject' }) => {
       const { data, error } = await supabase.functions.invoke('confirm-activation', {
@@ -308,17 +403,20 @@ export default function ActivationApps() {
                                      {format(new Date(req.created_at), 'dd MMM, HH:mm', { locale: ptBR })}
                                   </TableCell>
                                   <TableCell className="py-4 px-6 text-right">
-                                     {req.status === 'pending' && (
+                                     {!['activated', 'rejected'].includes(req.status) ? (
                                         <div className="flex gap-1 justify-end">
-                                           <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-500 hover:bg-emerald-500/10 rounded-lg" onClick={() => updateRequestStatus.mutate({ id: req.id, action: 'activate' })}>
-                                              <CheckCircle2 className="w-4 h-4" />
+                                           <Button size="sm" variant="outline" className="h-8 rounded-lg text-[10px] font-black uppercase border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10" disabled={updateRequestStatus.isPending} onClick={() => updateRequestStatus.mutate({ id: req.id, action: 'activate' })}>
+                                              <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> {req.status === 'failed' ? 'Tentar de novo' : 'Ativar'}
                                            </Button>
-                                           <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-lg" onClick={() => updateRequestStatus.mutate({ id: req.id, action: 'reject' })}>
+                                           <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-lg" disabled={updateRequestStatus.isPending} onClick={() => updateRequestStatus.mutate({ id: req.id, action: 'reject' })}>
                                               <XCircle className="w-4 h-4" />
                                            </Button>
                                         </div>
+                                     ) : (
+                                        <span className="text-[10px] font-bold uppercase text-muted-foreground/40">—</span>
                                      )}
                                   </TableCell>
+
                                </TableRow>
                             ))
                          )}
@@ -367,24 +465,125 @@ export default function ActivationApps() {
              </div>
           </TabsContent>
 
-          <TabsContent value="panels" className="animate-in slide-in-from-bottom-4 duration-500">
-             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                 <PanelCredentialCard 
-                    title="Configurações Automáticas" 
-                    subtitle="Credenciais de ativação direta" 
-                    connected={panelCreds.length > 0} 
-                    onSave={() => {}} 
-                    onEnabledChange={() => {}}
-                 >
-                    <p className="text-sm font-medium text-muted-foreground p-4">Os painéis (Duplecast, Clouddy, IBO Sol) permitem que você ative pedidos sem intervenção manual. Mantenha os cookies e tokens atualizados.</p>
-                 </PanelCredentialCard>
-                 {/* Reutilizando estrutura original para não quebrar lógica complexa de upsert */}
-                 <div className="opacity-50 pointer-events-none p-8 text-center border-2 border-dashed border-border/50 rounded-3xl">
-                    <Settings2 className="w-12 h-12 mx-auto mb-3 text-muted-foreground/30" />
-                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground/40">Painéis integrados ao sistema central</p>
-                 </div>
+          <TabsContent value="panels" className="space-y-4 animate-in slide-in-from-bottom-4 duration-500">
+             <div className="rounded-2xl border border-border/50 bg-card/40 backdrop-blur-md p-4">
+                <p className="text-xs font-medium text-muted-foreground">
+                   Configure o login de cada painel de revenda para ativar apps automaticamente. Clique no card para expandir e use o botão para ligar/desligar a ativação automática.
+                </p>
+             </div>
+             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <PanelCredentialCard
+                   title="Duplecast"
+                   subtitle="duplecast.com/client/login"
+                   logo={<Monitor className="w-5 h-5 text-primary" />}
+                   connected={!!duplecast}
+                   enabled={duplecastForm.is_enabled}
+                   onEnabledChange={(v) => handleToggle('duplecast', !!duplecast, v, (b) => setDuplecastForm(f => ({ ...f, is_enabled: b })))}
+                   saving={saveDuplecast.isPending}
+                   onSave={() => saveDuplecast.mutate()}
+                   saveLabel="Salvar credenciais"
+                   hint={<>Ao chegar um pedido do app <b>Duplecast</b>, o sistema faz login, cadastra o <b>MAC</b> no <b>code</b> informado e dispara a mensagem de app ativado. Se falhar, vira pendência manual.</>}
+                >
+                   <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                         <Label className="text-xs">E-mail do painel</Label>
+                         <Input type="email" autoComplete="off" value={duplecastForm.username} onChange={e => setDuplecastForm(f => ({ ...f, username: e.target.value }))} placeholder="seuemail@dominio.com" />
+                      </div>
+                      <div className="space-y-1.5">
+                         <Label className="text-xs">Senha</Label>
+                         <div className="relative">
+                            <Input type={showPass ? 'text' : 'password'} autoComplete="new-password" value={duplecastForm.password} onChange={e => setDuplecastForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••••" className="pr-9" />
+                            <button type="button" onClick={() => setShowPass(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" aria-label={showPass ? 'Ocultar' : 'Mostrar'}>
+                               {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                         </div>
+                      </div>
+                   </div>
+                </PanelCredentialCard>
+
+                <PanelCredentialCard
+                   title="Clouddy"
+                   subtitle="console.clouddy.online/reseller"
+                   logo={<Monitor className="w-5 h-5 text-primary" />}
+                   connected={!!clouddy}
+                   enabled={clouddyForm.is_enabled}
+                   onEnabledChange={(v) => handleToggle('clouddy', !!clouddy, v, (b) => setClouddyForm(f => ({ ...f, is_enabled: b })))}
+                   saving={saveClouddy.isPending}
+                   onSave={() => saveClouddy.mutate()}
+                   saveLabel="Salvar credenciais"
+                   hint={<>O Clouddy usa <b>Cloudflare Turnstile</b>. Entre no painel manualmente, abra o DevTools → <b>Network</b> → em qualquer requisição <span className="font-mono">/reseller/*</span> copie o header <span className="font-mono">Cookie</span> completo e cole aqui.</>}
+                >
+                   <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                         <Label className="text-xs">URL do painel</Label>
+                         <Input value={clouddyForm.base_url} onChange={e => setClouddyForm(f => ({ ...f, base_url: e.target.value }))} placeholder="https://console.clouddy.online" />
+                      </div>
+                      <div className="space-y-1.5">
+                         <Label className="text-xs">Cookie da sessão</Label>
+                         <div className="relative">
+                            <Input type={showClCookie ? 'text' : 'password'} autoComplete="off" value={clouddyForm.cookie} onChange={e => setClouddyForm(f => ({ ...f, cookie: e.target.value }))} placeholder="PHPSESSID=xxx; REMEMBERME=yyy" className="font-mono text-xs pr-9" />
+                            <button type="button" onClick={() => setShowClCookie(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" aria-label={showClCookie ? 'Ocultar' : 'Mostrar'}>
+                               {showClCookie ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                         </div>
+                      </div>
+                   </div>
+                </PanelCredentialCard>
+
+                <PanelCredentialCard
+                   title="IBO Sol"
+                   subtitle="Bob Player, IBO Player e afins — ativação por MAC"
+                   logo={<Monitor className="w-5 h-5 text-primary" />}
+                   connected={!!ibosol}
+                   enabled={ibosolForm.is_enabled}
+                   onEnabledChange={(v) => handleToggle('ibosol', !!ibosol, v, (b) => setIbosolForm(f => ({ ...f, is_enabled: b })))}
+                   saving={saveIbosol.isPending}
+                   onSave={() => saveIbosol.mutate()}
+                   saveLabel="Salvar token"
+                   hint={<>Faça login em <span className="font-mono">ibosol.com</span>, abra o DevTools → <b>Network</b> → requisição <span className="font-mono">POST /api/login</span> e copie o campo <span className="font-mono">token</span> da resposta.</>}
+                >
+                   <div className="space-y-1.5">
+                      <Label className="text-xs">Token do IBO Sol (Bearer)</Label>
+                      <div className="relative">
+                         <Input type={showIboTok ? 'text' : 'password'} autoComplete="off" value={ibosolForm.token} onChange={e => setIbosolForm(f => ({ ...f, token: e.target.value }))} placeholder="5114508|tb3dyiNd5DRuzygqKTRRW9X2..." className="font-mono text-xs pr-9" />
+                         <button type="button" onClick={() => setShowIboTok(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" aria-label={showIboTok ? 'Ocultar' : 'Mostrar'}>
+                            {showIboTok ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                         </button>
+                      </div>
+                   </div>
+                </PanelCredentialCard>
+
+                <PanelCredentialCard
+                   title="IBO Player Pro"
+                   subtitle="cms.iboplayer.pro — ativação por MAC"
+                   logo={<Monitor className="w-5 h-5 text-primary" />}
+                   connected={!!iboPro}
+                   enabled={iboProForm.is_enabled}
+                   onEnabledChange={(v) => handleToggle('iboplayerpro', !!iboPro, v, (b) => setIboProForm(f => ({ ...f, is_enabled: b })))}
+                   saving={saveIboPro.isPending}
+                   onSave={() => saveIboPro.mutate()}
+                   saveLabel="Salvar credenciais"
+                   hint={<>Salve o e-mail e senha do painel <span className="font-mono">cms.iboplayer.pro</span>. O sistema mantém a sessão ativa e ativa o MAC do cliente quando chegar um pedido do app <b>IBOPLAYERPRO</b>.</>}
+                >
+                   <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                         <Label className="text-xs">E-mail do revendedor</Label>
+                         <Input type="email" autoComplete="off" value={iboProForm.username} onChange={e => setIboProForm(f => ({ ...f, username: e.target.value }))} placeholder="seu-email@exemplo.com" />
+                      </div>
+                      <div className="space-y-1.5">
+                         <Label className="text-xs">Senha</Label>
+                         <div className="relative">
+                            <Input type={showIboProPass ? 'text' : 'password'} autoComplete="new-password" value={iboProForm.password} onChange={e => setIboProForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••••" className="pr-9" />
+                            <button type="button" onClick={() => setShowIboProPass(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" aria-label={showIboProPass ? 'Ocultar' : 'Mostrar'}>
+                               {showIboProPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                         </div>
+                      </div>
+                   </div>
+                </PanelCredentialCard>
              </div>
           </TabsContent>
+
 
           <TabsContent value="templates" className="animate-in slide-in-from-bottom-4 duration-500">
              <PlaylistTemplatesCard />
