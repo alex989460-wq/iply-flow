@@ -91,7 +91,7 @@ export async function reportScreensMismatch(admin: any, params: ScreensMismatchP
       error_details: {
         current_screens: currentScreens,
         paid_screens: paidScreens,
-        conflict_reason: `Cliente pagou plano de ${paidScreens} tela(s) mas está cadastrado com ${currentScreens}. Ajuste as conexões no painel e no cadastro.`,
+        conflict_reason: `O cliente pagou por ${paidScreens} tela(s), mas o cadastro atual dele possui apenas ${currentScreens}. Verifique o motivo, pois o valor bate e a renovação deveria ter sido automática. Ajuste as conexões para evitar novas pendências.`,
       },
     });
 
