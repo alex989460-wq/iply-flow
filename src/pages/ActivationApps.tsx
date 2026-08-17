@@ -147,6 +147,7 @@ export default function ActivationApps() {
   const [showPass, setShowPass] = useState(false);
   const [showClCookie, setShowClCookie] = useState(false);
   const [showIboTok, setShowIboTok] = useState(false);
+  const [showIboPass, setShowIboPass] = useState(false);
   const [showIboProPass, setShowIboProPass] = useState(false);
 
   useEffect(() => {
@@ -590,9 +591,9 @@ export default function ActivationApps() {
                          <div className="space-y-1.5">
                             <Label className="text-xs">Senha</Label>
                             <div className="relative">
-                               <Input type={showIboProPass ? 'text' : 'password'} autoComplete="new-password" value={ibosolForm.login_password} onChange={e => setIbosolForm(f => ({ ...f, login_password: e.target.value }))} placeholder="••••••••" className="pr-9" />
-                               <button type="button" onClick={() => setShowIboProPass(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" aria-label={showIboProPass ? 'Ocultar' : 'Mostrar'}>
-                                  {showIboProPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                               <Input type={showIboPass ? 'text' : 'password'} autoComplete="new-password" value={ibosolForm.login_password} onChange={e => setIbosolForm(f => ({ ...f, login_password: e.target.value }))} placeholder="••••••••" className="pr-9" />
+                               <button type="button" onClick={() => setShowIboPass(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" aria-label={showIboPass ? 'Ocultar' : 'Mostrar'}>
+                                  {showIboPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                </button>
                             </div>
                          </div>
