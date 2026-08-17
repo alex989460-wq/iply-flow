@@ -113,10 +113,11 @@ function inferMimeFromUrl(url: string, fallback = "application/octet-stream") {
   return fallback;
 }
 
-async function getCrmOwnerSession(apiKey?: string) {
-  const key = (apiKey || Deno.env.get("CRM_OFICIAL_API_KEY") || "").trim();
-  if (!key) throw new Error("CRM Oficial API key não configurada");
+// Cache de sessão por chave: o token mágico é de uso único e a verificação falha
+// quando várias cobranças são enviadas em paralelo ("Sessão do CRM Oficial inválida").
+const crmSessionCache = new Map<string, { accessToken: string; ownerId: string; expiresAt: number }>();
 
+async function openCrmSession(key: string) {
   const embed = await crmFetch("/api/public/v1/embed-session", {
     method: "POST",
     body: JSON.stringify({ redirect: "/app/inbox" }),
@@ -131,9 +132,37 @@ async function getCrmOwnerSession(apiKey?: string) {
     body: JSON.stringify({ type: "magiclink", token_hash: tokenHash }),
   });
   const session = await verify.json().catch(() => ({}));
-  if (!verify.ok || !session?.access_token || !session?.user?.id) throw new Error("Sessão do CRM Oficial inválida");
+  if (!verify.ok || !session?.access_token || !session?.user?.id) {
+    const detail = (session as any)?.error_description || (session as any)?.msg || `HTTP ${verify.status}`;
+    throw new Error(`Sessão do CRM Oficial inválida (${detail})`);
+  }
   return { accessToken: String(session.access_token), ownerId: String(session.user.id) };
 }
+
+async function getCrmOwnerSession(apiKey?: string) {
+  const key = (apiKey || Deno.env.get("CRM_OFICIAL_API_KEY") || "").trim();
+  if (!key) throw new Error("CRM Oficial API key não configurada");
+
+  const cached = crmSessionCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) {
+    return { accessToken: cached.accessToken, ownerId: cached.ownerId };
+  }
+
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const session = await openCrmSession(key);
+      crmSessionCache.set(key, { ...session, expiresAt: Date.now() + 45 * 60 * 1000 });
+      return session;
+    } catch (err) {
+      lastError = err;
+      await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
+    }
+  }
+  crmSessionCache.delete(key);
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
 
 async function crmRest(path: string, accessToken: string, init: RequestInit = {}) {
   const headers = {
