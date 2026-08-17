@@ -34,9 +34,10 @@ const browserHeaders = {
 type Proxy = { url: string; secret: string } | null;
 
 function buildProxy(url?: string | null, secret?: string | null): Proxy {
-  // Proxy global (configurado uma única vez pelo admin da plataforma).
-  // Assim os revendedores só precisam informar URL, usuário e senha do painel.
-  const u = String(url || Deno.env.get("SIGMA_PROXY_URL") || "").trim().replace(/\/+$/, "");
+  // Sigma usa APENAS o proxy configurado pelo próprio revendedor (comportamento
+  // original que já funcionava). Não cai no agente global para não quebrar
+  // conexões que funcionam via chamada direta.
+  const u = String(url || "").trim().replace(/\/+$/, "");
   const s = String(secret || Deno.env.get("SIGMA_PROXY_SECRET") || "").trim();
   if (!u || !s) return null;
   return { url: /^https?:\/\//i.test(u) ? u : `https://${u}`, secret: s };
