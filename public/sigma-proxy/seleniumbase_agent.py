@@ -291,7 +291,7 @@ class Handler(BaseHTTPRequestHandler):
             except BaseException as exc:  # SeleniumBase pode chamar sys.exit()
                 return self._send(502, {"ok": False, "browser": "falhou",
                                         "error": f"{type(exc).__name__}: {exc}"})
-        self._send(200, {"ok": True, "engine": "seleniumbase", "version": "1.3.0"})
+        self._send(200, {"ok": True, "engine": "seleniumbase", "version": "1.4.0"})
 
     def do_POST(self):
         if self.headers.get("x-sigma-proxy-secret", "") != SECRET:
