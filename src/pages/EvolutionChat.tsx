@@ -3600,7 +3600,7 @@ export default function EvolutionChat({ embed = false }: { embed?: boolean } = {
         </DialogContent>
       </Dialog>
 
-    </>
+      <KnowledgeBaseDialog open={showKbDialog} onOpenChange={setShowKbDialog} />
   );
   return embed ? (
     <EvolutionLayout 
