@@ -170,16 +170,11 @@ serve(async (req) => {
     const { token, final_url } = await ibosolBrowserLogin(email, password);
 
 
-    const admin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-      { auth: { autoRefreshToken: false, persistSession: false } },
-    );
-
     const { error } = await admin
       .from("activation_panel_credentials")
       .upsert({
-        user_id: auth.user.id,
+        user_id: userId,
+
         panel_type: "ibosol",
         username: "https://backend-apis.ibosol.com",
         password: token,
