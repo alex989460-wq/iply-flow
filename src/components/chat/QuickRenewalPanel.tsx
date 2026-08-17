@@ -1801,18 +1801,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                 </div>
 
                 <div className="pt-2 border-t border-border space-y-2">
-                  <label className="text-xs text-muted-foreground">Método de Pagamento</label>
-                  <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}>
-                    <SelectTrigger className="h-8 text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pix">PIX</SelectItem>
-                      <SelectItem value="dinheiro">Dinheiro</SelectItem>
-                      <SelectItem value="transferencia">Transferência</SelectItem>
-                      <SelectItem value="cartao_credito">Cartão de Crédito</SelectItem>
-                    </SelectContent>
-                  </Select>
+
                   
                   {/* Extra Months Confirmation Dialog */}
                   {showExtraMonthsConfirm && selectedCustomer.extra_months > 0 && (
