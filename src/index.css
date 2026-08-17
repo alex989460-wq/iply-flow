@@ -453,14 +453,19 @@
     font-size: 16px !important;
   }
 
-  /* Diálogos ocupam tela cheia no mobile para melhor ergonomia */
-  [role="dialog"] {
+  /* Diálogos ocupam quase toda a tela no mobile, com rolagem interna */
+  [role="dialog"]:not([data-radix-popper-content-wrapper] *) {
     width: 100% !important;
     max-width: 100% !important;
-    height: 100% !important;
-    max-height: 100% !important;
+    max-height: 100dvh !important;
     margin: 0 !important;
-    border-radius: 0 !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+  }
+
+  /* Evita estouro horizontal em grids/tabelas densas */
+  table {
+    font-size: 0.8125rem;
   }
 }
 

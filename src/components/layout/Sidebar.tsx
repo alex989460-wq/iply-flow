@@ -97,7 +97,7 @@ export default function Sidebar() {
 
       {/* Sidebar */}
       <aside className={cn(
-        "fixed lg:sticky top-0 left-0 z-[70] h-[100dvh] bg-gradient-to-b from-sidebar via-sidebar to-sidebar/95 border-r border-sidebar-border/50 flex flex-col shadow-2xl flex-shrink-0",
+        "fixed lg:sticky top-0 left-0 z-[70] h-[100dvh] bg-gradient-to-b from-sidebar via-sidebar to-sidebar/95 border-r border-sidebar-border/50 flex flex-col shadow-2xl flex-shrink-0 overflow-hidden",
         "transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1)",
         collapsed ? "w-0 lg:w-16 -translate-x-full lg:translate-x-0" : "w-[min(280px,85vw)] lg:w-64 translate-x-0",
       )}>
