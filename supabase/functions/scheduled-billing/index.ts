@@ -986,7 +986,8 @@ Deno.serve(async (req) => {
       };
 
       for (const log of existingLogs || []) {
-        if (log.whatsapp_status !== 'sent') continue;
+        // Same as above: any status counts as "already handled today".
+
         const type = log.billing_type as string;
         if (processedByType[type]) {
           processedByType[type].customerIds.add(log.customer_id);
