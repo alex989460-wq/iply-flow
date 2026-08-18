@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Send, Megaphone, RefreshCw, Image as ImageIcon, MessageSquare, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, Send, Megaphone, RefreshCw, Image as ImageIcon, MessageSquare, CheckCircle, XCircle, Upload } from 'lucide-react';
 
 const DEFAULT_IMAGE_URL = '';
 
