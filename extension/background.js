@@ -177,11 +177,13 @@ async function renewUniplay(username, months) {
     if (!matchIptv && !matchP2p) {
       return { ok: false, error: listErrors.length === 2 ? "list_failed" : "not_found", msg: listErrors.length === 2 ? `Login OK, mas listas falharam: ${listErrors.join(" | ")}` : `Usuario ${login} nao encontrado no Uniplay`, status: 200 };
     }
+    const renewalMonths = Math.max(1, Math.round(Number(qty) || 1));
+    const panelCredits = renewalMonths === 6 ? 5 : renewalMonths === 12 ? 10 : renewalMonths;
     const renew = async (kind, id) => {
       const res = await fetch(`${apiBase}/api/users-${kind}/${encodeURIComponent(id)}`, {
         method: "PUT",
         headers: { ...headers, "Content-Type": "application/json;charset=UTF-8" },
-        body: JSON.stringify({ action: 1, credits: Math.max(1, Number(qty) || 1) }),
+        body: JSON.stringify({ action: 1, credits: panelCredits }),
       });
       const text = await res.text();
       return { kind, ok: res.ok, status: res.status, text: text.slice(0, 300) };
@@ -193,7 +195,7 @@ async function renewUniplay(username, months) {
     return {
       ok,
       status: results.find((r) => !r.ok)?.status || 200,
-      msg: ok ? `Uniplay renovado (${results.filter((r) => r.ok).map((r) => r.kind.toUpperCase()).join(" + ")})` : `Falha Uniplay: ${JSON.stringify(results)}`,
+      msg: ok ? `Uniplay renovado por ${renewalMonths} meses / ${panelCredits} creditos (${results.filter((r) => r.ok).map((r) => r.kind.toUpperCase()).join(" + ")})` : `Falha Uniplay: ${JSON.stringify(results)}`,
     };
   }, [username, months, UNIPLAY_API_BASE, UNIPLAY_TOKEN_KEY, UNIPLAY_REG_PASS_KEY]);
 }

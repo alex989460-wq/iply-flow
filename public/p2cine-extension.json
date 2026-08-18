@@ -1,5 +1,5 @@
 {
-  "version": "2.1.0",
+  "version": "2.1.1",
   "download": "https://supergestor.top/p2cine-extension.zip",
-  "notes": "Remove o P2Cine da extensão: o painel kOffice/P2Cine agora renova direto pela API nativa no servidor. A extensão cuida apenas do Uniplay (reCAPTCHA) e do keep-alive do IBO Sol."
+  "notes": "Corrige a promoção do Uniplay: plano semestral envia 5 créditos e anual envia 10. A extensão cuida do Uniplay e do keep-alive do IBO Sol."
 }

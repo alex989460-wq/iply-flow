@@ -118,6 +118,16 @@ function buildUsernameVariants(raw: string): string[] {
   return [...set].filter(Boolean);
 }
 
+// O campo `credits` da Uniplay representa o custo da opção selecionada no
+// painel, não a quantidade literal de meses. O painel aplica promoções fixas
+// para os pacotes semestral e anual.
+function uniplayCreditsForMonths(rawMonths: unknown): number {
+  const months = Math.max(1, Math.round(Number(rawMonths) || 1));
+  if (months === 6) return 5;
+  if (months === 12) return 10;
+  return months;
+}
+
 // ---------------------------------------------------------------------------
 // Proxy global (VPS com IP residencial). Evita bloqueio de IP de datacenter.
 // Mesma infraestrutura usada pelo Sigma: SIGMA_PROXY_URL / SIGMA_PROXY_SECRET.
@@ -672,7 +682,7 @@ serve(async (req) => {
           username: uUser,
           password: uPass,
           target: username ? buildUsernameVariants(username) : [],
-          credits: Math.max(1, Number(months) || 1),
+          credits: uniplayCreditsForMonths(months),
           action,
         });
 
@@ -740,7 +750,8 @@ serve(async (req) => {
       });
     }
 
-    const credits = Math.max(1, Number(months) || 1);
+    const renewalMonths = Math.max(1, Math.round(Number(months) || 1));
+    const credits = uniplayCreditsForMonths(renewalMonths);
     const candidates = buildUsernameVariants(username);
     const norms = candidates.map((c) => c.toLowerCase().trim());
     console.log(`[Uniplay] Procurando "${username}" (variantes: ${candidates.join(", ")})`);
@@ -851,7 +862,7 @@ serve(async (req) => {
         message: `Renovado no Uniplay (${results
           .filter((r) => r.ok)
           .map((r) => r.kind.toUpperCase())
-          .join(" + ")}) por ${credits} mês(es)`,
+          .join(" + ")}) por ${renewalMonths} mês(es) (${credits} crédito(s))`,
         renewed_in: results.filter((r) => r.ok).map((r) => r.kind),
         results,
       }),
