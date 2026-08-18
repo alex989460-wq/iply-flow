@@ -389,6 +389,8 @@ serve(async (req) => {
       return new Response(JSON.stringify({ success: true, message: `Evento ${event} ignorado - status: ${dataStatus}` }), { headers: jsonHeaders });
     }
     
+    // Identifique falhas, erros de lógica e bugs no código fornecido. Forneça a correção exata para cada problema encontrado, acompanhada de uma explicação clara sobre a causa raiz e a solução aplicada, garantindo que o código funcione perfeitamente e sem erros. ja renovei manualmente os proximos quando for a mesma data voce pode renovar, so nao renove quando for data muito longe futura
+    
     // Extra safety: reject if paidAt is null (PIX generated but not paid)
     if (!paidAt && dataStatus !== 'paid') {
       console.warn(`[Cakto] Rejeitado - paidAt ausente e status: ${dataStatus}`);
@@ -2146,7 +2148,7 @@ serve(async (req) => {
           ? 'clientes com mesmo vencimento'
           : 'múltiplos clientes para o mesmo telefone sem pré-seleção';
 
-      console.log(`[Cakto] CONFLITO: ${conflictCustomers.length} clientes encontrados (${conflictReason}). Identifique falhas, erros de lógica e bugs no código fornecido. Forneça a correção exata para cada problema encontrado, acompanhada de uma explicação clara sobre a causa raiz e a solução aplicada, garantindo que o código funcione perfeitamente e sem erros. veja por que nao renovou automatica e corrija para renovar os proximos , veja que ela pagou 60,00 que é o valor para duas telas`);
+      console.log(`[Cakto] CONFLITO: ${conflictCustomers.length} clientes encontrados (${conflictReason}). ja renovei manualmente os proximos quando for a mesma data voce pode renovar, so nao renove quando for data muito longe futura`);
 
       // Register payment without confirming (so money isn't lost)
       let conflictPaymentId = '';
