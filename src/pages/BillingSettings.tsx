@@ -5,7 +5,7 @@ import MercadoPagoSettingsCard from '@/components/settings/MercadoPagoSettingsCa
 import ResellerCheckoutCard from '@/components/settings/ResellerCheckoutCard';
 import DiscountCouponsCard from '@/components/settings/DiscountCouponsCard';
 import EmailTrackingCard from '@/components/settings/EmailTrackingCard';
-import CaktoSettingsCard from '@/components/settings/CaktoSettingsCard';
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Receipt, MessageSquare, Wallet, ShoppingCart, Ticket, Mail, Smartphone, ShieldCheck, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -68,13 +68,6 @@ export default function BillingSettings() {
                   {t.label}
                 </TabsTrigger>
               ))}
-              <TabsTrigger
-                value="cakto"
-                className="flex-1 min-w-[140px] rounded-[1.5rem] px-4 py-3.5 text-xs font-black uppercase tracking-widest data-[state=active]:bg-orange-500 data-[state=active]:text-white data-[state=active]:shadow-2xl data-[state=active]:shadow-orange-500/30 transition-all duration-300 gap-2.5"
-              >
-                <Zap className="w-4 h-4" />
-                Cakto
-              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -123,17 +116,12 @@ export default function BillingSettings() {
                     </div>
                   )}
 
-                  {t.value === 'cakto' && (
-                    <div className="animate-in fade-in duration-700">
-                      <CaktoSettingsCard />
-                    </div>
-                  )}
 
                   {t.value === 'gateways' && (
                     <div className="grid gap-6 animate-in fade-in duration-700">
                       <EfiSettingsCard />
                       <MercadoPagoSettingsCard />
-                      <CaktoSettingsCard />
+                      
                     </div>
                   )}
                 </div>

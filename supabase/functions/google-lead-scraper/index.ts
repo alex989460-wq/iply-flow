@@ -81,7 +81,7 @@ function buildOverpass(filters: string[], bbox: number[], term: string) {
   if (term && filters.length > 2) {
     parts.push(`node["name"~"${term.replace(/["\\]/g, '')}",i](${box});`);
   }
-  return `[out:json][timeout:45];(${parts.join('')});out center tags 400;`;
+  return `[out:json][timeout:90];(${parts.join('')});out center tags 1000;`;
 }
 
 function digitsOnly(v: string) {
@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
     const query = String(body.query || '').trim();
-    const limit = Math.min(Math.max(Number(body.limit) || 60, 1), 300);
+    const limit = Math.min(Math.max(Number(body.limit) || 100, 1), 500);
     if (!query) return json({ error: 'Informe uma pesquisa. Ex.: "bares em Curitiba"' }, 400);
 
     const parsed = parseQuery(query);

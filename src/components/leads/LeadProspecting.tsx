@@ -58,7 +58,7 @@ export default function LeadProspecting() {
   const qc = useQueryClient();
 
   const [query, setQuery] = useState('');
-  const [limit, setLimit] = useState(60);
+  const [limit, setLimit] = useState(100);
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<ScrapedLead[]>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
@@ -390,7 +390,7 @@ export default function LeadProspecting() {
                   />
                 </div>
                 <Input
-                  type="number" min={10} max={300} value={limit}
+                  type="number" min={10} max={500} value={limit}
                   onChange={e => setLimit(Number(e.target.value))}
                   className="h-12 w-full sm:w-24 rounded-2xl bg-background/60 border-border/50"
                 />
