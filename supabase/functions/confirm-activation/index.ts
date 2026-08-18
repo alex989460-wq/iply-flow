@@ -392,7 +392,6 @@ serve(async (req) => {
           if (notified) channelUsed = 'evolution';
         }
       } else {
-        // Fora da janela de 24h → API não oficial primeiro.
         notified = await sendEvolution();
         if (notified) channelUsed = 'evolution';
         if (!notified) {

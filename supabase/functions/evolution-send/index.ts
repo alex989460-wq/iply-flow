@@ -694,7 +694,7 @@ Deno.serve(async (req) => {
       const log: any[] = [];
       await primeEvolutionContact(baseUrl, instAuth.apiKey, instAuth.instanceId, phone).catch(() => undefined);
       for (const att of attempts) {
-        const timeout = 8000;
+        const timeout = att.mode.includes('go-send') ? 12000 : 8000;
         const r = await fetchJson(att.url, {
           method: 'POST',
           headers: att.headers,
