@@ -50,7 +50,7 @@ export function formatMac(raw: string) {
   return clean.replace(/(.{2})(?=.)/g, '$1:');
 }
 
-type ProviderTab = 'clouddy' | 'ibopro' | 'iboplayer' | 'duplecast' | 'bobplayer';
+type ProviderTab = 'clouddy' | 'ibopro' | 'iboplayer' | 'duplecast' | 'bobplayer' | 'smartersmax';
 
 interface Props {
   open: boolean;
@@ -224,7 +224,19 @@ export default function SendPlaylistDialog({
               is_protected: !!pin.trim(),
             };
 
-      const { data, error } = await supabase.functions.invoke('send-playlist', { body });
+      const { data, error } =
+        tab === 'smartersmax'
+          ? await supabase.functions.invoke('smartersmax', {
+              body: {
+                action: 'playlist',
+                mac: formatMac(mac),
+                device_key: deviceKey.trim(),
+                playlist_name: playlistName.trim() || 'Lista',
+                m3u_url: listUrl.trim(),
+                pin: pin.trim() || undefined,
+              },
+            })
+          : await supabase.functions.invoke('send-playlist', { body });
       const msg = await extractFnError(error, data);
       if (msg) throw new Error(msg);
       toast.success((data as any)?.message || 'Lista enviada!');
@@ -352,12 +364,13 @@ export default function SendPlaylistDialog({
 
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-3">
           <Tabs value={tab} onValueChange={(v) => setTab(v as ProviderTab)}>
-            <TabsList className="grid grid-cols-3 sm:grid-cols-5 h-auto w-full gap-1 p-1">
+            <TabsList className="grid grid-cols-3 sm:grid-cols-6 h-auto w-full gap-1 p-1">
               <TabsTrigger value="clouddy" className="text-[11px] px-1 py-1.5">Clouddy</TabsTrigger>
               <TabsTrigger value="ibopro" className="text-[11px] px-1 py-1.5">IBO Pro</TabsTrigger>
               <TabsTrigger value="iboplayer" className="text-[11px] px-1 py-1.5">IBO Player</TabsTrigger>
               <TabsTrigger value="duplecast" className="text-[11px] px-1 py-1.5">Duplecast</TabsTrigger>
               <TabsTrigger value="bobplayer" className="text-[11px] px-1 py-1.5">Bob Player</TabsTrigger>
+              <TabsTrigger value="smartersmax" className="text-[11px] px-1 py-1.5">Smarters Max</TabsTrigger>
             </TabsList>
 
             <TabsContent value="clouddy" className="space-y-3 pt-3">
@@ -403,6 +416,14 @@ export default function SendPlaylistDialog({
               {epgField('Deixe vazio para não enviar EPG')}
               <p className="text-[11px] text-muted-foreground">
                 Usa o login do seu painel Duplecast salvo em Ativação de Apps → Painéis.
+              </p>
+            </TabsContent>
+
+            <TabsContent value="smartersmax" className="space-y-3 pt-3">
+              {deviceFields('device key exibida no app')}
+              {listField}
+              <p className="text-[11px] text-muted-foreground">
+                Envia direto pelo login do aparelho (MAC + Device Key) no Smarters Max.
               </p>
             </TabsContent>
 

@@ -17,7 +17,7 @@ import CreateClouddyUserDialog from '@/components/activation/CreateClouddyUserDi
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Smartphone, Mail, Monitor, Clock, CheckCircle2, XCircle, AlertCircle, Settings2, Eye, EyeOff, Zap, ListPlus, ShieldCheck, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Smartphone, Mail, Monitor, Clock, CheckCircle2, XCircle, AlertCircle, Settings2, Eye, EyeOff, Zap, ListPlus, ShieldCheck, Loader2, Image as ImageIcon, Wand2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import PlaylistTemplatesCard from '@/components/playlist/PlaylistTemplatesCard';
@@ -66,6 +66,15 @@ const IBOSOL_LOGOS: Record<string, string> = (() => {
 
 function normKey(name: string) {
   return String(name || '').toUpperCase().replace(/\s+/g, '');
+}
+
+// Sugere um ícone a partir do nome do app (favicon do domínio provável).
+export function guessLogo(name: string) {
+  const key = (name || '').toUpperCase().trim();
+  if (APP_LOGOS[key]) return APP_LOGOS[key];
+  const slug = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!slug) return '';
+  return `https://www.google.com/s2/favicons?domain=${slug}.com&sz=128`;
 }
 
 function AppLogo({ name, url, size = 40 }: { name: string; url?: string | null; size?: number }) {
@@ -139,16 +148,19 @@ export default function ActivationApps() {
   const clouddy = panelCreds.find((c: any) => c.panel_type === 'clouddy');
   const ibosol = panelCreds.find((c: any) => c.panel_type === 'ibosol');
   const iboPro = panelCreds.find((c: any) => c.panel_type === 'iboplayerpro');
+  const smartersmax = panelCreds.find((c: any) => c.panel_type === 'smartersmax');
 
   const [duplecastForm, setDuplecastForm] = useState({ username: '', password: '', is_enabled: true });
   const [clouddyForm, setClouddyForm] = useState({ base_url: 'https://console.clouddy.online', cookie: '', is_enabled: true });
   const [ibosolForm, setIbosolForm] = useState({ token: '', email: '', login_password: '', is_enabled: true });
   const [iboProForm, setIboProForm] = useState({ username: '', password: '', is_enabled: true });
+  const [smartersForm, setSmartersForm] = useState({ username: '', password: '', is_enabled: true });
   const [showPass, setShowPass] = useState(false);
   const [showClCookie, setShowClCookie] = useState(false);
   const [showIboTok, setShowIboTok] = useState(false);
   const [showIboPass, setShowIboPass] = useState(false);
   const [showIboProPass, setShowIboProPass] = useState(false);
+  const [showSmartersPass, setShowSmartersPass] = useState(false);
 
   useEffect(() => {
     if (duplecast) setDuplecastForm({ username: duplecast.username || '', password: duplecast.password || '', is_enabled: duplecast.is_enabled ?? true });
@@ -167,6 +179,10 @@ export default function ActivationApps() {
     });
 
   }, [ibosol?.id, ibosol?.updated_at]);
+
+  useEffect(() => {
+    if (smartersmax) setSmartersForm({ username: smartersmax.username || '', password: smartersmax.password || '', is_enabled: smartersmax.is_enabled ?? true });
+  }, [smartersmax?.id, smartersmax?.updated_at]);
 
   useEffect(() => {
     if (iboPro) setIboProForm({ username: iboPro.username || '', password: iboPro.password || '', is_enabled: iboPro.is_enabled ?? true });
@@ -251,6 +267,47 @@ export default function ActivationApps() {
     },
     onSuccess: () => panelSaved('Credenciais IBO Player Pro salvas!'),
     onError: (e: any) => toast.error(e.message),
+  });
+
+  const saveSmarters = useMutation({
+    mutationFn: async () => {
+      if (!smartersForm.username.trim() || !smartersForm.password.trim()) throw new Error('E-mail e senha do Smarters Max são obrigatórios');
+      await upsertPanel({ panel_type: 'smartersmax', username: smartersForm.username.trim(), password: smartersForm.password, is_enabled: smartersForm.is_enabled });
+    },
+    onSuccess: () => panelSaved('Credenciais Smarters Max salvas!'),
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const testSmarters = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('smartersmax', {
+        body: { action: 'test', email: smartersForm.username.trim(), password: smartersForm.password },
+      });
+      if (error) throw new Error((data as any)?.error || error.message);
+      if ((data as any)?.error) throw new Error((data as any).error);
+      return data as any;
+    },
+    onSuccess: (d: any) => toast.success(d?.credits != null ? `Conectado! Créditos: ${d.credits}` : 'Login no Smarters Max validado!'),
+    onError: (e: any) => toast.error(e.message || 'Não foi possível conectar no Smarters Max'),
+  });
+
+  const bulkFetchLogos = useMutation({
+    mutationFn: async () => {
+      const targets = (apps as any[]).filter(a => !a.logo_url);
+      let updated = 0;
+      for (const a of targets) {
+        const url = guessLogo(a.app_name);
+        if (!url) continue;
+        const { error } = await (supabase as any).from('activation_apps').update({ logo_url: url }).eq('id', a.id);
+        if (!error) updated++;
+      }
+      return updated;
+    },
+    onSuccess: (n: number) => {
+      queryClient.invalidateQueries({ queryKey: ['activation-apps'] });
+      toast.success(n ? `${n} ícone(s) atualizados` : 'Todos os apps já possuem ícone');
+    },
+    onError: (e: any) => toast.error(e.message || 'Falha ao atualizar ícones'),
   });
 
   const togglePanelEnabled = useMutation({
@@ -467,6 +524,18 @@ export default function ActivationApps() {
           </TabsContent>
 
           <TabsContent value="apps" className="animate-in slide-in-from-bottom-4 duration-500">
+             <div className="flex justify-end mb-4">
+                <Button
+                   variant="outline"
+                   className="rounded-xl font-black uppercase text-[11px] tracking-wider"
+                   disabled={bulkFetchLogos.isPending}
+                   onClick={() => bulkFetchLogos.mutate()}
+                >
+                   {bulkFetchLogos.isPending
+                      ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Buscando ícones…</>
+                      : <><Wand2 className="w-4 h-4 mr-2" /> Buscar ícones em massa</>}
+                </Button>
+             </div>
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {apps.map((app: any) => (
                    <Card key={app.id} className="bg-card/40 backdrop-blur-md border-border/50 rounded-3xl p-6 transition-all hover:bg-card/60 hover:border-primary/30 group">
@@ -650,7 +719,49 @@ export default function ActivationApps() {
                          </div>
                       </div>
                    </div>
-                </PanelCredentialCard>
+                 </PanelCredentialCard>
+
+                 <PanelCredentialCard
+                    title="Smarters Max"
+                    subtitle="cms.smartersmax.com — ativação por MAC e envio de listas"
+                    logo={<Monitor className="w-5 h-5 text-primary" />}
+                    connected={!!smartersmax}
+                    enabled={smartersForm.is_enabled}
+                    onEnabledChange={(v) => handleToggle('smartersmax', !!smartersmax, v, (b) => setSmartersForm(f => ({ ...f, is_enabled: b })))}
+                    saving={saveSmarters.isPending}
+                    onSave={() => saveSmarters.mutate()}
+                    saveLabel="Salvar credenciais"
+                    hint={<>Use o e-mail e senha do painel de revenda <span className="font-mono">cms.smartersmax.com</span>. Com isso o sistema ativa o MAC do cliente usando seus créditos e também envia listas direto no app (MAC + Device Key).</>}
+                 >
+                    <div className="space-y-3">
+                       <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="space-y-1.5">
+                             <Label className="text-xs">E-mail do revendedor</Label>
+                             <Input type="email" autoComplete="off" value={smartersForm.username} onChange={e => setSmartersForm(f => ({ ...f, username: e.target.value }))} placeholder="seu-email@exemplo.com" />
+                          </div>
+                          <div className="space-y-1.5">
+                             <Label className="text-xs">Senha</Label>
+                             <div className="relative">
+                                <Input type={showSmartersPass ? 'text' : 'password'} autoComplete="new-password" value={smartersForm.password} onChange={e => setSmartersForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••••" className="pr-9" />
+                                <button type="button" onClick={() => setShowSmartersPass(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" aria-label={showSmartersPass ? 'Ocultar' : 'Mostrar'}>
+                                   {showSmartersPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                             </div>
+                          </div>
+                       </div>
+                       <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => testSmarters.mutate()}
+                          disabled={testSmarters.isPending}
+                          className="w-full rounded-xl font-black uppercase text-[11px] tracking-wider"
+                       >
+                          {testSmarters.isPending
+                             ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Testando login…</>
+                             : <><ShieldCheck className="w-4 h-4 mr-2" /> Testar login e ver créditos</>}
+                       </Button>
+                    </div>
+                 </PanelCredentialCard>
              </div>
           </TabsContent>
 
@@ -670,6 +781,16 @@ export default function ActivationApps() {
                <div className="space-y-2">
                   <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Nome do App</Label>
                   <Input value={form.app_name} onChange={e => setForm({...form, app_name: e.target.value})} placeholder="Ex: BOBPLAYER" className="h-11 bg-background/50 border-border/50 rounded-xl" required />
+               </div>
+               <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Ícone do App (URL)</Label>
+                  <div className="flex items-center gap-3">
+                     <AppLogo name={form.app_name} url={form.logo_url} size={44} />
+                     <Input value={form.logo_url || ''} onChange={e => setForm({...form, logo_url: e.target.value})} placeholder="https://site.com/icone.png" className="h-11 bg-background/50 border-border/50 rounded-xl flex-1" />
+                     <Button type="button" variant="outline" className="h-11 rounded-xl shrink-0" onClick={() => setForm({ ...form, logo_url: guessLogo(form.app_name) })} title="Buscar ícone automaticamente">
+                        <ImageIcon className="w-4 h-4" />
+                     </Button>
+                  </div>
                </div>
                <div className="space-y-2">
                   <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Preço Anual (R$)</Label>
