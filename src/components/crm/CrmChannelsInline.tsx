@@ -51,9 +51,9 @@ function normalize(body: any): WAChannel[] {
         c.phone_number, c.phoneNumber, c.phone, c.number, c.msisdn,
         c.wa_id, c.waId, c.from, c.phone_e164, c.display_number,
         c?.profile?.phone, c?.business?.phone_number, c?.phone_number_clean,
-
+        c?.verified_number, c?.official_number
       );
-      const phone = rawPhone && rawPhone.replace(/\D/g, '').length <= 15 && rawPhone !== phoneId ? rawPhone : '';
+      const phone = rawPhone && rawPhone.replace(/\D/g, '').length <= 15 ? rawPhone : '';
       const kind = String(c.kind || c.type || 'whatsapp_cloud').toLowerCase();
       const official = !(kind.includes('evolution') || kind.includes('baileys') || !!c.evolution_instance_name || !!c.evolution_status);
       return {

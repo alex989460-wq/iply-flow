@@ -79,9 +79,9 @@ function normalizeChannelLists(body: any) {
       c.display_phone_number, c.displayPhoneNumber, c.phone_display,
       c.phone_number, c.phoneNumber, c.phone, c.number, c.msisdn, c.wa_id,
       c.display_number, c.phone_number_clean,
-
+      c?.verified_number, c?.official_number
     );
-    const phone = rawPhone && rawPhone !== phoneId && rawPhone.replace(/\D/g, '').length <= 15
+    const phone = rawPhone && rawPhone.replace(/\D/g, '').length <= 15
       ? (rawPhone.startsWith('+') ? rawPhone : `+${rawPhone.replace(/\D/g, '')}`)
       : '';
     const evolutionStatus = pickString(c.evolution_status, c.status, c.state);
