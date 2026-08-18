@@ -150,9 +150,21 @@ Deno.serve(async (req) => {
     if (!query) return json({ error: 'Informe uma pesquisa. Ex.: "bares em Curitiba"' }, 400);
 
     const parsed = parseQuery(query);
-    const place = await geocodeCity(parsed.city || query);
+    const words = String(query).toLowerCase().split(/\s+/).filter(Boolean);
+    const candidates = [
+      parsed.city,
+      words.slice(-2).join(' '),
+      words.slice(-1).join(' '),
+      query,
+    ].filter(Boolean) as string[];
+
+    let place: Awaited<ReturnType<typeof geocodeCity>> = null;
+    for (const c of Array.from(new Set(candidates))) {
+      place = await geocodeCity(c);
+      if (place?.boundingbox?.length) break;
+    }
     if (!place || !place.boundingbox?.length) {
-      return json({ error: `Não consegui localizar a cidade da pesquisa "${query}". Tente algo como "bares em Curitiba".` }, 400);
+      return json({ error: `Não consegui localizar a cidade da pesquisa "${query}". Tente algo como "barbearias em Curitiba".` }, 400);
     }
 
     const overpassQuery = buildOverpass(parsed.filters, place.boundingbox, parsed.term);
