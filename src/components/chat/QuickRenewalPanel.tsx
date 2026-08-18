@@ -944,8 +944,25 @@ Obrigado pela preferência! 🙏`;
       const { error } = await supabase.from('customers').update(updateData).eq('id', selectedCustomer.id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (data, variables, context) => {
       toast.success('Dados do cliente salvos!');
+      // Update selectedCustomer to reflect changes immediately
+      setSelectedCustomer(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          name: editedName.trim(),
+          phone: editedPhone.trim(),
+          extra_phone: editedExtraPhone.trim() || null,
+          username: editedUsername.trim() || null,
+          screens: selectedScreens,
+          status: editedStatus as any,
+          server: allServers.find(s => s.id === editedServerId) || prev.server,
+          due_date: editedDueDate || prev.due_date,
+          plan: allPlans.find(p => p.id === selectedPlanId) || prev.plan,
+          custom_price: renewalPrice
+        };
+      });
       queryClient.invalidateQueries({ queryKey: ['customer-search'] });
     },
     onError: (error: Error) => {
