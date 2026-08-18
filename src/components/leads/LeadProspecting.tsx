@@ -695,16 +695,47 @@ export default function LeadProspecting() {
       <Dialog open={sendOpen} onOpenChange={(v) => { if (!sending) setSendOpen(v); }}>
         <DialogContent className="rounded-3xl">
           <DialogHeader><DialogTitle>Enviar para {listStats.pendentes} contatos pendentes</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <Textarea value={sendText} onChange={e => setSendText(e.target.value)} rows={5} className="rounded-xl" />
-            <p className="text-[11px] text-muted-foreground">Use <span className="font-mono">{'{{nome}}'}</span> para inserir o nome do lead. Envio pela sua conexão WhatsApp (Evolution), com intervalo de 1,5s.</p>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Tipo de API</Label>
+                <Select defaultValue="evolution">
+                  <SelectTrigger className="h-10 rounded-xl bg-background/50">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="evolution">WhatsApp (Não Oficial)</SelectItem>
+                    <SelectItem value="official">WhatsApp (API Oficial)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Número/Canal</Label>
+                <Select defaultValue="default">
+                  <SelectTrigger className="h-10 rounded-xl bg-background/50">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Canal Padrão</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Mensagem ou Template</Label>
+              <Textarea value={sendText} onChange={e => setSendText(e.target.value)} rows={5} className="rounded-xl bg-background/50" placeholder="Digite sua mensagem ou selecione um template..." />
+              <p className="text-[11px] text-muted-foreground">Use <span className="font-mono">{'{{nome}}'}</span> para inserir o nome do lead. Envio com intervalo de segurança.</p>
+            </div>
+
             {sending && (
-              <p className="text-xs font-bold">Enviando {sendProgress.done}/{sendProgress.total} · {sendProgress.fail} falhas</p>
+              <p className="text-xs font-bold text-primary animate-pulse">Enviando {sendProgress.done}/{sendProgress.total} · {sendProgress.fail} falhas</p>
             )}
-            <Button onClick={sendToPending} disabled={sending} className="w-full h-11 rounded-xl font-black uppercase text-[11px] tracking-wider">
-              {sending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Enviando…</> : <><Send className="w-4 h-4 mr-2" /> Iniciar envio</>}
+            <Button onClick={sendToPending} disabled={sending} className="w-full h-12 rounded-xl font-black uppercase text-[11px] tracking-widest shadow-lg shadow-primary/20">
+              {sending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processando Envio…</> : <><Send className="w-4 h-4 mr-2" /> Iniciar Disparo em Massa</>}
             </Button>
           </div>
+
         </DialogContent>
       </Dialog>
     </div>
