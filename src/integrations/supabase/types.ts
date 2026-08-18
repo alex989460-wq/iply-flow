@@ -2174,6 +2174,149 @@ export type Database = {
         }
         Relationships: []
       }
+      lead_history: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          lead_id: string
+          metadata: Json | null
+          result: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          lead_id: string
+          metadata?: Json | null
+          result?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          lead_id?: string
+          metadata?: Json | null
+          result?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_history_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_list_items: {
+        Row: {
+          created_at: string
+          id: string
+          last_sent_at: string | null
+          lead_id: string
+          list_id: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_sent_at?: string | null
+          lead_id: string
+          list_id: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_sent_at?: string | null
+          lead_id?: string
+          list_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_list_items_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_list_items_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "lead_lists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_lists: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      leads: {
+        Row: {
+          address: string | null
+          category: string | null
+          city: string | null
+          created_at: string
+          id: string
+          name: string | null
+          phone: string
+          score: string | null
+          site: string | null
+          user_id: string
+          whatsapp_available: boolean | null
+        }
+        Insert: {
+          address?: string | null
+          category?: string | null
+          city?: string | null
+          created_at?: string
+          id?: string
+          name?: string | null
+          phone: string
+          score?: string | null
+          site?: string | null
+          user_id: string
+          whatsapp_available?: boolean | null
+        }
+        Update: {
+          address?: string | null
+          category?: string | null
+          city?: string | null
+          created_at?: string
+          id?: string
+          name?: string | null
+          phone?: string
+          score?: string | null
+          site?: string | null
+          user_id?: string
+          whatsapp_available?: boolean | null
+        }
+        Relationships: []
+      }
       mercadopago_settings: {
         Row: {
           access_token: string | null
