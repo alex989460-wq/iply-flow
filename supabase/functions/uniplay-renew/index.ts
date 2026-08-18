@@ -612,13 +612,6 @@ serve(async (req) => {
           );
         }
 
-        if (customer_id) {
-          await admin.rpc("renew_customer_due_date", {
-            _customer_id: customer_id,
-            _months: Math.max(1, Number(months) || 1),
-          }).catch?.(() => {});
-        }
-
         return new Response(
           JSON.stringify({ success: true, via: "navegador", results: flow.results }),
           { headers: jsonHeaders },
