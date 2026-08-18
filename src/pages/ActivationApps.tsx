@@ -650,7 +650,49 @@ export default function ActivationApps() {
                          </div>
                       </div>
                    </div>
-                </PanelCredentialCard>
+                 </PanelCredentialCard>
+
+                 <PanelCredentialCard
+                    title="Smarters Max"
+                    subtitle="cms.smartersmax.com — ativação por MAC e envio de listas"
+                    logo={<Monitor className="w-5 h-5 text-primary" />}
+                    connected={!!smartersmax}
+                    enabled={smartersForm.is_enabled}
+                    onEnabledChange={(v) => handleToggle('smartersmax', !!smartersmax, v, (b) => setSmartersForm(f => ({ ...f, is_enabled: b })))}
+                    saving={saveSmarters.isPending}
+                    onSave={() => saveSmarters.mutate()}
+                    saveLabel="Salvar credenciais"
+                    hint={<>Use o e-mail e senha do painel de revenda <span className="font-mono">cms.smartersmax.com</span>. Com isso o sistema ativa o MAC do cliente usando seus créditos e também envia listas direto no app (MAC + Device Key).</>}
+                 >
+                    <div className="space-y-3">
+                       <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="space-y-1.5">
+                             <Label className="text-xs">E-mail do revendedor</Label>
+                             <Input type="email" autoComplete="off" value={smartersForm.username} onChange={e => setSmartersForm(f => ({ ...f, username: e.target.value }))} placeholder="seu-email@exemplo.com" />
+                          </div>
+                          <div className="space-y-1.5">
+                             <Label className="text-xs">Senha</Label>
+                             <div className="relative">
+                                <Input type={showSmartersPass ? 'text' : 'password'} autoComplete="new-password" value={smartersForm.password} onChange={e => setSmartersForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••••" className="pr-9" />
+                                <button type="button" onClick={() => setShowSmartersPass(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" aria-label={showSmartersPass ? 'Ocultar' : 'Mostrar'}>
+                                   {showSmartersPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                             </div>
+                          </div>
+                       </div>
+                       <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => testSmarters.mutate()}
+                          disabled={testSmarters.isPending}
+                          className="w-full rounded-xl font-black uppercase text-[11px] tracking-wider"
+                       >
+                          {testSmarters.isPending
+                             ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Testando login…</>
+                             : <><ShieldCheck className="w-4 h-4 mr-2" /> Testar login e ver créditos</>}
+                       </Button>
+                    </div>
+                 </PanelCredentialCard>
              </div>
           </TabsContent>
 
@@ -670,6 +712,16 @@ export default function ActivationApps() {
                <div className="space-y-2">
                   <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Nome do App</Label>
                   <Input value={form.app_name} onChange={e => setForm({...form, app_name: e.target.value})} placeholder="Ex: BOBPLAYER" className="h-11 bg-background/50 border-border/50 rounded-xl" required />
+               </div>
+               <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Ícone do App (URL)</Label>
+                  <div className="flex items-center gap-3">
+                     <AppLogo name={form.app_name} url={form.logo_url} size={44} />
+                     <Input value={form.logo_url || ''} onChange={e => setForm({...form, logo_url: e.target.value})} placeholder="https://site.com/icone.png" className="h-11 bg-background/50 border-border/50 rounded-xl flex-1" />
+                     <Button type="button" variant="outline" className="h-11 rounded-xl shrink-0" onClick={() => setForm({ ...form, logo_url: guessLogo(form.app_name) })} title="Buscar ícone automaticamente">
+                        <ImageIcon className="w-4 h-4" />
+                     </Button>
+                  </div>
                </div>
                <div className="space-y-2">
                   <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Preço Anual (R$)</Label>
