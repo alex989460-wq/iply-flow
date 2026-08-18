@@ -148,7 +148,7 @@ serve(async (req) => {
 
     const { data: cred } = await admin
       .from("activation_panel_credentials")
-      .select("username, password, is_enabled")
+      .select("username, password, is_enabled, extra")
       .eq("user_id", ownerId)
       .eq("panel_type", "ibosol")
       .maybeSingle();
