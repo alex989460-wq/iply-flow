@@ -422,7 +422,7 @@ serve(async (req) => {
     }
 
 
-    if (action === 'activate' && supportedApp && !autoActivationOk && !force && !forceConfirm) {
+    if (action === 'activate' && supportedApp && !autoActivationOk && !force && !forceConfirm && !forceAny) {
       return new Response(JSON.stringify({
         success: false,
         status: 'failed',
