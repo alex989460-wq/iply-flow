@@ -524,6 +524,18 @@ export default function ActivationApps() {
           </TabsContent>
 
           <TabsContent value="apps" className="animate-in slide-in-from-bottom-4 duration-500">
+             <div className="flex justify-end mb-4">
+                <Button
+                   variant="outline"
+                   className="rounded-xl font-black uppercase text-[11px] tracking-wider"
+                   disabled={bulkFetchLogos.isPending}
+                   onClick={() => bulkFetchLogos.mutate()}
+                >
+                   {bulkFetchLogos.isPending
+                      ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Buscando ícones…</>
+                      : <><Wand2 className="w-4 h-4 mr-2" /> Buscar ícones em massa</>}
+                </Button>
+             </div>
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {apps.map((app: any) => (
                    <Card key={app.id} className="bg-card/40 backdrop-blur-md border-border/50 rounded-3xl p-6 transition-all hover:bg-card/60 hover:border-primary/30 group">
