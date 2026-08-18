@@ -45,51 +45,23 @@ async function pingIbosol(token: string) {
   }
 }
 
-function findToken(storage: Record<string, unknown>): string | null {
-  const isToken = (v: unknown) => typeof v === "string" && /^\d{3,}\|[A-Za-z0-9]{20,}$/.test(v.trim());
-  for (const raw of Object.values(storage || {})) {
-    if (isToken(raw)) return String(raw).trim();
-    if (typeof raw !== "string" || !/^[[{]/.test(raw.trim())) continue;
-    try {
-      const found: string[] = [];
-      const walk = (n: unknown) => {
-        if (isToken(n)) { found.push(String(n).trim()); return; }
-        if (Array.isArray(n)) return n.forEach(walk);
-        if (n && typeof n === "object") Object.values(n as any).forEach(walk);
-      };
-      walk(JSON.parse(raw));
-      if (found.length) return found[0];
-    } catch { /* ignora */ }
-  }
-  return null;
-}
-
-async function tryRelogin(email: string, password: string): Promise<string | null> {
-  const base = (Deno.env.get("SIGMA_PROXY_URL") || "").replace(/\/+$/, "");
-  if (!base) return null;
+async function tryRelogin(userId: string, email: string, password: string): Promise<{ ok: boolean; error?: string }> {
   try {
-    const res = await fetch(base + "/", {
+    const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/ibosol-login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-sigma-proxy-secret": Deno.env.get("SIGMA_PROXY_SECRET") || "",
+        Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
       },
-      body: JSON.stringify({
-        browser: true,
-        url: "https://ibosol.com/login",
-        wait_ms: 9000,
-        steps: [
-          { selector: "#email", value: email },
-          { selector: "#password", value: password },
-          { selector: "button[type='submit']", click: true, wait_ms: 9000 },
-        ],
-      }),
+      body: JSON.stringify({ user_id: userId, email, password }),
     });
-    if (!res.ok) { await res.body?.cancel(); return null; }
-    const data = await res.json();
-    return findToken(data.storage || {});
-  } catch {
-    return null;
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.success) {
+      return { ok: false, error: String(data?.error || `HTTP ${res.status}`) };
+    }
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: (error as Error).message };
   }
 }
 
@@ -121,47 +93,56 @@ serve(async (req) => {
 
       // Auto-relogin: se o revendedor salvou e-mail/senha, renova o token pelo agente
       // de navegador (SeleniumBase) em vez de abrir pendência manual.
-      let relogin: string | null = null;
+      let relogin: "ok" | "failed" | null = null;
+      let reloginError: string | null = null;
       if (r.expired && extra.auto_login && extra.email && extra.login_password) {
-        const newToken = await tryRelogin(String(extra.email), String(extra.login_password));
-        if (newToken) {
-          await admin
+        const login = await tryRelogin(c.user_id, String(extra.email), String(extra.login_password));
+        if (login.ok) {
+          const { data: refreshed } = await admin
             .from("activation_panel_credentials")
-            .update({
-              password: newToken,
-              extra: { ...extra, last_login_at: new Date().toISOString() },
-              updated_at: new Date().toISOString(),
-            })
+            .select("password")
             .eq("user_id", c.user_id)
-            .eq("panel_type", "ibosol");
-          r = await pingIbosol(newToken);
-          relogin = "ok";
+            .eq("panel_type", "ibosol")
+            .maybeSingle();
+          const refreshedToken = String(refreshed?.password || "").trim();
+          r = refreshedToken
+            ? await pingIbosol(refreshedToken)
+            : { alive: false, expired: true, status: 401, endpoint: null, error: "Sessão não retornada pelo login" };
+          relogin = r.alive ? "ok" : "failed";
+          if (!r.alive) reloginError = "O login foi concluído, mas a nova conexão não foi aceita pelo painel.";
         } else {
           relogin = "failed";
+          reloginError = login.error || "Falha desconhecida no login automático.";
         }
       }
 
       results.push({ user_id: c.user_id, ok: r.alive, expired: r.expired, status: r.status, endpoint: r.endpoint, relogin });
 
+      if (r.alive) {
+        await admin
+          .from("pending_manual_renewals")
+          .delete()
+          .eq("owner_id", c.user_id)
+          .eq("reason", "ibosol_session_expired");
+      }
+
       if (r.expired) {
-        const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         const { data: existing } = await admin
           .from("pending_manual_renewals")
           .select("id")
           .eq("owner_id", c.user_id)
           .eq("reason", "ibosol_session_expired")
-          .gte("created_at", since)
           .limit(1);
         if (!existing || existing.length === 0) {
           await admin.from("pending_manual_renewals").insert({
             owner_id: c.user_id,
-            customer_name: "⚠️ Sessão IBO Sol expirada",
+            customer_name: "⚠️ Conexão automática do IBO Sol indisponível",
             reason: "ibosol_session_expired",
             source: "ibosol-keepalive",
             error_details: {
               message: relogin === "failed"
-                ? "O login automático do IBO Sol falhou (Cloudflare ou senha alterada). Reconecte em Ativação de Apps → IBO Sol."
-                : "Bearer token da IBO Sol expirou. Salve e-mail e senha em Ativação de Apps → IBO Sol para reconectar automaticamente.",
+                ? `Não foi possível reconectar o IBO Sol com o e-mail e a senha salvos: ${reloginError || "verifique as credenciais e tente novamente."}`
+                : "Configure e-mail e senha em Ativação de Apps → IBO Sol para habilitar a reconexão automática.",
               status: r.status,
             },
           });
