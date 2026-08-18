@@ -262,7 +262,7 @@ export default function CrmChannelsInline() {
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground font-mono truncate">{ch.display_phone_number || ch.phone_number || 'Número não informado'}</p>
+                  <p className="text-xs text-muted-foreground font-mono truncate">{ch.display_phone_number || ch.phone_number || (ch.official ? 'Confirmando número...' : 'Número não informado')}</p>
                 </div>
               </div>
               <span className={cn(
