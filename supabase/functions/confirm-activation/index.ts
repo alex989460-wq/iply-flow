@@ -14,16 +14,19 @@ serve(async (req) => {
   const jsonHeaders = { ...corsHeaders, 'Content-Type': 'application/json' };
 
   try {
-    const payload = await req.json();
+    const text = await req.text();
+    console.log('[ActivationAction] Raw Body:', text);
+    const payload = JSON.parse(text || '{}');
+    console.log('[ActivationAction] Parsed Payload:', JSON.stringify(payload));
     const request_id = payload?.request_id;
     // `auto: true` (webhooks) equivale a uma ativação.
     const action = payload?.action || (payload?.auto ? 'activate' : null);
+    const force = !!payload?.force;
     const source = String(payload?.source || 'confirm-activation');
 
     if (!request_id || !action) {
       return new Response(JSON.stringify({ error: 'request_id e action são obrigatórios' }), { status: 400, headers: jsonHeaders });
     }
-
 
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -209,7 +212,7 @@ serve(async (req) => {
     const supportedApp = /(DUPLECAST|CLOUDDY|IBOPLAYERPRO|IBO PLAYER PRO|BOBPLAYER|BOB PLAYER|BOBPRO|BOBPREMIUM|IBOPLAYER|IBO PLAYER|IBOSTB|IBOSSPLAYER|IBOSOLPLAYER|IBO VPN|IBO PLAY|ABEPLAYER|MACPLAYER|VIRGINIA|ALLPLAYER|HUSHPLAY|KTNPLAYER|FAMILYPLAYER|KING4K|IBOXXPLAYER|DUPLEX|FLIXNET|SMARTONEPRO|CR PLAYER|HQ PLAYER|MESSITV)/i.test(String(request.app_name || ''));
     const newStatus =
       action === 'activate'
-        ? (supportedApp && !autoActivationOk ? 'failed' : 'completed')
+        ? (supportedApp && !autoActivationOk && !force ? 'failed' : 'completed')
         : 'rejected';
     await supabaseAdmin.from('activation_requests').update({
       status: newStatus,
@@ -418,7 +421,7 @@ serve(async (req) => {
     }
 
 
-    if (action === 'activate' && supportedApp && !autoActivationOk) {
+    if (action === 'activate' && supportedApp && !autoActivationOk && !force) {
       return new Response(JSON.stringify({
         success: false,
         status: newStatus,
@@ -427,6 +430,7 @@ serve(async (req) => {
       }), { status: 200, headers: jsonHeaders });
     }
 
+    console.log('[ActivationAction] Final success response. Action:', action, 'Status:', newStatus);
     return new Response(JSON.stringify({
       success: true,
       status: newStatus,
