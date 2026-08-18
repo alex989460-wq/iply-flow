@@ -269,6 +269,47 @@ export default function ActivationApps() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const saveSmarters = useMutation({
+    mutationFn: async () => {
+      if (!smartersForm.username.trim() || !smartersForm.password.trim()) throw new Error('E-mail e senha do Smarters Max são obrigatórios');
+      await upsertPanel({ panel_type: 'smartersmax', username: smartersForm.username.trim(), password: smartersForm.password, is_enabled: smartersForm.is_enabled });
+    },
+    onSuccess: () => panelSaved('Credenciais Smarters Max salvas!'),
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const testSmarters = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('smartersmax', {
+        body: { action: 'test', email: smartersForm.username.trim(), password: smartersForm.password },
+      });
+      if (error) throw new Error((data as any)?.error || error.message);
+      if ((data as any)?.error) throw new Error((data as any).error);
+      return data as any;
+    },
+    onSuccess: (d: any) => toast.success(d?.credits != null ? `Conectado! Créditos: ${d.credits}` : 'Login no Smarters Max validado!'),
+    onError: (e: any) => toast.error(e.message || 'Não foi possível conectar no Smarters Max'),
+  });
+
+  const bulkFetchLogos = useMutation({
+    mutationFn: async () => {
+      const targets = (apps as any[]).filter(a => !a.logo_url);
+      let updated = 0;
+      for (const a of targets) {
+        const url = guessLogo(a.app_name);
+        if (!url) continue;
+        const { error } = await (supabase as any).from('activation_apps').update({ logo_url: url }).eq('id', a.id);
+        if (!error) updated++;
+      }
+      return updated;
+    },
+    onSuccess: (n: number) => {
+      queryClient.invalidateQueries({ queryKey: ['activation-apps'] });
+      toast.success(n ? `${n} ícone(s) atualizados` : 'Todos os apps já possuem ícone');
+    },
+    onError: (e: any) => toast.error(e.message || 'Falha ao atualizar ícones'),
+  });
+
   const togglePanelEnabled = useMutation({
     mutationFn: async ({ panel_type, value }: { panel_type: string; value: boolean }) => {
       const { error } = await (supabase as any)
