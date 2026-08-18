@@ -2281,11 +2281,19 @@ export type Database = {
           category: string | null
           city: string | null
           created_at: string
+          first_sent_at: string | null
           id: string
+          last_result: string | null
+          last_sent_at: string | null
           name: string | null
+          notes: string | null
           phone: string
           score: string | null
+          send_count: number
           site: string | null
+          source_query: string | null
+          status: string
+          updated_at: string
           user_id: string
           whatsapp_available: boolean | null
         }
@@ -2294,11 +2302,19 @@ export type Database = {
           category?: string | null
           city?: string | null
           created_at?: string
+          first_sent_at?: string | null
           id?: string
+          last_result?: string | null
+          last_sent_at?: string | null
           name?: string | null
+          notes?: string | null
           phone: string
           score?: string | null
+          send_count?: number
           site?: string | null
+          source_query?: string | null
+          status?: string
+          updated_at?: string
           user_id: string
           whatsapp_available?: boolean | null
         }
@@ -2307,11 +2323,19 @@ export type Database = {
           category?: string | null
           city?: string | null
           created_at?: string
+          first_sent_at?: string | null
           id?: string
+          last_result?: string | null
+          last_sent_at?: string | null
           name?: string | null
+          notes?: string | null
           phone?: string
           score?: string | null
+          send_count?: number
           site?: string | null
+          source_query?: string | null
+          status?: string
+          updated_at?: string
           user_id?: string
           whatsapp_available?: boolean | null
         }

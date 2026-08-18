@@ -773,7 +773,7 @@ export default function ActivationApps() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-         <DialogContent className="bg-background/80 backdrop-blur-2xl border-border/50 rounded-3xl shadow-2xl">
+         <DialogContent className="bg-background/80 backdrop-blur-2xl border-border/50 rounded-3xl shadow-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
                <DialogTitle className="text-xl font-bold">{editingApp ? 'Editar App' : 'Novo App'}</DialogTitle>
             </DialogHeader>
@@ -793,8 +793,53 @@ export default function ActivationApps() {
                   </div>
                </div>
                <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Preço Anual (R$)</Label>
-                  <Input type="number" step="0.01" value={form.price_annual} onChange={e => setForm({...form, price_annual: e.target.value})} className="h-11 bg-background/50 border-border/50 rounded-xl" />
+                  <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Descrição</Label>
+                  <Input value={form.description || ''} onChange={e => setForm({...form, description: e.target.value})} placeholder="Ex: Licença anual do app" className="h-11 bg-background/50 border-border/50 rounded-xl" />
+               </div>
+
+               <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">O que o cliente precisa informar</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                     <button
+                        type="button"
+                        onClick={() => setForm({ ...form, requires_mac: !form.requires_mac })}
+                        className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${form.requires_mac ? 'border-primary bg-primary/10' : 'border-border/50 bg-background/40 hover:bg-muted/40'}`}
+                     >
+                        <Smartphone className={`w-4 h-4 ${form.requires_mac ? 'text-primary' : 'text-muted-foreground'}`} />
+                        <div className="flex-1">
+                           <p className="text-xs font-black uppercase tracking-wide">MAC</p>
+                           <p className="text-[10px] text-muted-foreground">Endereço MAC do aparelho</p>
+                        </div>
+                        <Switch checked={!!form.requires_mac} onCheckedChange={v => setForm({ ...form, requires_mac: v })} onClick={e => e.stopPropagation()} />
+                     </button>
+                     <button
+                        type="button"
+                        onClick={() => setForm({ ...form, requires_email: !form.requires_email })}
+                        className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${form.requires_email ? 'border-sky-500 bg-sky-500/10' : 'border-border/50 bg-background/40 hover:bg-muted/40'}`}
+                     >
+                        <Mail className={`w-4 h-4 ${form.requires_email ? 'text-sky-500' : 'text-muted-foreground'}`} />
+                        <div className="flex-1">
+                           <p className="text-xs font-black uppercase tracking-wide">E-mail</p>
+                           <p className="text-[10px] text-muted-foreground">Conta de e-mail do cliente</p>
+                        </div>
+                        <Switch checked={!!form.requires_email} onCheckedChange={v => setForm({ ...form, requires_email: v })} onClick={e => e.stopPropagation()} />
+                     </button>
+                  </div>
+               </div>
+
+               <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-2">
+                     <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Mensal</Label>
+                     <Input type="number" step="0.01" value={form.price_monthly ?? ''} onChange={e => setForm({...form, price_monthly: e.target.value})} className="h-11 bg-background/50 border-border/50 rounded-xl" />
+                  </div>
+                  <div className="space-y-2">
+                     <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Trimestral</Label>
+                     <Input type="number" step="0.01" value={form.price_quarterly ?? ''} onChange={e => setForm({...form, price_quarterly: e.target.value})} className="h-11 bg-background/50 border-border/50 rounded-xl" />
+                  </div>
+                  <div className="space-y-2">
+                     <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Anual</Label>
+                     <Input type="number" step="0.01" value={form.price_annual ?? ''} onChange={e => setForm({...form, price_annual: e.target.value})} className="h-11 bg-background/50 border-border/50 rounded-xl" />
+                  </div>
                </div>
                <div className="flex items-center justify-between p-3 bg-primary/5 rounded-xl border border-primary/10">
                   <Label className="font-bold text-sm">App Ativo no Checkout</Label>

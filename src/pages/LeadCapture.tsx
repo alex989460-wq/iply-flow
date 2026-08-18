@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import LeadProspecting from '@/components/leads/LeadProspecting';
+
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -456,7 +459,19 @@ export default function LeadCapture() {
           </div>
         </div>
 
+        <Tabs defaultValue="prospeccao" className="space-y-6">
+          <TabsList className="bg-card/50 backdrop-blur border border-border/50 rounded-2xl p-1">
+            <TabsTrigger value="prospeccao" className="rounded-xl text-xs font-bold uppercase tracking-wide">Prospecção</TabsTrigger>
+            <TabsTrigger value="disparo" className="rounded-xl text-xs font-bold uppercase tracking-wide">Disparo API Oficial</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="prospeccao">
+            <LeadProspecting />
+          </TabsContent>
+
+          <TabsContent value="disparo" className="space-y-6">
         <Alert variant="destructive" className="border-amber-500/40 bg-amber-500/5 text-amber-200">
+
           <ShieldAlert className="h-4 w-4" />
           <AlertTitle>Aviso: Disparo para números frios</AlertTitle>
           <AlertDescription className="text-xs space-y-1">
@@ -710,6 +725,10 @@ export default function LeadCapture() {
             </CardContent>
           </Card>
         )}
+          </TabsContent>
+        </Tabs>
+
+
 
         <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
           <AlertDialogContent>

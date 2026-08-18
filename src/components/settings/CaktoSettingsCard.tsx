@@ -96,7 +96,7 @@ export default function CaktoSettingsCard() {
           <div className="w-8 h-8 rounded-lg bg-orange-500/15 flex items-center justify-center">
             <Zap className="w-5 h-5 text-orange-500" />
           </div>
-          Cakto (Integração)
+          Cakto
           {hasCakto && <CheckCircle2 className="w-5 h-5 text-green-500 ml-auto" />}
         </CardTitle>
         <CardDescription>
