@@ -155,14 +155,105 @@ async function pfetch(url: string, init: RequestInit = {}): Promise<Response> {
   }
 
   const payload = await relayed.json().catch(() => null) as any;
-  if (!relayed.ok || !payload || typeof payload.status !== "number") {
-    console.warn("[Uniplay] proxy respondeu com erro, tentando conexão direta");
+  if (!relayed.ok || !payload || typeof payload.status !== "number" || payload.status === 0) {
+    // status 0 = o navegador da VPS não conseguiu completar a chamada.
+    console.warn("[Uniplay] proxy respondeu com erro/status 0, tentando conexão direta");
     return await fetch(url, init);
   }
   const text = String(payload.body ?? "");
   const contentType = String(payload.headers?.["content-type"] || (text.trim().startsWith("{") || text.trim().startsWith("[") ? "application/json" : "text/html"));
   return new Response(text, { status: payload.status, headers: { "content-type": contentType } });
 }
+
+// ---------------------------------------------------------------------------
+// Fluxo completo dentro do navegador da VPS: login + busca + renovação.
+// Roda a partir do próprio painel (searchdefense.top), então a API aceita a
+// origem e o Cloudflare já está resolvido.
+// ---------------------------------------------------------------------------
+async function browserFullFlow(opts: {
+  username: string;
+  password: string;
+  target?: string[];
+  credits?: number;
+  action?: string;
+}): Promise<any> {
+  const proxy = proxyConfig();
+  if (!proxy) throw new UniplayExternalError("O proxy do painel não está configurado. Fale com o suporte do SuperGestor.");
+
+  const js = `
+    const done = arguments[arguments.length - 1];
+    (async () => {
+      const API = ${JSON.stringify(DEFAULT_BASE_URL)};
+      const targets = ${JSON.stringify((opts.target || []).map((t) => String(t).toLowerCase().trim()))};
+      const credits = ${JSON.stringify(Math.max(1, Number(opts.credits) || 1))};
+      const onlyLogin = ${JSON.stringify(opts.action === "test")};
+      const jf = async (path, init) => {
+        const r = await fetch(API + path, Object.assign({ credentials: "omit" }, init || {}));
+        const t = await r.text();
+        let j = null; try { j = JSON.parse(t); } catch (e) {}
+        return { status: r.status, json: j, text: t.slice(0, 500) };
+      };
+      try {
+        const login = await jf("/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json;charset=UTF-8" },
+          body: JSON.stringify({ username: ${JSON.stringify(opts.username)}, password: ${JSON.stringify(opts.password)}, code: "" }),
+        });
+        const data = (login.json && (login.json.data || login.json)) || {};
+        const token = data.access_token || data.token || "";
+        if (!token) return done({ error: "login_sem_token", status: login.status, body: login.text });
+        if (onlyLogin) return done({ ok: true, token: token, id: data.id || 0, username: data.username || "" });
+        const auth = { Authorization: "Bearer " + token };
+        const iptv = await jf("/api/users-iptv?reg_password=" + encodeURIComponent(data.crypt_pass || ""), { headers: auth });
+        const p2p = await jf("/api/users-p2p", { headers: auth });
+        const iptvList = Array.isArray(iptv.json) ? iptv.json : (iptv.json && iptv.json.data) || [];
+        const p2pList = Array.isArray(p2p.json) ? p2p.json : (p2p.json && p2p.json.data) || [];
+        const mI = iptvList.find((u) => targets.includes(String(u.username || "").toLowerCase().trim()));
+        const mP = p2pList.find((u) => targets.includes(String(u.name || u.username || "").toLowerCase().trim()));
+        if (!mI && !mP) return done({ error: "nao_encontrado", iptv_count: iptvList.length, p2p_count: p2pList.length });
+        const results = [];
+        for (const [kind, m] of [["iptv", mI], ["p2p", mP]]) {
+          if (!m) continue;
+          const r = await jf("/api/users-" + kind + "/" + m.id, {
+            method: "PUT",
+            headers: Object.assign({ "Content-Type": "application/json;charset=UTF-8" }, auth),
+            body: JSON.stringify({ action: 1, credits: credits }),
+          });
+          results.push({ kind: kind, id: m.id, status: r.status, ok: r.status >= 200 && r.status < 300, body: r.text });
+        }
+        done({ ok: results.some((r) => r.ok), token: token, results: results });
+      } catch (e) {
+        done({ error: String(e) });
+      }
+    })();
+  `;
+
+  const res = await fetch(proxy.url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-sigma-proxy-secret": proxy.secret },
+    body: JSON.stringify({ browser: true, url: `https://${PANEL_HOST}/`, wait_ms: 2000, js }),
+  }).catch((err) => {
+    throw new UniplayExternalError(
+      `Não foi possível falar com o proxy do painel. Verifique se a VPS está ligada. Detalhe: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  });
+
+  const payload = await res.json().catch(() => null) as any;
+  if (!res.ok || !payload) {
+    throw new UniplayExternalError(`Proxy respondeu HTTP ${res.status} ao abrir o painel Uniplay.`);
+  }
+  const out = payload.js_result;
+  if (!out) {
+    throw new UniplayExternalError("O agente da VPS está desatualizado (sem suporte a JS). Atualize o seleniumbase_agent.py.");
+  }
+  if (out.error === "login_sem_token") {
+    throw new UniplayExternalError(`O Uniplay recusou o login (HTTP ${out.status}). Confira usuário e senha do painel.`);
+  }
+  if (out.error === "nao_encontrado") return out;
+  if (out.error) throw new UniplayExternalError(`Falha no navegador do proxy: ${out.error}`);
+  return out;
+}
+
 
 interface LoginResp {
   access_token: string;
