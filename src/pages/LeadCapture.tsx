@@ -456,7 +456,19 @@ export default function LeadCapture() {
           </div>
         </div>
 
+        <Tabs defaultValue="prospeccao" className="space-y-6">
+          <TabsList className="bg-card/50 backdrop-blur border border-border/50 rounded-2xl p-1">
+            <TabsTrigger value="prospeccao" className="rounded-xl text-xs font-bold uppercase tracking-wide">Prospecção</TabsTrigger>
+            <TabsTrigger value="disparo" className="rounded-xl text-xs font-bold uppercase tracking-wide">Disparo API Oficial</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="prospeccao">
+            <LeadProspecting />
+          </TabsContent>
+
+          <TabsContent value="disparo" className="space-y-6">
         <Alert variant="destructive" className="border-amber-500/40 bg-amber-500/5 text-amber-200">
+
           <ShieldAlert className="h-4 w-4" />
           <AlertTitle>Aviso: Disparo para números frios</AlertTitle>
           <AlertDescription className="text-xs space-y-1">
