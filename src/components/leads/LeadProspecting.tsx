@@ -789,7 +789,7 @@ export default function LeadProspecting() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Tipo de API</Label>
-                <Select defaultValue="evolution">
+                <Select value={sendApi} onValueChange={(v: any) => { setSendApi(v); }}>
                   <SelectTrigger className="h-10 rounded-xl bg-background/50">
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
@@ -801,22 +801,57 @@ export default function LeadProspecting() {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Número/Canal</Label>
-                <Select defaultValue="default">
-                  <SelectTrigger className="h-10 rounded-xl bg-background/50">
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default">Canal Padrão</SelectItem>
-                  </SelectContent>
-                </Select>
+                {sendApi === 'evolution' ? (
+                  <Select value={sendInstance} onValueChange={setSendInstance}>
+                    <SelectTrigger className="h-10 rounded-xl bg-background/50">
+                      <SelectValue placeholder={(instances as any[]).length ? 'Selecione a instância' : 'Nenhuma conexão'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(instances as any[]).map((i: any) => (
+                        <SelectItem key={i.name} value={i.name}>
+                          {i.phone ? `${i.phone} · ${i.name}` : i.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Select value={sendChannelId} onValueChange={setSendChannelId}>
+                    <SelectTrigger className="h-10 rounded-xl bg-background/50">
+                      <SelectValue placeholder={(officialChannels as any[]).length ? 'Selecione o número oficial' : 'Nenhum canal oficial'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(officialChannels as any[]).map((c: any) => (
+                        <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Mensagem ou Template</Label>
-              <Textarea value={sendText} onChange={e => setSendText(e.target.value)} rows={5} className="rounded-xl bg-background/50" placeholder="Digite sua mensagem ou selecione um template..." />
-              <p className="text-[11px] text-muted-foreground">Use <span className="font-mono">{'{{nome}}'}</span> para inserir o nome do lead. Envio com intervalo de segurança.</p>
-            </div>
+            {sendApi === 'official' ? (
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Template aprovado</Label>
+                <Select value={sendTemplate} onValueChange={setSendTemplate}>
+                  <SelectTrigger className="h-10 rounded-xl bg-background/50">
+                    <SelectValue placeholder={(officialTemplates as any[]).length ? 'Selecione o template' : 'Carregando templates…'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(officialTemplates as any[]).map((t: any) => (
+                      <SelectItem key={t.name} value={t.name}>{t.name} ({t.language})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">A API Oficial exige template aprovado. O nome do lead é enviado como primeira variável.</p>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Mensagem</Label>
+                <Textarea value={sendText} onChange={e => setSendText(e.target.value)} rows={5} className="rounded-xl bg-background/50" placeholder="Digite sua mensagem..." />
+                <p className="text-[11px] text-muted-foreground">Use <span className="font-mono">{'{{nome}}'}</span> para inserir o nome do lead. Envio com intervalo de segurança.</p>
+              </div>
+            )}
+
 
             {sending && (
               <p className="text-xs font-bold text-primary animate-pulse">Enviando {sendProgress.done}/{sendProgress.total} · {sendProgress.fail} falhas</p>
