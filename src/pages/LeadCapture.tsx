@@ -392,21 +392,18 @@ export default function LeadCapture() {
     <DashboardLayout>
       <div className="space-y-6 p-4 sm:p-6 lg:p-8 animate-fade-in max-w-6xl mx-auto">
         {/* Modern Header */}
-        <div className="relative overflow-hidden rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl p-6 shadow-2xl mb-6">
+        <div className="relative overflow-hidden rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl p-6 shadow-2xl mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="pointer-events-none absolute -top-24 -right-16 w-64 h-64 rounded-full bg-primary/10 blur-3xl" />
-          <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-primary/15 border border-primary/20 flex items-center justify-center shadow-lg shadow-primary/10">
-                <UserPlus className="w-7 h-7 text-primary" />
-              </div>
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-black text-foreground tracking-tight">Captura de Leads</h1>
-                <p className="text-muted-foreground text-sm font-medium">Disparo em massa para novos contatos (API Oficial)</p>
-              </div>
+          <div className="relative flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-primary/15 border border-primary/20 flex items-center justify-center shadow-lg shadow-primary/10">
+              <UserPlus className="w-7 h-7 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-black text-foreground tracking-tight">Captura de Leads</h1>
+              <p className="text-muted-foreground text-sm font-medium">Disparo em massa para novos contatos (API Oficial)</p>
             </div>
           </div>
-        </div>
-          <div className="flex items-center gap-2 text-xs">
+          <div className="relative flex items-center gap-2 text-xs">
             {isAdmin ? (
               <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30"><Crown className="w-3 h-3 mr-1" />Admin · ilimitado</Badge>
             ) : (
