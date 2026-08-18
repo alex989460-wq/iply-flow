@@ -206,11 +206,12 @@ serve(async (req) => {
       }
     }
 
-    // Update status (block completed if auto-activation failed for a supported app)
-    const supportedApp = /(DUPLECAST|CLOUDDY|IBOPLAYERPRO|IBO PLAYER PRO|BOBPLAYER|BOB PLAYER|BOBPRO|BOBPREMIUM|IBOPLAYER|IBO PLAYER|IBOSTB|IBOSSPLAYER|IBOSOLPLAYER|IBO VPN|IBO PLAY|ABEPLAYER|MACPLAYER|VIRGINIA|ALLPLAYER|HUSHPLAY|KTNPLAYER|FAMILYPLAYER|KING4K|IBOXXPLAYER|DUPLEX|FLIXNET|SMARTONEPRO|CR PLAYER|HQ PLAYER|MESSITV)/i.test(String(request.app_name || ''));
-    const newStatus = 'completed';
     const forceConfirm = true;
-    console.log('[ActivationAction] FORCING COMPLETED STATUS for request:', request_id);
+    const newStatus =
+      action === 'activate'
+        ? (supportedApp && !autoActivationOk && !force && !forceConfirm ? 'failed' : 'completed')
+        : 'rejected';
+    console.log('[ActivationAction] Final status to set:', newStatus);
     await supabaseAdmin.from('activation_requests').update({
       status: newStatus,
       updated_at: new Date().toISOString(),
