@@ -420,7 +420,7 @@ serve(async (req) => {
     }
 
 
-    if (action === 'activate' && supportedApp && !autoActivationOk && !force) {
+    if (action === 'activate' && supportedApp && !autoActivationOk && !force && !forceConfirm) {
       return new Response(JSON.stringify({
         success: false,
         status: newStatus,
