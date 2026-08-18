@@ -128,6 +128,14 @@ export default function BillingSettings() {
                       <CaktoSettingsCard />
                     </div>
                   )}
+
+                  {t.value === 'gateways' && (
+                    <div className="grid gap-6 animate-in fade-in duration-700">
+                      <EfiSettingsCard />
+                      <MercadoPagoSettingsCard />
+                      <CaktoSettingsCard />
+                    </div>
+                  )}
                 </div>
               </TabsContent>
             ))}
