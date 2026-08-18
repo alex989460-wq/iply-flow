@@ -83,6 +83,75 @@ export default function LeadProspecting() {
   const [sendText, setSendText] = useState('Olá {{nome}}, tudo bem? ');
   const [sending, setSending] = useState(false);
   const [sendProgress, setSendProgress] = useState({ done: 0, total: 0, fail: 0 });
+  const [sendApi, setSendApi] = useState<'evolution' | 'official'>('evolution');
+  const [sendInstance, setSendInstance] = useState('');
+  const [sendChannelId, setSendChannelId] = useState('');
+  const [sendTemplate, setSendTemplate] = useState('');
+
+  // ── canais de envio (não oficial / oficial) ──
+  const { data: instances = [] } = useQuery({
+    queryKey: ['leads-evo-instances', user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('evolution-send', { body: { action: 'list-instances' } });
+      if (error) return [];
+      return ((data as any)?.instances || []) as Array<{ name: string; phone?: string; state?: string }>;
+    },
+  });
+
+  const { data: crmSettings } = useQuery({
+    queryKey: ['leads-crm-settings', user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from('crm_oficial_settings').select('api_key, enabled').eq('user_id', user!.id).maybeSingle();
+      return data;
+    },
+  });
+
+  const { data: officialChannels = [] } = useQuery({
+    queryKey: ['leads-official-channels', crmSettings?.api_key],
+    enabled: !!crmSettings?.api_key && !!crmSettings?.enabled,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
+        body: { action: 'list-channels', data: { apiKey: crmSettings!.api_key } },
+      });
+      if (error) return [];
+      const body = (data as any)?.results?.channels?.body;
+      const raw: any[] = Array.isArray(body) ? body
+        : Array.isArray(body?.channels) ? body.channels
+        : Array.isArray(body?.data) ? body.data
+        : Array.isArray(body?.items) ? body.items : [];
+      return raw
+        .filter((c: any) => {
+          const kind = String(c.kind || c.type || '').toLowerCase();
+          if (kind.includes('evolution') || kind.includes('baileys')) return false;
+          return !c.evolution_instance_name;
+        })
+        .map((c: any, i: number) => ({
+          id: String(c.phone_number_id || c.phoneNumberId || c.id || `wa-${i}`),
+          label: String(c.verified_name || c.name || c.display_phone_number || c.phone || 'Número oficial'),
+        }))
+        .filter((c: any) => !!c.id);
+    },
+  });
+
+  const { data: officialTemplates = [] } = useQuery({
+    queryKey: ['leads-official-templates', crmSettings?.api_key],
+    enabled: sendApi === 'official' && !!crmSettings?.api_key,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('meta-templates', {
+        body: { action: 'list', apiKey: crmSettings!.api_key, limit: 250 },
+      });
+      if (error) return [];
+      const body = (data as any)?.data ?? data;
+      const list: any[] = Array.isArray(body) ? body : (body?.data ?? body?.templates ?? body?.results ?? []);
+      return list
+        .filter((t: any) => String(t.status || '').toUpperCase() === 'APPROVED')
+        .map((t: any) => ({ name: String(t.name), language: t.language || 'pt_BR' }));
+    },
+  });
+
 
   // ── dados persistidos ──
   const { data: lists = [] } = useQuery({
