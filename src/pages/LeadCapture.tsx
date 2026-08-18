@@ -404,6 +404,8 @@ export default function LeadCapture() {
                 <p className="text-muted-foreground text-sm font-medium">Disparo em massa para novos contatos (API Oficial)</p>
               </div>
             </div>
+          </div>
+        </div>
           <div className="flex items-center gap-2 text-xs">
             {isAdmin ? (
               <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30"><Crown className="w-3 h-3 mr-1" />Admin · ilimitado</Badge>
