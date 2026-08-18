@@ -196,6 +196,49 @@ export default function LeadCapture() {
     }
   }
 
+  async function generateFromGoogle() {
+    if (!searchQuery) {
+      toast({ title: 'Digite uma pesquisa', description: 'Ex: Bares em Curitiba', variant: 'destructive' });
+      return;
+    }
+    setValidating(true);
+    setRealCheck(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('google-lead-scraper', {
+        body: { query: searchQuery, limit: Math.min(seedCount, 50) }
+      });
+      if (error) throw error;
+      
+      const leads = data?.leads || [];
+      if (leads.length === 0) {
+        toast({ title: 'Nenhum lead encontrado', description: 'Tente outro termo de pesquisa.' });
+        return;
+      }
+
+      const numbers = leads.map((l: any) => l.phone);
+      
+      // Valida se têm WhatsApp
+      const { data: valData, error: valError } = await supabase.functions.invoke('whatsapp-validate', {
+        body: { numbers }
+      });
+      
+      if (valError) throw valError;
+      const valid = valData?.valid || [];
+      
+      setRaw((prev) => (prev ? prev + '\n' : '') + valid.join('\n'));
+      toast({ 
+        title: 'Leads capturados', 
+        description: `${valid.length} novos leads quentes encontrados via Google.` 
+      });
+      setTimeout(parsePhones, 50);
+    } catch (e: any) {
+      toast({ title: 'Erro na captura', description: e.message, variant: 'destructive' });
+    } finally {
+      setValidating(false);
+    }
+  }
+
+
 
 
   // Carrega cotação USD→BRL automática
@@ -441,44 +484,85 @@ export default function LeadCapture() {
               </Badge>
             </div>
             <CardDescription>
-              Gere números com base em um telefone semente (mesmo DDD/Prefixo) ou CNPJ regional.
+              {seedMode === 'google' 
+                ? 'Extraia contatos comerciais diretamente do Google Maps/Search usando IA.' 
+                : 'Gere números com base em um telefone semente (mesmo DDD/Prefixo) ou CNPJ regional.'}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5 pt-6">
-            <div className="grid sm:grid-cols-[1fr_140px_160px_auto] gap-2 items-end">
-              <div className="space-y-1">
-                <Label className="text-xs">Telefone semente</Label>
-                <Input value={seedPhone} onChange={(e) => setSeedPhone(e.target.value)} placeholder="" />
+          <CardContent className="space-y-6 pt-6">
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col sm:flex-row items-end gap-3">
+                <div className="flex-1 w-full space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                    {seedMode === 'google' ? 'O que você quer pesquisar?' : 'Telefone semente'}
+                  </Label>
+                  {seedMode === 'google' ? (
+                    <Input
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Ex: Bares em Curitiba, Academias em SP..."
+                      className="bg-background/50 border-primary/20 focus:border-primary/50 h-11"
+                    />
+                  ) : (
+                    <Input
+                      value={seedPhone}
+                      onChange={(e) => setSeedPhone(e.target.value)}
+                      placeholder="Ex: 5541999998888"
+                      className="bg-background/50 border-primary/20 focus:border-primary/50 h-11"
+                    />
+                  )}
+                </div>
+                <div className="w-full sm:w-24 space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Qtd</Label>
+                  <Input
+                    type="number"
+                    value={seedCount}
+                    onChange={(e) => setSeedCount(parseInt(e.target.value, 10))}
+                    className="bg-background/50 h-11"
+                  />
+                </div>
+                <div className="w-full sm:w-56 space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Modo</Label>
+                  <Select value={seedMode} onValueChange={(v: any) => setSeedMode(v)}>
+                    <SelectTrigger className="bg-background/50 h-11">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="aleatorio">Aleatório (Mesmo DDD)</SelectItem>
+                      <SelectItem value="sequencial">Sequencial</SelectItem>
+                      <SelectItem value="google">Pesquisa Google (Leads Quentes)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  onClick={seedMode === 'google' ? generateFromGoogle : generateFromSeed}
+                  disabled={validating || (seedMode !== 'google' && !seedPhone) || (seedMode === 'google' && !searchQuery)}
+                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-11 px-6 shadow-lg shadow-emerald-500/20"
+                >
+                  {validating ? (
+                    <><Loader2 className="w-4 h-4 animate-spin mr-2" /> {validateProgress.done}/{validateProgress.total}</>
+                  ) : (
+                    <><Sparkles className="w-4 h-4 mr-2" /> {seedMode === 'google' ? 'Capturar' : 'Gerar válidos'}</>
+                  )}
+                </Button>
               </div>
 
-              <div className="space-y-1">
-                <Label className="text-xs">Quantidade</Label>
-                <Input type="number" min={1} max={isAdmin ? 50000 : 2000} value={seedCount}
-                  onChange={(e) => setSeedCount(parseInt(e.target.value) || 0)} />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Modo</Label>
-                <Select value={seedMode} onValueChange={(v: any) => setSeedMode(v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="aleatorio">Aleatório (mesmo prefixo)</SelectItem>
-                    <SelectItem value="sequencial">Sequencial (em torno da semente)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button onClick={generateFromSeed} className="sm:self-end" disabled={validating}>
-                {validating
-                  ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Validando {validateProgress.done}/{validateProgress.total}</>
-                  : <><Sparkles className="w-4 h-4 mr-1" /> Gerar válidos</>}
-              </Button>
+              {seedMode === 'google' && (
+                <Alert className="bg-emerald-500/5 border-emerald-500/20 py-2">
+                  <Sparkles className="h-4 w-4 text-emerald-500" />
+                  <AlertDescription className="text-[10px] text-emerald-200/80 leading-relaxed uppercase tracking-wider font-bold">
+                    A IA pesquisará no Google Maps e extrairá telefones comerciais ativos.
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
             <p className="text-[11px] text-muted-foreground">
               Limite: {isAdmin ? '50.000 (admin)' : '2.000 por geração'}. O sistema gera candidatos no mesmo DDD/prefixo e
               valida em tempo real pela Evolution (WhatsApp Web/Baileys) — só os números com conta ativa entram na lista.
-              Sem custo de conversa pela Meta.
             </p>
           </CardContent>
         </Card>
+
 
         <Card>
 
