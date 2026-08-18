@@ -1683,15 +1683,17 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     <Button 
                       variant="secondary" 
                       size="sm" 
-                      className="h-12 w-12 rounded-2xl bg-primary/10 text-primary hover:bg-primary/20 border border-primary/10 shadow-lg transition-all active:scale-90"
+                      className="h-12 flex-1 rounded-2xl bg-primary/10 text-primary hover:bg-primary/20 border border-primary/10 shadow-lg transition-all active:scale-90 gap-2"
                       onClick={() => saveCustomerData.mutate()}
                       disabled={saveCustomerData.isPending}
-                      title="Salvar alterações"
                     >
                       {saveCustomerData.isPending ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
-                        <CheckCircle className="h-5 w-5" />
+                        <>
+                          <CheckCircle className="h-5 w-5" />
+                          <span className="font-bold">SALVAR ALTERAÇÕES</span>
+                        </>
                       )}
                     </Button>
                   </div>
