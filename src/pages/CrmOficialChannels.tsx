@@ -78,6 +78,8 @@ function normalizeChannelLists(body: any) {
     const rawPhone = pickString(
       c.display_phone_number, c.displayPhoneNumber, c.phone_display,
       c.phone_number, c.phoneNumber, c.phone, c.number, c.msisdn, c.wa_id,
+      c.display_number, c.phone_number_clean,
+
     );
     const phone = rawPhone && rawPhone !== phoneId && rawPhone.replace(/\D/g, '').length <= 15
       ? (rawPhone.startsWith('+') ? rawPhone : `+${rawPhone.replace(/\D/g, '')}`)
