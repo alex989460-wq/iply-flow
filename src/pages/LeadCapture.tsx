@@ -390,13 +390,20 @@ export default function LeadCapture() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-4 p-4 animate-fade-in">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-2">
-            <UserPlus className="w-6 h-6 text-primary" />
-            <h1 className="text-xl font-bold">Captura de Leads Frios — API Oficial</h1>
+      <div className="space-y-6 p-4 sm:p-6 lg:p-8 animate-fade-in max-w-6xl mx-auto">
+        {/* Modern Header */}
+        <div className="relative overflow-hidden rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl p-6 shadow-2xl mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="pointer-events-none absolute -top-24 -right-16 w-64 h-64 rounded-full bg-primary/10 blur-3xl" />
+          <div className="relative flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-primary/15 border border-primary/20 flex items-center justify-center shadow-lg shadow-primary/10">
+              <UserPlus className="w-7 h-7 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-black text-foreground tracking-tight">Captura de Leads</h1>
+              <p className="text-muted-foreground text-sm font-medium">Disparo em massa para novos contatos (API Oficial)</p>
+            </div>
           </div>
-          <div className="flex items-center gap-2 text-xs">
+          <div className="relative flex items-center gap-2 text-xs">
             {isAdmin ? (
               <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30"><Crown className="w-3 h-3 mr-1" />Admin · ilimitado</Badge>
             ) : (
@@ -419,18 +426,19 @@ export default function LeadCapture() {
           </AlertDescription>
         </Alert>
 
-        <Card className="border-primary/30">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Wand2 className="w-4 h-4 text-primary" /> Gerador de leads por DDD/prefixo
+        <Card className="border-primary/20 bg-card/40 backdrop-blur-md rounded-3xl overflow-hidden shadow-xl">
+          <CardHeader className="border-b border-border/50 pb-4">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
+                <Wand2 className="w-4 h-4 text-primary" />
+              </div>
+              Gerador Inteligente de Leads
             </CardTitle>
             <CardDescription>
-              Informe um telefone semente e o sistema gera centenas/milhares de números
-              com o <strong>mesmo DDD e mesmo prefixo de operadora</strong>, variando apenas os últimos 4 dígitos. Validação real
-              de existência no WhatsApp é feita no primeiro envio (sem custo de conversa quando o número não existe).
+              Gere números com base em um telefone semente (mesmo DDD/Prefixo).
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-5 pt-6">
             <div className="grid sm:grid-cols-[1fr_140px_160px_auto] gap-2 items-end">
               <div className="space-y-1">
                 <Label className="text-xs">Telefone semente</Label>

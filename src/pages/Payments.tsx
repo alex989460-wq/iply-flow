@@ -330,14 +330,27 @@ export default function Payments() {
                    <CreditCard className="w-3.5 h-3.5 mr-2 opacity-50" />
                    <SelectValue placeholder="Método" />
                  </SelectTrigger>
-                 <SelectContent>
-                   <SelectItem value="all">Todos</SelectItem>
-                   <SelectItem value="pix">PIX</SelectItem>
-                   <SelectItem value="cartao_credito">Cartão</SelectItem>
-                   <SelectItem value="dinheiro">Dinheiro</SelectItem>
-                 </SelectContent>
-               </Select>
-             </div>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="pix">PIX</SelectItem>
+                    <SelectItem value="cartao_credito">Cartão</SelectItem>
+                    <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                  <SelectTrigger className="h-11 w-40 bg-card/40 backdrop-blur-md border-border/50 rounded-2xl">
+                    <Filter className="w-3.5 h-3.5 mr-2 opacity-50" />
+                    <SelectValue placeholder="Origem" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas Origens</SelectItem>
+                    <SelectItem value="cakto">Cakto</SelectItem>
+                    <SelectItem value="mercadopago">Mercado Pago</SelectItem>
+                    <SelectItem value="checkout">Checkout Único</SelectItem>
+                    <SelectItem value="manual">Lançamento Manual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
           </div>
 
           <Card className="bg-card/40 backdrop-blur-md border-border/50 rounded-3xl overflow-hidden shadow-2xl">
@@ -363,7 +376,7 @@ export default function Payments() {
                       <TableRow key={p.id} className="hover:bg-primary/5 transition-colors border-border/50 group">
                         <TableCell className="py-4 px-6">
                           <div className="flex flex-col">
-                            <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">{p.customers?.name || 'Cliente Removido'}</span>
+                            <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">{p.customers?.name || 'Cliente Removido'} {p.customers?.name ? `(${p.customers.username})` : ''}</span>
                             <span className="text-[10px] font-bold text-muted-foreground/60 uppercase">{getServerName(p)}</span>
                           </div>
                         </TableCell>

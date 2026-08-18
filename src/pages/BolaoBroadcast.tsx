@@ -244,10 +244,18 @@ export default function BolaoBroadcast() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-4 p-4 animate-fade-in">
-        <div className="flex items-center gap-2">
-          <Megaphone className="w-6 h-6 text-primary" />
-          <h1 className="text-xl font-bold">Disparo Janela 24h</h1>
+      <div className="space-y-6 p-4 sm:p-6 lg:p-8 animate-fade-in max-w-5xl mx-auto">
+        <div className="relative overflow-hidden rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl p-6 shadow-2xl mb-6">
+          <div className="pointer-events-none absolute -top-24 -right-16 w-64 h-64 rounded-full bg-sky-500/10 blur-3xl" />
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-sky-500/15 border border-sky-500/20 flex items-center justify-center shadow-lg shadow-sky-500/10">
+              <Megaphone className="w-7 h-7 text-sky-500" />
+            </div>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-black text-foreground tracking-tight">Disparo Janela 24h</h1>
+              <p className="text-muted-foreground text-sm font-medium">Reengajamento de contatos ativos no WhatsApp</p>
+            </div>
+          </div>
         </div>
 
         <Card>
