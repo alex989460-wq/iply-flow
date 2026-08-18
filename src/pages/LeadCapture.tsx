@@ -426,16 +426,21 @@ export default function LeadCapture() {
           </AlertDescription>
         </Alert>
 
-        <Card className="border-primary/20 bg-card/40 backdrop-blur-md rounded-3xl overflow-hidden shadow-xl">
+        <Card className="border-border/50 shadow-lg bg-card/60 backdrop-blur-xl rounded-3xl overflow-hidden">
           <CardHeader className="border-b border-border/50 pb-4">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
-                <Wand2 className="w-4 h-4 text-primary" />
-              </div>
-              Gerador Inteligente de Leads
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
+                  <Wand2 className="w-4 h-4 text-primary" />
+                </div>
+                Capturador de Leads (Google/CNPJ)
+              </CardTitle>
+              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                <Sparkles className="w-3 h-3 mr-1" /> Leads Quentes
+              </Badge>
+            </div>
             <CardDescription>
-              Gere números com base em um telefone semente (mesmo DDD/Prefixo).
+              Gere números com base em um telefone semente (mesmo DDD/Prefixo) ou CNPJ regional.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5 pt-6">
