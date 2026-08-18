@@ -392,7 +392,6 @@ serve(async (req) => {
           if (notified) channelUsed = 'evolution';
         }
       } else {
-        
         notified = await sendEvolution();
         if (notified) channelUsed = 'evolution';
         if (!notified) {
