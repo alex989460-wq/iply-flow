@@ -5,6 +5,7 @@ import MercadoPagoSettingsCard from '@/components/settings/MercadoPagoSettingsCa
 import ResellerCheckoutCard from '@/components/settings/ResellerCheckoutCard';
 import DiscountCouponsCard from '@/components/settings/DiscountCouponsCard';
 import EmailTrackingCard from '@/components/settings/EmailTrackingCard';
+import CaktoSettingsCard from '@/components/settings/CaktoSettingsCard';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Receipt, MessageSquare, Wallet, ShoppingCart, Ticket, Mail, Smartphone, ShieldCheck, Zap } from 'lucide-react';
@@ -86,7 +87,12 @@ export default function BillingSettings() {
                 </div>
 
                 <div className="grid gap-6">
-                  {/* Conteúdo movido para aba Cakto */}
+                  {t.value === 'messages' && (
+                    <div className="animate-in fade-in duration-700">
+                      <BillingSettingsCard />
+                    </div>
+                  )}
+
                   
                   {t.value === 'gateways' && (
                     <div className="grid gap-6 animate-in fade-in duration-700">
@@ -115,7 +121,7 @@ export default function BillingSettings() {
 
                   {t.value === 'cakto' && (
                     <div className="animate-in fade-in duration-700">
-                      <BillingSettingsCard />
+                      <CaktoSettingsCard />
                     </div>
                   )}
 

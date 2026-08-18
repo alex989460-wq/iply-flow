@@ -36,9 +36,21 @@ const CATEGORY_MAP: { keys: string[]; filters: string[]; label: string }[] = [
 function parseQuery(query: string) {
   const q = String(query || '').trim();
   const lower = q.toLowerCase();
-  const m = lower.split(/\s+em\s+|\s+de\s+/);
-  const cityGuess = m.length > 1 ? m[m.length - 1].trim() : '';
-  const termPart = m.length > 1 ? m.slice(0, m.length - 1).join(' ') : lower;
+  let cityGuess = '';
+  let termPart = lower;
+
+  const m = lower.split(/\s+em\s+|\s+na\s+|\s+no\s+/);
+  if (m.length > 1) {
+    cityGuess = m[m.length - 1].trim();
+    termPart = m.slice(0, m.length - 1).join(' ').trim();
+  } else {
+    // "barbearias curitiba" -> termo + cidade (últimas 1-2 palavras)
+    const words = lower.split(/\s+/).filter(Boolean);
+    if (words.length > 1) {
+      cityGuess = words.slice(-1).join(' ');
+      termPart = words.slice(0, -1).join(' ');
+    }
+  }
 
   const match = CATEGORY_MAP.find(c => c.keys.some(k => termPart.includes(k)))
     || CATEGORY_MAP.find(c => c.keys.some(k => lower.includes(k)));
@@ -46,6 +58,7 @@ function parseQuery(query: string) {
   return {
     city: cityGuess,
     term: termPart.trim(),
+    rawQuery: lower,
     filters: match?.filters || ['shop', 'office', 'amenity'],
     label: match?.label || (termPart.trim() ? termPart.trim().replace(/^\w/, ch => ch.toUpperCase()) : 'Empresa'),
   };
