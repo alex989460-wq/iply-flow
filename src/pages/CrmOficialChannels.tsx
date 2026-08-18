@@ -78,6 +78,8 @@ function normalizeChannelLists(body: any) {
     const rawPhone = pickString(
       c.display_phone_number, c.displayPhoneNumber, c.phone_display,
       c.phone_number, c.phoneNumber, c.phone, c.number, c.msisdn, c.wa_id,
+      c.display_number, c.phone_number_clean,
+
     );
     const phone = rawPhone && rawPhone !== phoneId && rawPhone.replace(/\D/g, '').length <= 15
       ? (rawPhone.startsWith('+') ? rawPhone : `+${rawPhone.replace(/\D/g, '')}`)
@@ -347,8 +349,9 @@ export default function CrmOficialChannels() {
                     <div className="rounded-xl border border-border/40 bg-background/50 p-3">
                       <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Número</p>
                       <p className="font-mono text-xs truncate">
-                        {phone || (isOfficial ? 'Não informado pela Meta' : 'Aguardando leitura do QR')}
+                        {phone || (isOfficial ? 'Confirmando número...' : 'Aguardando leitura do QR')}
                       </p>
+
                     </div>
                     {isOfficial ? (
                       <div className="rounded-xl border border-border/40 bg-background/50 p-3">

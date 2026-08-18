@@ -49,8 +49,9 @@ function normalize(body: any): WAChannel[] {
       const rawPhone = pick(
         c.display_phone_number, c.displayPhoneNumber, c.phone_display,
         c.phone_number, c.phoneNumber, c.phone, c.number, c.msisdn,
-        c.wa_id, c.waId, c.from, c.phone_e164,
-        c?.profile?.phone, c?.business?.phone_number,
+        c.wa_id, c.waId, c.from, c.phone_e164, c.display_number,
+        c?.profile?.phone, c?.business?.phone_number, c?.phone_number_clean,
+
       );
       const phone = rawPhone && rawPhone.replace(/\D/g, '').length <= 15 && rawPhone !== phoneId ? rawPhone : '';
       const kind = String(c.kind || c.type || 'whatsapp_cloud').toLowerCase();
@@ -261,7 +262,7 @@ export default function CrmChannelsInline() {
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground font-mono truncate">{ch.display_phone_number || ch.phone_number || 'Número não informado'}</p>
+                  <p className="text-xs text-muted-foreground font-mono truncate">{ch.display_phone_number || ch.phone_number || (ch.official ? 'Confirmando número...' : 'Número não informado')}</p>
                 </div>
               </div>
               <span className={cn(
