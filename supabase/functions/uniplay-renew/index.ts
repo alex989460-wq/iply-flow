@@ -569,21 +569,65 @@ serve(async (req) => {
       }
 
       if (!alive) {
-        candidate = await browserLoginUniplay(uUser, uPass);
-        if (sessionOwnerId) {
+        // Último recurso: faz login + busca + renovação dentro do navegador da VPS.
+        const flow = await browserFullFlow({
+          username: uUser,
+          password: uPass,
+          target: username ? buildUsernameVariants(username) : [],
+          credits: Math.max(1, Number(months) || 1),
+          action,
+        });
+
+        if (flow?.token && sessionOwnerId) {
           await admin
             .from("reseller_api_settings")
             .update({
-              uniplay_session_token: candidate.access_token,
-              uniplay_session_pass: candidate.crypt_pass,
+              uniplay_session_token: flow.token,
               uniplay_session_at: new Date().toISOString(),
             })
             .eq("user_id", sessionOwnerId);
         }
+
+        if (action === "test") {
+          return new Response(
+            JSON.stringify({ success: true, via: "navegador", message: "Login Uniplay OK (via navegador da VPS)" }),
+            { headers: jsonHeaders },
+          );
+        }
+
+        if (flow?.error === "nao_encontrado") {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: `Username "${username}" não encontrado em IPTV nem P2P`,
+            }),
+            { headers: jsonHeaders },
+          );
+        }
+
+        if (!flow?.ok) {
+          return new Response(
+            JSON.stringify({ success: false, error: "Todas as renovações Uniplay falharam", results: flow?.results }),
+            { headers: jsonHeaders },
+          );
+        }
+
+        if (customer_id) {
+          await admin.rpc("renew_customer_due_date", {
+            _customer_id: customer_id,
+            _months: Math.max(1, Number(months) || 1),
+          }).catch?.(() => {});
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, via: "navegador", results: flow.results }),
+          { headers: jsonHeaders },
+        );
       }
 
       session = candidate!;
     }
+
 
     if (action === "test") {
       return new Response(
