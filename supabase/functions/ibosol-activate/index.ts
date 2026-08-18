@@ -1,7 +1,5 @@
-// IBO Sol (ibosol.com) auto-activation via Bearer token.
-// User logs in manually at https://ibosol.com/login (Cloudflare Turnstile),
-// then copies the "token" returned by POST /api/login and saves it here.
-// Token format: "5114508|tb3dyiNd..." (Laravel Sanctum).
+// IBO Sol auto-activation with automatic e-mail/password login.
+// The short-lived panel session is refreshed through ibosol-login when needed.
 //
 // Endpoints (from HAR):
 //   POST https://backend-apis.ibosol.com/api/check-device-status
@@ -203,7 +201,7 @@ serve(async (req) => {
     }
     if (!token) {
       return new Response(
-        JSON.stringify({ error: "Token do IBO Sol vazio nas configurações" }),
+        JSON.stringify({ error: "Não foi possível conectar ao IBO Sol com o e-mail e a senha configurados." }),
         { status: 400, headers: jh },
       );
     }
@@ -251,7 +249,7 @@ serve(async (req) => {
       if (chk.status === 401 || chk.status === 403) {
         return new Response(
           JSON.stringify({
-            error: "Sessão do IBO Sol expirada e o login automático não funcionou. Confira e-mail e senha do IBO Sol nas configurações.",
+            error: "A reconexão automática do IBO Sol falhou. Confira o e-mail e a senha em Ativação de Apps → IBO Sol.",
           }),
           { status: 401, headers: jh },
         );
@@ -303,7 +301,7 @@ serve(async (req) => {
     if (act.status === 401 || act.status === 403) {
       return new Response(
         JSON.stringify({
-          error: "Sessão do IBO Sol expirada e o login automático não funcionou. Confira e-mail e senha do IBO Sol nas configurações.",
+          error: "A reconexão automática do IBO Sol falhou. Confira o e-mail e a senha em Ativação de Apps → IBO Sol.",
         }),
         { status: 401, headers: jh },
       );
