@@ -169,6 +169,11 @@ export default function PendingManualRenewalsFloat() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-sm truncate">{it.customer_name}</span>
+                      {it.server_name && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 rounded-full border-primary/30 text-primary">
+                          {it.server_name}
+                        </Badge>
+                      )}
                       <Badge className={cn('text-white text-[10px] px-1.5 py-0 rounded-full border-0', REASON_COLOR[it.reason] || 'bg-gray-500')}>
                         {REASON_LABEL[it.reason] || it.reason}
                       </Badge>

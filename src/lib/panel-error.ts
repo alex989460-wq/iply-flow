@@ -31,16 +31,21 @@ const GENERIC = [
 
 /** Retorna o motivo real do erro, com o detalhe técnico entre parênteses. */
 export function describePanelError(panelLabel: string, raw: unknown): string {
-  const text = String(
+  const rawText = String(
     (raw as { message?: string } | null)?.message ?? raw ?? '',
   ).trim();
 
-  if (!text || GENERIC.some((g) => text.toLowerCase().includes(g))) {
+  // Caso específico de créditos insuficientes estruturado (como no Uniplay)
+  if (rawText.toLowerCase().includes('quantidade de cr') && rawText.toLowerCase().includes('insuficiente')) {
+    return `${panelLabel}: Créditos insuficientes no painel — compre créditos com o seu fornecedor. (detalhe: Quantidade de créditos insuficientes)`;
+  }
+
+  if (!rawText || GENERIC.some((g) => rawText.toLowerCase().includes(g))) {
     return `${panelLabel}: o painel recusou a renovação e não informou o motivo. Verifique créditos e credenciais em Configurações → APIs.`;
   }
 
   for (const [pattern, reason] of RULES) {
-    if (pattern.test(text)) return `${panelLabel}: ${reason} (detalhe: ${text.slice(0, 220)})`;
+    if (pattern.test(rawText)) return `${panelLabel}: ${reason} (detalhe: ${rawText.slice(0, 220)})`;
   }
-  return `${panelLabel}: ${text.slice(0, 300)}`;
+  return `${panelLabel}: ${rawText.slice(0, 300)}`;
 }
