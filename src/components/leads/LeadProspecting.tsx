@@ -152,6 +152,19 @@ export default function LeadProspecting() {
     },
   });
 
+  useEffect(() => {
+    if (!sendInstance && (instances as any[]).length) {
+      const online = (instances as any[]).find((i: any) => /open|connected|online/i.test(String(i.state || '')));
+      setSendInstance((online || (instances as any[])[0]).name);
+    }
+  }, [instances, sendInstance]);
+
+  useEffect(() => {
+    if (!sendChannelId && (officialChannels as any[]).length) setSendChannelId((officialChannels as any[])[0].id);
+  }, [officialChannels, sendChannelId]);
+
+
+
 
   // ── dados persistidos ──
   const { data: lists = [] } = useQuery({
