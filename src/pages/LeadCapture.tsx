@@ -722,6 +722,10 @@ export default function LeadCapture() {
             </CardContent>
           </Card>
         )}
+          </TabsContent>
+        </Tabs>
+
+
 
         <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
           <AlertDialogContent>
