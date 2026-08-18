@@ -426,12 +426,6 @@ serve(async (req) => {
       message: action === 'activate' ? 'Ativação concluída e cliente notificado' : 'Solicitação rejeitada e cliente notificado',
     }), { headers: jsonHeaders });
 
-    console.log('[ActivationAction] Final success response. Action:', action, 'Status:', newStatus);
-    return new Response(JSON.stringify({
-      success: true,
-      status: newStatus,
-      message: action === 'activate' ? 'Ativação concluída e cliente notificado' : 'Solicitação rejeitada e cliente notificado',
-    }), { headers: jsonHeaders });
 
   } catch (err) {
     console.error('[ActivationAction] Erro:', err);
