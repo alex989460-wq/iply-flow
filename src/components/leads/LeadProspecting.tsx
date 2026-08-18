@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -83,6 +83,88 @@ export default function LeadProspecting() {
   const [sendText, setSendText] = useState('Olá {{nome}}, tudo bem? ');
   const [sending, setSending] = useState(false);
   const [sendProgress, setSendProgress] = useState({ done: 0, total: 0, fail: 0 });
+  const [sendApi, setSendApi] = useState<'evolution' | 'official'>('evolution');
+  const [sendInstance, setSendInstance] = useState('');
+  const [sendChannelId, setSendChannelId] = useState('');
+  const [sendTemplate, setSendTemplate] = useState('');
+
+  // ── canais de envio (não oficial / oficial) ──
+  const { data: instances = [] } = useQuery({
+    queryKey: ['leads-evo-instances', user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('evolution-send', { body: { action: 'list-instances' } });
+      if (error) return [];
+      return ((data as any)?.instances || []) as Array<{ name: string; phone?: string; state?: string }>;
+    },
+  });
+
+  const { data: crmSettings } = useQuery({
+    queryKey: ['leads-crm-settings', user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from('crm_oficial_settings').select('api_key, enabled').eq('user_id', user!.id).maybeSingle();
+      return data;
+    },
+  });
+
+  const { data: officialChannels = [] } = useQuery({
+    queryKey: ['leads-official-channels', crmSettings?.api_key],
+    enabled: !!crmSettings?.api_key && !!crmSettings?.enabled,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
+        body: { action: 'list-channels', data: { apiKey: crmSettings!.api_key } },
+      });
+      if (error) return [];
+      const body = (data as any)?.results?.channels?.body;
+      const raw: any[] = Array.isArray(body) ? body
+        : Array.isArray(body?.channels) ? body.channels
+        : Array.isArray(body?.data) ? body.data
+        : Array.isArray(body?.items) ? body.items : [];
+      return raw
+        .filter((c: any) => {
+          const kind = String(c.kind || c.type || '').toLowerCase();
+          if (kind.includes('evolution') || kind.includes('baileys')) return false;
+          return !c.evolution_instance_name;
+        })
+        .map((c: any, i: number) => ({
+          id: String(c.phone_number_id || c.phoneNumberId || c.id || `wa-${i}`),
+          label: String(c.verified_name || c.name || c.display_phone_number || c.phone || 'Número oficial'),
+        }))
+        .filter((c: any) => !!c.id);
+    },
+  });
+
+  const { data: officialTemplates = [] } = useQuery({
+    queryKey: ['leads-official-templates', crmSettings?.api_key],
+    enabled: sendApi === 'official' && !!crmSettings?.api_key,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('meta-templates', {
+        body: { action: 'list', apiKey: crmSettings!.api_key, limit: 250 },
+      });
+      if (error) return [];
+      const body = (data as any)?.data ?? data;
+      const list: any[] = Array.isArray(body) ? body : (body?.data ?? body?.templates ?? body?.results ?? []);
+      return list
+        .filter((t: any) => String(t.status || '').toUpperCase() === 'APPROVED')
+        .map((t: any) => ({ name: String(t.name), language: t.language || 'pt_BR' }));
+    },
+  });
+
+  useEffect(() => {
+    if (!sendInstance && (instances as any[]).length) {
+      const online = (instances as any[]).find((i: any) => /open|connected|online/i.test(String(i.state || '')));
+      setSendInstance((online || (instances as any[])[0]).name);
+    }
+  }, [instances, sendInstance]);
+
+  useEffect(() => {
+    if (!sendChannelId && (officialChannels as any[]).length) setSendChannelId((officialChannels as any[])[0].id);
+  }, [officialChannels, sendChannelId]);
+
+
+
 
   // ── dados persistidos ──
   const { data: lists = [] } = useQuery({
@@ -300,6 +382,9 @@ export default function LeadProspecting() {
   async function sendToPending() {
     const pend = (listItems as any[]).filter(it => it.leads && !['enviado', 'nao_enviar', 'bloqueado'].includes(it.leads.status));
     if (!pend.length) { toast.error('Nenhum contato pendente nesta lista'); return; }
+    if (sendApi === 'evolution' && !sendInstance) { toast.error('Selecione o número (instância) de envio'); return; }
+    if (sendApi === 'official' && !sendTemplate) { toast.error('Selecione um template aprovado para a API Oficial'); return; }
+    if (sendApi === 'evolution' && !sendText.trim()) { toast.error('Digite a mensagem'); return; }
     setSending(true);
     setSendProgress({ done: 0, total: pend.length, fail: 0 });
     let fail = 0;
@@ -307,11 +392,29 @@ export default function LeadProspecting() {
       const lead = pend[i].leads;
       const text = sendText.replace(/\{\{nome\}\}/gi, lead.name || '').trim();
       try {
-        const { data, error } = await supabase.functions.invoke('evolution-send', {
-          body: { action: 'send', phone: lead.phone, text },
-        });
-        const ok = !error && !(data as any)?.error;
+        const tpl = (officialTemplates as any[]).find(t => t.name === sendTemplate);
+        const { data, error } = sendApi === 'official'
+          ? await supabase.functions.invoke('crm-oficial-sync', {
+              body: {
+                action: 'send-whatsapp',
+                data: {
+                  phone: lead.phone,
+                  name: lead.name,
+                  phone_number_id: sendChannelId || undefined,
+                  channel_id: sendChannelId || undefined,
+                  template_name: sendTemplate,
+                  template_language: tpl?.language || 'pt_BR',
+                  template_params: [lead.name || ''],
+                },
+              },
+            })
+          : await supabase.functions.invoke('evolution-send', {
+              body: { action: 'send', phone: lead.phone, text, instance: sendInstance },
+            });
+        const ok = !error && !(data as any)?.error
+          && (sendApi === 'official' ? (data as any)?.results?.send?.ok !== false : true);
         const now = new Date().toISOString();
+
         await (supabase as any).from('leads').update({
           status: ok ? 'enviado' : 'falhou',
           last_result: ok ? 'ok' : String((data as any)?.error || error?.message || 'falha'),
@@ -699,7 +802,7 @@ export default function LeadProspecting() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Tipo de API</Label>
-                <Select defaultValue="evolution">
+                <Select value={sendApi} onValueChange={(v: any) => { setSendApi(v); }}>
                   <SelectTrigger className="h-10 rounded-xl bg-background/50">
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
@@ -711,26 +814,70 @@ export default function LeadProspecting() {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Número/Canal</Label>
-                <Select defaultValue="default">
-                  <SelectTrigger className="h-10 rounded-xl bg-background/50">
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default">Canal Padrão</SelectItem>
-                  </SelectContent>
-                </Select>
+                {sendApi === 'evolution' ? (
+                  <Select value={sendInstance} onValueChange={setSendInstance}>
+                    <SelectTrigger className="h-10 rounded-xl bg-background/50">
+                      <SelectValue placeholder={(instances as any[]).length ? 'Selecione a instância' : 'Nenhuma conexão'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(instances as any[]).map((i: any) => (
+                        <SelectItem key={i.name} value={i.name}>
+                          {i.phone ? `${i.phone} · ${i.name}` : i.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Select value={sendChannelId} onValueChange={setSendChannelId}>
+                    <SelectTrigger className="h-10 rounded-xl bg-background/50">
+                      <SelectValue placeholder={(officialChannels as any[]).length ? 'Selecione o número oficial' : 'Nenhum canal oficial'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(officialChannels as any[]).map((c: any) => (
+                        <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Mensagem ou Template</Label>
-              <Textarea value={sendText} onChange={e => setSendText(e.target.value)} rows={5} className="rounded-xl bg-background/50" placeholder="Digite sua mensagem ou selecione um template..." />
-              <p className="text-[11px] text-muted-foreground">Use <span className="font-mono">{'{{nome}}'}</span> para inserir o nome do lead. Envio com intervalo de segurança.</p>
-            </div>
+            {sendApi === 'official' ? (
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Template aprovado</Label>
+                <Select value={sendTemplate} onValueChange={setSendTemplate}>
+                  <SelectTrigger className="h-10 rounded-xl bg-background/50">
+                    <SelectValue placeholder={(officialTemplates as any[]).length ? 'Selecione o template' : 'Carregando templates…'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(officialTemplates as any[]).map((t: any) => (
+                      <SelectItem key={t.name} value={t.name}>{t.name} ({t.language})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">A API Oficial exige template aprovado. O nome do lead é enviado como primeira variável.</p>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Mensagem</Label>
+                <Textarea value={sendText} onChange={e => setSendText(e.target.value)} rows={5} className="rounded-xl bg-background/50" placeholder="Digite sua mensagem..." />
+                <p className="text-[11px] text-muted-foreground">Use <span className="font-mono">{'{{nome}}'}</span> para inserir o nome do lead. Envio com intervalo de segurança.</p>
+              </div>
+            )}
+
 
             {sending && (
-              <p className="text-xs font-bold text-primary animate-pulse">Enviando {sendProgress.done}/{sendProgress.total} · {sendProgress.fail} falhas</p>
+              <div className="space-y-1.5">
+                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all duration-300"
+                    style={{ width: `${sendProgress.total ? Math.round((sendProgress.done / sendProgress.total) * 100) : 0}%` }}
+                  />
+                </div>
+                <p className="text-xs font-bold text-primary animate-pulse">Enviando {sendProgress.done}/{sendProgress.total} · {sendProgress.fail} falhas</p>
+              </div>
             )}
+
             <Button onClick={sendToPending} disabled={sending} className="w-full h-12 rounded-xl font-black uppercase text-[11px] tracking-widest shadow-lg shadow-primary/20">
               {sending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processando Envio…</> : <><Send className="w-4 h-4 mr-2" /> Iniciar Disparo em Massa</>}
             </Button>

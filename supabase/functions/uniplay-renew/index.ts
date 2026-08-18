@@ -166,9 +166,10 @@ async function pfetch(url: string, init: RequestInit = {}): Promise<Response> {
 }
 
 // ---------------------------------------------------------------------------
-// Fluxo completo dentro do navegador da VPS: login + busca + renovação.
-// Roda a partir do próprio painel (searchdefense.top), então a API aceita a
-// origem e o Cloudflare já está resolvido.
+// Fluxo completo pelo LINK DO PAINEL (searchdefense.top), sem chamar a API do
+// site direto do servidor: o navegador da VPS faz login na tela do painel
+// (resolvendo o reCAPTCHA), reaproveita a sessão que o painel guarda e só então
+// dispara a renovação usando o mesmo fetch/origem do painel.
 // ---------------------------------------------------------------------------
 async function browserFullFlow(opts: {
   username: string;
@@ -183,45 +184,102 @@ async function browserFullFlow(opts: {
   const js = `
     const done = arguments[arguments.length - 1];
     (async () => {
-      const API = ${JSON.stringify(DEFAULT_BASE_URL)};
       const targets = ${JSON.stringify((opts.target || []).map((t) => String(t).toLowerCase().trim()))};
       const credits = ${JSON.stringify(Math.max(1, Number(opts.credits) || 1))};
       const onlyLogin = ${JSON.stringify(opts.action === "test")};
-      const jf = async (path, init) => {
-        const r = await fetch(API + path, Object.assign({ credentials: "omit" }, init || {}));
+      const USER = ${JSON.stringify(opts.username)};
+      const PASS = ${JSON.stringify(opts.password)};
+
+      // 1) Base da API: usa a mesma origem do painel primeiro; só depois o host da API.
+      const bases = ["", ${JSON.stringify(DEFAULT_BASE_URL)}];
+      const jf = async (base, path, init) => {
+        const r = await fetch(base + path, Object.assign({ credentials: "include" }, init || {}));
         const t = await r.text();
         let j = null; try { j = JSON.parse(t); } catch (e) {}
-        return { status: r.status, json: j, text: t.slice(0, 500) };
+        return { status: r.status, json: j, text: t.slice(0, 400) };
       };
+
+      // 2) Token já existente na sessão do painel (login feito na própria tela).
+      const readStoredSession = () => {
+        const out = { token: "", crypt_pass: "", id: 0, username: "" };
+        const stores = [window.localStorage, window.sessionStorage];
+        for (const st of stores) {
+          for (let i = 0; i < st.length; i++) {
+            const raw = String(st.getItem(st.key(i)) || "");
+            if (!out.token && /^ey[A-Za-z0-9_\\-]+\\./.test(raw)) out.token = raw;
+            if (raw.trim().startsWith("{")) {
+              try {
+                const o = JSON.parse(raw);
+                const d = (o && o.data && typeof o.data === "object") ? o.data : o;
+                out.token = out.token || String(d.access_token || d.token || "");
+                out.crypt_pass = out.crypt_pass || String(d.crypt_pass || "");
+                out.id = out.id || Number(d.id || 0);
+                out.username = out.username || String(d.username || "");
+              } catch (e) {}
+            }
+          }
+        }
+        return out;
+      };
+
       try {
-        const login = await jf("/api/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json;charset=UTF-8" },
-          body: JSON.stringify({ username: ${JSON.stringify(opts.username)}, password: ${JSON.stringify(opts.password)}, code: "" }),
-        });
-        const data = (login.json && (login.json.data || login.json)) || {};
-        const token = data.access_token || data.token || "";
-        if (!token) return done({ error: "login_sem_token", status: login.status, body: login.text });
-        if (onlyLogin) return done({ ok: true, token: token, id: data.id || 0, username: data.username || "" });
-        const auth = { Authorization: "Bearer " + token };
-        const iptv = await jf("/api/users-iptv?reg_password=" + encodeURIComponent(data.crypt_pass || ""), { headers: auth });
-        const p2p = await jf("/api/users-p2p", { headers: auth });
-        const iptvList = Array.isArray(iptv.json) ? iptv.json : (iptv.json && iptv.json.data) || [];
-        const p2pList = Array.isArray(p2p.json) ? p2p.json : (p2p.json && p2p.json.data) || [];
+        let api = "";
+        let sess = readStoredSession();
+
+        // 3) Se a tela de login não deixou sessão pronta, tenta autenticar pela
+        //    própria origem do painel (mesma rota que o painel usa).
+        if (!sess.token) {
+          const paths = ["/api/login", "/api/auth/login", "/api/reseller/login"];
+          for (const base of bases) {
+            for (const path of paths) {
+              const r = await jf(base, path, {
+                method: "POST",
+                headers: { "Content-Type": "application/json;charset=UTF-8" },
+                body: JSON.stringify({ username: USER, password: PASS, code: "" }),
+              });
+              const d = (r.json && (r.json.data || r.json)) || {};
+              const tk = d.access_token || d.token || "";
+              if (tk) {
+                api = base;
+                sess = { token: tk, crypt_pass: String(d.crypt_pass || ""), id: Number(d.id || 0), username: String(d.username || USER) };
+                break;
+              }
+            }
+            if (sess.token) break;
+          }
+        }
+
+        if (!sess.token) return done({ error: "login_sem_token", status: 0, body: "painel nao liberou sessao" });
+        if (onlyLogin) return done({ ok: true, token: sess.token, id: sess.id, username: sess.username || USER });
+
+        const auth = { Authorization: "Bearer " + sess.token };
+
+        // 4) Descobre qual base responde às listagens autenticadas.
+        let iptvList = [], p2pList = [];
+        for (const base of (api ? [api].concat(bases) : bases)) {
+          const iptv = await jf(base, "/api/users-iptv?reg_password=" + encodeURIComponent(sess.crypt_pass || ""), { headers: auth });
+          const p2p = await jf(base, "/api/users-p2p", { headers: auth });
+          const li = Array.isArray(iptv.json) ? iptv.json : (iptv.json && iptv.json.data) || [];
+          const lp = Array.isArray(p2p.json) ? p2p.json : (p2p.json && p2p.json.data) || [];
+          if (li.length || lp.length) { api = base; iptvList = li; p2pList = lp; break; }
+        }
+
         const mI = iptvList.find((u) => targets.includes(String(u.username || "").toLowerCase().trim()));
         const mP = p2pList.find((u) => targets.includes(String(u.name || u.username || "").toLowerCase().trim()));
-        if (!mI && !mP) return done({ error: "nao_encontrado", iptv_count: iptvList.length, p2p_count: p2pList.length });
+        if (!mI && !mP) return done({ error: "nao_encontrado", token: sess.token, iptv_count: iptvList.length, p2p_count: p2pList.length });
+
         const results = [];
-        for (const [kind, m] of [["iptv", mI], ["p2p", mP]]) {
+        for (const pair of [["iptv", mI], ["p2p", mP]]) {
+          const kind = pair[0], m = pair[1];
           if (!m) continue;
-          const r = await jf("/api/users-" + kind + "/" + m.id, {
+          const r = await jf(api, "/api/users-" + kind + "/" + m.id, {
             method: "PUT",
             headers: Object.assign({ "Content-Type": "application/json;charset=UTF-8" }, auth),
             body: JSON.stringify({ action: 1, credits: credits }),
           });
           results.push({ kind: kind, id: m.id, status: r.status, ok: r.status >= 200 && r.status < 300, body: r.text });
         }
-        done({ ok: results.some((r) => r.ok), token: token, results: results });
+        done({ ok: results.some((r) => r.ok), token: sess.token, api_base: api || "painel", results: results });
       } catch (e) {
         done({ error: String(e) });
       }
@@ -231,7 +289,21 @@ async function browserFullFlow(opts: {
   const res = await fetch(proxy.url, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-sigma-proxy-secret": proxy.secret },
-    body: JSON.stringify({ browser: true, url: `https://${PANEL_HOST}/`, wait_ms: 2000, js }),
+    body: JSON.stringify({
+      browser: true,
+      // Abre a TELA de login do painel e autentica pela interface (o agente
+      // resolve o captcha). Só depois o JS acima reaproveita a sessão.
+      url: `https://${PANEL_HOST}/#/login`,
+      wait_ms: 12000,
+      force_captcha: true,
+      capture: "login|auth|token|signin",
+      steps: [
+        { selector: "input[name='username'], input[type='text'], #username", value: opts.username, wait_ms: 800 },
+        { selector: "input[name='password'], input[type='password'], #password", value: opts.password, wait_ms: 800 },
+        { selector: "button[type='submit'], .btn-login, form button, button", click: true, wait_ms: 12000 },
+      ],
+      js,
+    }),
   }).catch((err) => {
     throw new UniplayExternalError(
       `Não foi possível falar com o proxy do painel. Verifique se a VPS está ligada. Detalhe: ${err instanceof Error ? err.message : String(err)}`,
@@ -242,22 +314,43 @@ async function browserFullFlow(opts: {
   if (!res.ok || !payload) {
     throw new UniplayExternalError(`Proxy respondeu HTTP ${res.status} ao abrir o painel Uniplay.`);
   }
-  const out = payload.js_result;
+  let out = payload.js_result;
+
+  // Fallback: se o JS não pegou a sessão, tenta o token capturado na rede pelo agente.
+  if (out && out.error === "login_sem_token") {
+    const captured: any[] = Array.isArray(payload.captured) ? payload.captured : [];
+    for (const item of captured) {
+      const raw = String(item?.body || "");
+      if (!raw.trim().startsWith("{")) continue;
+      try {
+        const obj = JSON.parse(raw);
+        const d = obj?.data && typeof obj.data === "object" ? obj.data : obj;
+        const tk = String(d.access_token || d.token || "");
+        if (tk) { out = { ok: true, token: tk, via: "captura_rede" }; break; }
+      } catch { /* ignora */ }
+    }
+  }
+
   if (!out) {
     throw new UniplayExternalError("O agente da VPS está desatualizado (sem suporte a JS). Atualize o seleniumbase_agent.py.");
   }
   if (out.error === "login_sem_token") {
-    throw new UniplayExternalError(`O Uniplay recusou o login (HTTP ${out.status}). Confira usuário e senha do painel.`);
+    const captchaStatus = String(payload?.captcha?.status || "sem_captcha");
+    throw new UniplayExternalError(
+      `O painel Uniplay não liberou a sessão pela tela de login (captcha: ${captchaStatus}). Confira usuário e senha do painel e a chave do 2Captcha na VPS.`,
+    );
   }
   if (out.error === "nao_encontrado") return out;
   if (out.error && /Failed to fetch|NetworkError|TypeError/i.test(String(out.error))) {
     throw new UniplayExternalError(
-      "A API do Uniplay (gesapioffice.com) recusou a conexão do servidor — o painel está bloqueando IPs que não sejam residenciais e o login agora exige reCAPTCHA do Google. Renove esse cliente direto no painel searchdefense.top ou aponte o proxy para um IP residencial com chave do 2Captcha.",
+      "O painel Uniplay bloqueou a conexão do navegador da VPS (IP de datacenter + reCAPTCHA do Google). Aponte o proxy para um IP residencial com chave do 2Captcha para automatizar 100%.",
     );
   }
   if (out.error) throw new UniplayExternalError(`Falha no navegador do proxy: ${out.error}`);
   return out;
 }
+
+
 
 
 interface LoginResp {
