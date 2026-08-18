@@ -67,6 +67,8 @@ export default function BolaoBroadcast() {
   const [loading, setLoading] = useState(false);
   const [targets, setTargets] = useState<Target[]>([]);
   const [imageUrl, setImageUrl] = useState(DEFAULT_IMAGE_URL);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [text, setText] = useState(DEFAULT_TEXT);
   const [departmentId, setDepartmentId] = useState<string | null>(null);
   const [source, setSource] = useState<Source>('window24h');
@@ -110,6 +112,36 @@ export default function BolaoBroadcast() {
     }
   }
 
+
+  async function handleFileUpload(file: File) {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Não autenticado");
+
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${user.id}/${Math.random()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('crm_media')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('crm_media')
+        .getPublicUrl(filePath);
+
+      setImageUrl(publicUrl);
+      setImageFile(file);
+      toast({ title: "Imagem carregada com sucesso" });
+    } catch (e: any) {
+      toast({ title: "Erro no upload", description: e.message, variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function loadTargets() {
     setLoading(true);
@@ -321,11 +353,51 @@ export default function BolaoBroadcast() {
               <ImageIcon className="w-4 h-4" /> Imagem
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <Label>URL da Imagem</Label>
-            <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://..." />
+          <CardContent className="space-y-4">
+            <div className="grid gap-4">
+              <div className="space-y-2">
+                <Label>URL da Imagem</Label>
+                <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://..." />
+              </div>
+              
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">Ou suba do seu PC</span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Input 
+                  type="file" 
+                  accept="image/*" 
+                  className="cursor-pointer" 
+                  onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
+                  disabled={uploading}
+                />
+                {uploading && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Fazendo upload...
+                  </div>
+                )}
+              </div>
+            </div>
+
             {imageUrl && (
-              <img src={imageUrl} alt="Preview" className="max-h-72 rounded-lg border" />
+              <div className="relative group">
+                <img src={imageUrl} alt="Preview" className="max-h-72 w-full object-contain rounded-lg border bg-secondary/20" />
+                <Button 
+                  variant="destructive" 
+                  size="icon" 
+                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => { setImageUrl(''); setImageFile(null); }}
+                >
+                  <XCircle className="w-4 h-4" />
+                </Button>
+              </div>
             )}
           </CardContent>
         </Card>
