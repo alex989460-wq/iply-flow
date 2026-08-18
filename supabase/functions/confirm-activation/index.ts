@@ -211,7 +211,7 @@ serve(async (req) => {
     const forceConfirm = true;
     const newStatus =
       action === 'activate'
-        ? (supportedApp && !autoActivationOk && !force && !forceConfirm ? 'failed' : 'completed')
+        ? (supportedApp && !autoActivationOk && !force && !forceConfirm && !forceAny ? 'failed' : 'completed')
         : 'rejected';
     
     console.log('[ActivationAction] Final status to set:', newStatus);
