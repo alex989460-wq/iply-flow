@@ -376,7 +376,7 @@ export default function Payments() {
                       <TableRow key={p.id} className="hover:bg-primary/5 transition-colors border-border/50 group">
                         <TableCell className="py-4 px-6">
                           <div className="flex flex-col">
-                            <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">{p.customers?.name || 'Cliente Removido'}</span>
+                            <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">{p.customers?.name || 'Cliente Removido'} {p.customers?.name ? `(${p.customers.username})` : ''}</span>
                             <span className="text-[10px] font-bold text-muted-foreground/60 uppercase">{getServerName(p)}</span>
                           </div>
                         </TableCell>
