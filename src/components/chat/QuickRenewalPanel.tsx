@@ -944,11 +944,18 @@ Obrigado pela preferência! 🙏`;
       const { error } = await supabase.from('customers').update(updateData).eq('id', selectedCustomer.id);
       if (error) throw error;
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: () => {
       toast.success('Dados do cliente salvos!');
       // Update selectedCustomer to reflect changes immediately
       setSelectedCustomer(prev => {
         if (!prev) return null;
+        const matchedServer = allServers.find(s => s.id === editedServerId);
+        const serverData = matchedServer ? { 
+          id: matchedServer.id, 
+          server_name: matchedServer.server_name,
+          host: (prev.server as any)?.host || '' // Keep host from prev or empty
+        } : prev.server;
+
         return {
           ...prev,
           name: editedName.trim(),
@@ -957,7 +964,7 @@ Obrigado pela preferência! 🙏`;
           username: editedUsername.trim() || null,
           screens: selectedScreens,
           status: editedStatus as any,
-          server: allServers.find(s => s.id === editedServerId) || prev.server,
+          server: serverData,
           due_date: editedDueDate || prev.due_date,
           plan: allPlans.find(p => p.id === selectedPlanId) || prev.plan,
           custom_price: renewalPrice
