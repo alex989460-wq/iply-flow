@@ -419,14 +419,12 @@ serve(async (req) => {
     }
 
 
-    if (action === 'activate' && supportedApp && !autoActivationOk && !force && !forceConfirm && !forceAny && false) {
-      return new Response(JSON.stringify({
-        success: false,
-        status: 'failed',
-        warning: `Ativação automática falhou: ${autoActivationError || 'desconhecida'}. Cliente já foi notificado do pagamento — conclua no painel.`,
-        message: `Pagamento confirmado ao cliente. Ativação automática falhou: ${autoActivationError || 'desconhecida'} — conclua manualmente no painel do app.`,
-      }), { status: 200, headers: jsonHeaders });
-    }
+    console.log('[ActivationAction] Final success response. Action:', action, 'Status:', newStatus);
+    return new Response(JSON.stringify({
+      success: true,
+      status: newStatus,
+      message: action === 'activate' ? 'Ativação concluída e cliente notificado' : 'Solicitação rejeitada e cliente notificado',
+    }), { headers: jsonHeaders });
 
     console.log('[ActivationAction] Final success response. Action:', action, 'Status:', newStatus);
     return new Response(JSON.stringify({
