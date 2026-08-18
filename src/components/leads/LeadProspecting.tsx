@@ -369,6 +369,9 @@ export default function LeadProspecting() {
   async function sendToPending() {
     const pend = (listItems as any[]).filter(it => it.leads && !['enviado', 'nao_enviar', 'bloqueado'].includes(it.leads.status));
     if (!pend.length) { toast.error('Nenhum contato pendente nesta lista'); return; }
+    if (sendApi === 'evolution' && !sendInstance) { toast.error('Selecione o número (instância) de envio'); return; }
+    if (sendApi === 'official' && !sendTemplate) { toast.error('Selecione um template aprovado para a API Oficial'); return; }
+    if (sendApi === 'evolution' && !sendText.trim()) { toast.error('Digite a mensagem'); return; }
     setSending(true);
     setSendProgress({ done: 0, total: pend.length, fail: 0 });
     let fail = 0;
@@ -376,11 +379,29 @@ export default function LeadProspecting() {
       const lead = pend[i].leads;
       const text = sendText.replace(/\{\{nome\}\}/gi, lead.name || '').trim();
       try {
-        const { data, error } = await supabase.functions.invoke('evolution-send', {
-          body: { action: 'send', phone: lead.phone, text },
-        });
-        const ok = !error && !(data as any)?.error;
+        const tpl = (officialTemplates as any[]).find(t => t.name === sendTemplate);
+        const { data, error } = sendApi === 'official'
+          ? await supabase.functions.invoke('crm-oficial-sync', {
+              body: {
+                action: 'send-whatsapp',
+                data: {
+                  phone: lead.phone,
+                  name: lead.name,
+                  phone_number_id: sendChannelId || undefined,
+                  channel_id: sendChannelId || undefined,
+                  template_name: sendTemplate,
+                  template_language: tpl?.language || 'pt_BR',
+                  template_params: [lead.name || ''],
+                },
+              },
+            })
+          : await supabase.functions.invoke('evolution-send', {
+              body: { action: 'send', phone: lead.phone, text, instance: sendInstance },
+            });
+        const ok = !error && !(data as any)?.error
+          && (sendApi === 'official' ? (data as any)?.results?.send?.ok !== false : true);
         const now = new Date().toISOString();
+
         await (supabase as any).from('leads').update({
           status: ok ? 'enviado' : 'falhou',
           last_result: ok ? 'ok' : String((data as any)?.error || error?.message || 'falha'),
