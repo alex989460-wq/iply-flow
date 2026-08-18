@@ -867,8 +867,17 @@ export default function LeadProspecting() {
 
 
             {sending && (
-              <p className="text-xs font-bold text-primary animate-pulse">Enviando {sendProgress.done}/{sendProgress.total} · {sendProgress.fail} falhas</p>
+              <div className="space-y-1.5">
+                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all duration-300"
+                    style={{ width: `${sendProgress.total ? Math.round((sendProgress.done / sendProgress.total) * 100) : 0}%` }}
+                  />
+                </div>
+                <p className="text-xs font-bold text-primary animate-pulse">Enviando {sendProgress.done}/{sendProgress.total} · {sendProgress.fail} falhas</p>
+              </div>
             )}
+
             <Button onClick={sendToPending} disabled={sending} className="w-full h-12 rounded-xl font-black uppercase text-[11px] tracking-widest shadow-lg shadow-primary/20">
               {sending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processando Envio…</> : <><Send className="w-4 h-4 mr-2" /> Iniciar Disparo em Massa</>}
             </Button>
