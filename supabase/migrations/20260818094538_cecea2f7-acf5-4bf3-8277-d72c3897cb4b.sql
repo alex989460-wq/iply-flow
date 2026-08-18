@@ -1,0 +1,1 @@
+DELETE FROM public.pending_manual_renewals WHERE reason = 'ibosol_session_expired';
