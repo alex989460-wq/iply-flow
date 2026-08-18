@@ -2193,7 +2193,7 @@ serve(async (req) => {
           }));
 
           const customerNameCakto = customer?.name || customer?.full_name || caktoData?.name || '-';
-          const interactiveText = `⚠️ *Pagamento de ${customerNameCakto} requer decisão*\n\n📞 Telefone: ${phoneDigits}\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n\n🧩 Motivo: *${conflictReason}*\n\n👥 *${conflictCustomers.length} clientes encontrados:*\n${customerList}\n\nIdentifique falhas, erros de lógica e bugs no código fornecido. Forneça a correção exata para cada problema encontrado, acompanhada de uma explicação clara sobre a causa raiz e a solução aplicada, garantindo que o código funcione perfeitamente e sem erros. veja por que nao renovou automatica e corrija para renovar os proximos , veja que ela pagou 60,00 que é o valor para duas telas\n\n👇 Escolha qual renovar:`;
+          const interactiveText = `⚠️ *Pagamento de ${customerNameCakto} requer decisão*\n\n📞 Telefone: ${phoneDigits}\n💰 Valor: *R$ ${amountNumeric.toFixed(2)}*\n📦 Plano: *${matchedPlanName || '-'}*\n\n🧩 Motivo: *${conflictReason}*\n\n👥 *${conflictCustomers.length} clientes encontrados:*\n${customerList}\n\nja renovei manualmente os proximos quando for a mesma data voce pode renovar, so nao renove quando for data muito longe futura\n\n👇 Escolha qual renovar:`;
 
           let buttonsSent = false;
           try {
