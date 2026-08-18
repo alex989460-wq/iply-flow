@@ -129,10 +129,11 @@ export default function LeadCapture() {
   }
 
 
-  // Gerador de leads (números próximos do telefone semente)
+  // Gerador de leads
   const [seedPhone, setSeedPhone] = useState('');
   const [seedCount, setSeedCount] = useState(1000);
-  const [seedMode, setSeedMode] = useState<'sequencial' | 'aleatorio'>('aleatorio');
+  const [seedMode, setSeedMode] = useState<'sequencial' | 'aleatorio' | 'google'>('aleatorio');
+  const [searchQuery, setSearchQuery] = useState('');
 
   async function generateFromSeed() {
     const digits = seedPhone.replace(/\D/g, '');
