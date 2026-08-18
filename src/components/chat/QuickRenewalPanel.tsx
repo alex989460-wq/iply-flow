@@ -466,6 +466,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
         extra_phone: editedExtraPhone.trim() || customer.extra_phone || null,
         // Decrement extra_months if customer has any
         extra_months: customer.extra_months > 0 ? customer.extra_months - 1 : 0,
+        name: editedName.trim() || customer.name,
       };
 
       // Update plan if changed

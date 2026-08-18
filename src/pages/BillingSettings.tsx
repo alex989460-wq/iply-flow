@@ -5,6 +5,7 @@ import MercadoPagoSettingsCard from '@/components/settings/MercadoPagoSettingsCa
 import ResellerCheckoutCard from '@/components/settings/ResellerCheckoutCard';
 import DiscountCouponsCard from '@/components/settings/DiscountCouponsCard';
 import EmailTrackingCard from '@/components/settings/EmailTrackingCard';
+import CaktoSettingsCard from '@/components/settings/CaktoSettingsCard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Receipt, MessageSquare, Wallet, ShoppingCart, Ticket, Mail, Smartphone, ShieldCheck, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -119,6 +120,12 @@ export default function BillingSettings() {
                   {t.value === 'email' && (
                     <div className="animate-in fade-in duration-700">
                       <EmailTrackingCard />
+                    </div>
+                  )}
+
+                  {t.value === 'cakto' && (
+                    <div className="animate-in fade-in duration-700">
+                      <CaktoSettingsCard />
                     </div>
                   )}
                 </div>

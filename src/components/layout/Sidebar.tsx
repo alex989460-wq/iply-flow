@@ -62,7 +62,7 @@ const menuItems: Array<{
   { icon: FileText, label: 'Templates CRM Oficial', path: '/crm-oficial-templates', adminOnly: false },
   { icon: Bot, label: 'Robô CRM', path: '/crm-oficial-chatbots', adminOnly: false },
   { icon: QrCode, label: 'Conexões WhatsApp', path: '/evolution-instances', adminOnly: false },
-  { icon: ShieldCheck, label: 'Agente Utility WhatsApp', path: '/whatsapp-utility', adminOnly: true },
+  
 
 
   { icon: ImagePlus, label: 'Gerador de Banner', path: '/banner-generator', adminOnly: false },
