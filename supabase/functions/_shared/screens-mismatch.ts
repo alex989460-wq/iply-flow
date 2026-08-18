@@ -74,6 +74,21 @@ export async function reportScreensMismatch(admin: any, params: ScreensMismatchP
       if (existing) return null;
     }
 
+    // Resolve nome/host do servidor quando não vieram no payload
+    let serverName = params.serverName || null;
+    let serverHost = params.serverHost || null;
+    if ((!serverName || !serverHost) && params.customer?.server_id) {
+      const { data: srv } = await admin
+        .from('servers')
+        .select('server_name, host')
+        .eq('id', params.customer.server_id)
+        .maybeSingle();
+      if (srv) {
+        serverName = serverName || srv.server_name || null;
+        serverHost = serverHost || srv.host || null;
+      }
+    }
+
     await admin.from('pending_manual_renewals').insert({
       owner_id: ownerId,
       customer_id: params.customer?.id || null,
@@ -81,8 +96,9 @@ export async function reportScreensMismatch(admin: any, params: ScreensMismatchP
       customer_phone: params.customer?.phone || null,
       username: params.customer?.username || null,
       server_id: params.customer?.server_id || null,
-      server_name: params.serverName || null,
-      server_host: params.serverHost || null,
+      server_name: serverName,
+      server_host: serverHost,
+
       plan_name: params.planName || null,
       amount: params.amount ?? 0,
       new_due_date: params.customer?.due_date || null,

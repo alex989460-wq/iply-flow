@@ -69,8 +69,30 @@ export default function PendingManualRenewalsFloat() {
       .select('*')
       .eq('owner_id', user.id)
       .order('created_at', { ascending: false });
-    if (!error && data) setItems(data as any);
+    if (error || !data) return;
+
+    // Resolve o nome do servidor quando a pendência foi criada sem ele
+    const rows = data as any[];
+    const missing = Array.from(
+      new Set(rows.filter((r) => !r.server_name && r.server_id).map((r) => r.server_id))
+    );
+    if (missing.length) {
+      const { data: servers } = await supabase
+        .from('servers')
+        .select('id, server_name, host')
+        .in('id', missing as string[]);
+      const map = new Map((servers || []).map((s: any) => [s.id, s]));
+      rows.forEach((r) => {
+        const s = r.server_id ? map.get(r.server_id) : null;
+        if (s) {
+          r.server_name = r.server_name || s.server_name;
+          r.server_host = r.server_host || s.host;
+        }
+      });
+    }
+    setItems(rows as any);
   }, [user]);
+
 
   useEffect(() => {
     if (!user) return;
