@@ -124,6 +124,30 @@ serve(async (req) => {
             if (r.ok && j?.success) autoActivationOk = true;
             else autoActivationError = j?.error || `HTTP ${r.status}`;
           }
+        } else if (/SMARTERS\s*MAX|SMARTERSMAX/i.test(String(request.app_name || ''))) {
+          if (!request.mac_address) {
+            autoActivationError = 'MAC do cliente ausente na solicitação';
+          } else {
+            const r = await fetch(
+              `${Deno.env.get('SUPABASE_URL')}/functions/v1/smartersmax`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                },
+                body: JSON.stringify({
+                  action: 'activate',
+                  mac: request.mac_address,
+                  description: request.customer_name || '',
+                  user_id: request.user_id,
+                }),
+              },
+            );
+            const j = await r.json().catch(() => ({}));
+            if (r.ok && j?.success) autoActivationOk = true;
+            else autoActivationError = j?.error || `HTTP ${r.status}`;
+          }
         } else if (/IBOPLAYERPRO|IBO PLAYER PRO/i.test(String(request.app_name || ''))) {
           // IBO Player Pro (cms.iboplayer.pro) — precisa vir ANTES do bloco IBO Sol
           // porque a regex do IBO Sol contém "IBOPLAYER".
