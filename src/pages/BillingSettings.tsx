@@ -73,7 +73,7 @@ export default function BillingSettings() {
                 className="flex-1 min-w-[140px] rounded-[1.5rem] px-4 py-3.5 text-xs font-black uppercase tracking-widest data-[state=active]:bg-orange-500 data-[state=active]:text-white data-[state=active]:shadow-2xl data-[state=active]:shadow-orange-500/30 transition-all duration-300 gap-2.5"
               >
                 <Zap className="w-4 h-4" />
-                Cakto
+                Cakto (Integração)
               </TabsTrigger>
             </TabsList>
           </div>

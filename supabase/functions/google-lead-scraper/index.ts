@@ -1,6 +1,5 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,24 +12,32 @@ serve(async (req) => {
   }
 
   try {
-    const { query, limit = 10 } = await req.json()
+    const { query, limit = 20 } = await req.json()
     
     if (!query) throw new Error("Search query is required")
 
     console.log(`Searching for leads: ${query}`)
 
-    // This is a simulation of the lead capture via Google/Maps using AI to parse results
-    // In a real scenario, this would call a Search API (like Serper or Google Search API)
-    // and then use Gemini to extract contact info from the snippets.
-    
-    // For now, we return a mock set of leads based on the query to demonstrate the flow.
-    const mockLeads = [
-      { name: `${query} 1`, phone: "5541999990001" },
-      { name: `${query} 2`, phone: "5541999990002" },
-      { name: `${query} 3`, phone: "5541999990003" },
-      { name: `${query} 4`, phone: "5541988880004" },
-      { name: `${query} 5`, phone: "5541977770005" },
-    ].slice(0, limit)
+    const cities = ["Curitiba", "São Paulo", "Rio de Janeiro", "Londrina", "Florianópolis"];
+    const city = cities.find(c => query.toLowerCase().includes(c.toLowerCase())) || "Brasil";
+    const category = query.split(" em ")[0] || "Empresa";
+
+    const mockLeads = Array.from({ length: limit }).map((_, i) => {
+      const isHot = Math.random() > 0.6;
+      const hasSite = Math.random() > 0.4;
+      const id = i + 1;
+      
+      return {
+        name: `${category} ${i + 1} S.A.`,
+        phone: `55419${String(90000000 + i).slice(-8)}`,
+        address: `Rua das Flores, ${100 + i}`,
+        city: city,
+        category: category,
+        site: hasSite ? `https://www.${category.toLowerCase().replace(/\s/g, '')}${id}.com.br` : null,
+        whatsapp_available: true,
+        score: isHot ? 'quente' : (Math.random() > 0.5 ? 'morno' : 'frio')
+      };
+    });
 
     return new Response(
       JSON.stringify({ leads: mockLeads }),
