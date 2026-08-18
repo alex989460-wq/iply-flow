@@ -250,6 +250,11 @@ async function browserFullFlow(opts: {
     throw new UniplayExternalError(`O Uniplay recusou o login (HTTP ${out.status}). Confira usuário e senha do painel.`);
   }
   if (out.error === "nao_encontrado") return out;
+  if (out.error && /Failed to fetch|NetworkError|TypeError/i.test(String(out.error))) {
+    throw new UniplayExternalError(
+      "A API do Uniplay (gesapioffice.com) recusou a conexão do servidor — o painel está bloqueando IPs que não sejam residenciais e o login agora exige reCAPTCHA do Google. Renove esse cliente direto no painel searchdefense.top ou aponte o proxy para um IP residencial com chave do 2Captcha.",
+    );
+  }
   if (out.error) throw new UniplayExternalError(`Falha no navegador do proxy: ${out.error}`);
   return out;
 }
