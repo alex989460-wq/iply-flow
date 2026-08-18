@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, Send, Megaphone, RefreshCw, Image as ImageIcon, MessageSquare, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, Send, Megaphone, RefreshCw, Image as ImageIcon, MessageSquare, CheckCircle, XCircle, Upload } from 'lucide-react';
 
 const DEFAULT_IMAGE_URL = '';
 
@@ -370,20 +370,32 @@ export default function BolaoBroadcast() {
               </div>
 
               <div className="space-y-2">
-                <Input 
-                  type="file" 
-                  accept="image/*" 
-                  className="cursor-pointer" 
-                  onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
-                  disabled={uploading}
-                />
+                <Label 
+                  htmlFor="file-upload" 
+                  className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-border/50 rounded-xl bg-background/50 hover:bg-background/80 hover:border-primary/50 transition-all cursor-pointer group"
+                >
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    <Upload className="w-8 h-8 text-muted-foreground group-hover:text-primary transition-colors mb-2" />
+                    <p className="text-sm text-muted-foreground group-hover:text-primary transition-colors font-medium">Clique para subir do PC</p>
+                    <p className="text-xs text-muted-foreground/60 mt-1">PNG, JPG ou WEBP</p>
+                  </div>
+                  <Input 
+                    id="file-upload"
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden" 
+                    onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
+                    disabled={uploading}
+                  />
+                </Label>
                 {uploading && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2 text-xs text-primary font-bold animate-pulse">
                     <Loader2 className="w-3 h-3 animate-spin" />
-                    Fazendo upload...
+                    Fazendo upload para o servidor...
                   </div>
                 )}
               </div>
+
             </div>
 
             {imageUrl && (
