@@ -181,6 +181,10 @@ export default function ActivationApps() {
   }, [ibosol?.id, ibosol?.updated_at]);
 
   useEffect(() => {
+    if (smartersmax) setSmartersForm({ username: smartersmax.username || '', password: smartersmax.password || '', is_enabled: smartersmax.is_enabled ?? true });
+  }, [smartersmax?.id, smartersmax?.updated_at]);
+
+  useEffect(() => {
     if (iboPro) setIboProForm({ username: iboPro.username || '', password: iboPro.password || '', is_enabled: iboPro.is_enabled ?? true });
   }, [iboPro?.id, iboPro?.updated_at]);
 
