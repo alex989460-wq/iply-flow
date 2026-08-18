@@ -14,10 +14,8 @@ serve(async (req) => {
   const jsonHeaders = { ...corsHeaders, 'Content-Type': 'application/json' };
 
   try {
-    const text = await req.text();
-    console.log('[ActivationAction] Raw Body:', text);
-    const payload = JSON.parse(text || '{}');
-    console.log('[ActivationAction] Parsed Payload:', JSON.stringify(payload));
+    const payload = await req.json();
+    console.log('[ActivationAction] Payload:', JSON.stringify(payload));
     const request_id = payload?.request_id;
     // `auto: true` (webhooks) equivale a uma ativação.
     const action = payload?.action || (payload?.auto ? 'activate' : null);
