@@ -16,6 +16,7 @@ const TABS = [
   { value: 'checkout', label: 'Link Único', icon: ShoppingCart, hint: 'Página do revendedor' },
   { value: 'coupons', label: 'Cupons', icon: Ticket, hint: 'Promoções e descontos' },
   { value: 'email', label: 'E-mail', icon: Mail, hint: 'Faturas por e-mail' },
+  { value: 'cakto', label: 'Cakto', icon: Zap, hint: 'Integração Cakto' },
 ];
 
 export default function BillingSettings() {
@@ -85,11 +86,7 @@ export default function BillingSettings() {
                 </div>
 
                 <div className="grid gap-6">
-                  {t.value === 'messages' && (
-                    <div className="animate-in fade-in duration-700">
-                      <BillingSettingsCard />
-                    </div>
-                  )}
+                  {/* Conteúdo movido para aba Cakto */}
                   
                   {t.value === 'gateways' && (
                     <div className="grid gap-6 animate-in fade-in duration-700">
@@ -116,14 +113,13 @@ export default function BillingSettings() {
                     </div>
                   )}
 
-
-                  {t.value === 'gateways' && (
-                    <div className="grid gap-6 animate-in fade-in duration-700">
-                      <EfiSettingsCard />
-                      <MercadoPagoSettingsCard />
-                      
+                  {t.value === 'cakto' && (
+                    <div className="animate-in fade-in duration-700">
+                      <BillingSettingsCard />
                     </div>
                   )}
+
+
                 </div>
               </TabsContent>
             ))}

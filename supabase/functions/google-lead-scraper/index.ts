@@ -77,10 +77,18 @@ function buildOverpass(filters: string[], bbox: number[], term: string) {
     const tag = v ? `["${k}"="${v}"]` : `["${k}"]`;
     parts.push(`node${tag}["name"](${box});`);
     parts.push(`way${tag}["name"](${box});`);
+    parts.push(`relation${tag}["name"](${box});`);
   }
-  if (term && filters.length > 2) {
-    parts.push(`node["name"~"${term.replace(/["\\]/g, '')}",i](${box});`);
+  
+  // Aumenta o escopo de busca para capturar mais estabelecimentos
+  if (term) {
+    const cleanTerm = term.replace(/["\\]/g, '');
+    parts.push(`node["name"~"${cleanTerm}",i](${box});`);
+    parts.push(`way["name"~"${cleanTerm}",i](${box});`);
+    parts.push(`node["shop"~"${cleanTerm}",i](${box});`);
+    parts.push(`node["amenity"~"${cleanTerm}",i](${box});`);
   }
+  
   return `[out:json][timeout:90];(${parts.join('')});out center tags 1000;`;
 }
 
