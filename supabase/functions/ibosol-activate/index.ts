@@ -160,7 +160,47 @@ serve(async (req) => {
       );
     }
 
-    const token = String((cred as any).password || "").trim();
+    let token = String((cred as any).password || "").trim();
+
+    // Renova o token automaticamente (login pelo navegador da VPS) quando ele
+    // expira ou está vazio — o IBO Sol invalida o token com frequência.
+    const refreshToken = async (): Promise<string | null> => {
+      const extra = ((cred as any).extra || {}) as any;
+      const email = String(extra.email || "").trim();
+      const password = String(extra.login_password || "");
+      if (!email || !password) return null;
+      try {
+        const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/ibosol-login`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({ user_id: ownerId, email, password }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j?.success) {
+          console.error("[ibosol-activate] relogin falhou:", j?.error || r.status);
+          return null;
+        }
+      } catch (e) {
+        console.error("[ibosol-activate] relogin erro:", e);
+        return null;
+      }
+      const { data: fresh } = await admin
+        .from("activation_panel_credentials")
+        .select("password")
+        .eq("user_id", ownerId)
+        .eq("panel_type", "ibosol")
+        .maybeSingle();
+      const next = String((fresh as any)?.password || "").trim();
+      return next && next !== token ? next : (next || null);
+    };
+
+    if (!token) {
+      const renewed = await refreshToken();
+      if (renewed) token = renewed;
+    }
     if (!token) {
       return new Response(
         JSON.stringify({ error: "Token do IBO Sol vazio nas configurações" }),
@@ -169,30 +209,49 @@ serve(async (req) => {
     }
 
     const mac = normalizeMac(macRaw);
-    const baseHeaders: Record<string, string> = {
+    const headersFor = (t: string): Record<string, string> => ({
       "User-Agent": UA,
       "Content-Type": "application/json-patch+json",
       Accept: "application/json",
       Origin: "https://ibosol.com",
       Referer: "https://ibosol.com/check-mac",
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${t}`,
+    });
+
+    // Faz a chamada; se voltar 401/403 refaz o login e tenta mais uma vez.
+    let reloginTried = false;
+    const callApi = async (path: string, payload: unknown): Promise<Response> => {
+      let res = await fetch(`${API_BASE}/${path}`, {
+        method: "POST",
+        headers: headersFor(token),
+        body: JSON.stringify(payload),
+      });
+      if ((res.status === 401 || res.status === 403) && !reloginTried) {
+        reloginTried = true;
+        const renewed = await refreshToken();
+        if (renewed) {
+          token = renewed;
+          res = await fetch(`${API_BASE}/${path}`, {
+            method: "POST",
+            headers: headersFor(token),
+            body: JSON.stringify(payload),
+          });
+        }
+      }
+      return res;
     };
 
     // 1) check-device-status — se MAC já estiver ativo com validade futura, aborta (evita crédito duplicado)
     let currentStatus: string | null = null;
     let existingExpiry: string | null = null;
     try {
-      const chk = await fetch(`${API_BASE}/check-device-status`, {
-        method: "POST",
-        headers: baseHeaders,
-        body: JSON.stringify({ macAddress: mac, app_id: app.id }),
-      });
+      const chk = await callApi("check-device-status", { macAddress: mac, app_id: app.id });
       const cj = await chk.json().catch(() => ({} as any));
       currentStatus = cj?.status ?? null;
       if (chk.status === 401 || chk.status === 403) {
         return new Response(
           JSON.stringify({
-            error: "Token IBO Sol expirado. Faça login em ibosol.com e cole o novo token nas configurações.",
+            error: "Sessão do IBO Sol expirada e o login automático não funcionou. Confira e-mail e senha do IBO Sol nas configurações.",
           }),
           { status: 401, headers: jh },
         );
@@ -238,17 +297,13 @@ serve(async (req) => {
       },
     };
 
-    const act = await fetch(`${API_BASE}/get-multi-app-activate`, {
-      method: "POST",
-      headers: baseHeaders,
-      body: JSON.stringify(activatePayload),
-    });
+    const act = await callApi("get-multi-app-activate", activatePayload);
     const aj = await act.json().catch(() => ({} as any));
 
     if (act.status === 401 || act.status === 403) {
       return new Response(
         JSON.stringify({
-          error: "Token IBO Sol expirado. Faça login em ibosol.com e cole o novo token nas configurações.",
+          error: "Sessão do IBO Sol expirada e o login automático não funcionou. Confira e-mail e senha do IBO Sol nas configurações.",
         }),
         { status: 401, headers: jh },
       );
