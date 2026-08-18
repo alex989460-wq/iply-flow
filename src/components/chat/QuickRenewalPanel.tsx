@@ -946,6 +946,30 @@ Obrigado pela preferência! 🙏`;
     },
     onSuccess: () => {
       toast.success('Dados do cliente salvos!');
+      // Update selectedCustomer to reflect changes immediately
+      setSelectedCustomer(prev => {
+        if (!prev) return null;
+        const matchedServer = allServers.find(s => s.id === editedServerId);
+        const serverData = matchedServer ? { 
+          id: matchedServer.id, 
+          server_name: matchedServer.server_name,
+          host: (prev.server as any)?.host || '' // Keep host from prev or empty
+        } : prev.server;
+
+        return {
+          ...prev,
+          name: editedName.trim(),
+          phone: editedPhone.trim(),
+          extra_phone: editedExtraPhone.trim() || null,
+          username: editedUsername.trim() || null,
+          screens: selectedScreens,
+          status: editedStatus as any,
+          server: serverData,
+          due_date: editedDueDate || prev.due_date,
+          plan: allPlans.find(p => p.id === selectedPlanId) || prev.plan,
+          custom_price: renewalPrice
+        };
+      });
       queryClient.invalidateQueries({ queryKey: ['customer-search'] });
     },
     onError: (error: Error) => {
@@ -1683,15 +1707,17 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     <Button 
                       variant="secondary" 
                       size="sm" 
-                      className="h-12 w-12 rounded-2xl bg-primary/10 text-primary hover:bg-primary/20 border border-primary/10 shadow-lg transition-all active:scale-90"
+                      className="h-12 flex-1 rounded-2xl bg-primary/10 text-primary hover:bg-primary/20 border border-primary/10 shadow-lg transition-all active:scale-90 gap-2"
                       onClick={() => saveCustomerData.mutate()}
                       disabled={saveCustomerData.isPending}
-                      title="Salvar alterações"
                     >
                       {saveCustomerData.isPending ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
-                        <CheckCircle className="h-5 w-5" />
+                        <>
+                          <CheckCircle className="h-5 w-5" />
+                          <span className="font-bold">SALVAR ALTERAÇÕES</span>
+                        </>
                       )}
                     </Button>
                   </div>
