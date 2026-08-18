@@ -56,17 +56,24 @@ export default function BillingSettings() {
 
         <Tabs defaultValue="messages" className="space-y-8">
           <div className="overflow-x-auto -mx-1 px-1 no-scrollbar">
-            <TabsList className="h-auto p-1.5 bg-card/40 backdrop-blur-xl border border-border/50 rounded-[2rem] flex gap-2 w-full min-w-[600px] shadow-lg">
+            <TabsList className="h-auto p-1.5 bg-card/40 backdrop-blur-xl border border-border/50 rounded-[2rem] flex flex-wrap gap-2 w-full shadow-lg">
               {TABS.map((t) => (
                 <TabsTrigger
                   key={t.value}
                   value={t.value}
-                  className="flex-1 rounded-[1.5rem] px-6 py-3.5 text-xs font-black uppercase tracking-widest data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-2xl data-[state=active]:shadow-primary/30 transition-all duration-300 gap-2.5"
+                  className="flex-1 min-w-[140px] rounded-[1.5rem] px-4 py-3.5 text-xs font-black uppercase tracking-widest data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-2xl data-[state=active]:shadow-primary/30 transition-all duration-300 gap-2.5"
                 >
                   <t.icon className="w-4 h-4" />
                   {t.label}
                 </TabsTrigger>
               ))}
+              <TabsTrigger
+                value="cakto"
+                className="flex-1 min-w-[140px] rounded-[1.5rem] px-4 py-3.5 text-xs font-black uppercase tracking-widest data-[state=active]:bg-orange-500 data-[state=active]:text-white data-[state=active]:shadow-2xl data-[state=active]:shadow-orange-500/30 transition-all duration-300 gap-2.5"
+              >
+                <Zap className="w-4 h-4" />
+                Cakto
+              </TabsTrigger>
             </TabsList>
           </div>
 
