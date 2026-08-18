@@ -17,7 +17,7 @@ import CreateClouddyUserDialog from '@/components/activation/CreateClouddyUserDi
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Smartphone, Mail, Monitor, Clock, CheckCircle2, XCircle, AlertCircle, Settings2, Eye, EyeOff, Zap, ListPlus, ShieldCheck, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Smartphone, Mail, Monitor, Clock, CheckCircle2, XCircle, AlertCircle, Settings2, Eye, EyeOff, Zap, ListPlus, ShieldCheck, Loader2, Image as ImageIcon, Wand2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import PlaylistTemplatesCard from '@/components/playlist/PlaylistTemplatesCard';
@@ -66,6 +66,15 @@ const IBOSOL_LOGOS: Record<string, string> = (() => {
 
 function normKey(name: string) {
   return String(name || '').toUpperCase().replace(/\s+/g, '');
+}
+
+// Sugere um ícone a partir do nome do app (favicon do domínio provável).
+export function guessLogo(name: string) {
+  const key = (name || '').toUpperCase().trim();
+  if (APP_LOGOS[key]) return APP_LOGOS[key];
+  const slug = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!slug) return '';
+  return `https://www.google.com/s2/favicons?domain=${slug}.com&sz=128`;
 }
 
 function AppLogo({ name, url, size = 40 }: { name: string; url?: string | null; size?: number }) {
