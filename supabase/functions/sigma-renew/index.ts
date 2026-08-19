@@ -34,13 +34,20 @@ const browserHeaders = {
 type Proxy = { url: string; secret: string } | null;
 
 function buildProxy(url?: string | null, secret?: string | null): Proxy {
-  // Sigma usa APENAS o proxy configurado pelo próprio revendedor (comportamento
-  // original que já funcionava). Não cai no agente global para não quebrar
-  // conexões que funcionam via chamada direta.
   const u = String(url || "").trim().replace(/\/+$/, "");
+  // Se o revendedor configurou um proxy próprio, usamos ele.
+  // Caso contrário, tentamos o proxy residencial global do sistema.
   const s = String(secret || Deno.env.get("SIGMA_PROXY_SECRET") || "").trim();
-  if (!u || !s) return null;
-  return { url: /^https?:\/\//i.test(u) ? u : `https://${u}`, secret: s };
+  
+  if (u && s) return { url: /^https?:\/\//i.test(u) ? u : `https://${u}`, secret: s };
+  
+  // Fallback para o Proxy Residencial Global (SIGMA_RESIDENTIAL_PROXY)
+  const globalProxy = Deno.env.get("SIGMA_RESIDENTIAL_PROXY");
+  if (globalProxy && s) {
+    return { url: globalProxy, secret: s };
+  }
+  
+  return null;
 }
 
 type RelayResponse = { ok: boolean; status: number; text: string };
