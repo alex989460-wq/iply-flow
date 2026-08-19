@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
     const query = String(body.query || '').trim();
-    const limit = Math.min(Math.max(Number(body.limit) || 100, 1), 500);
+    const limit = Math.min(Math.max(Number(body.limit) || 100, 1), 5000);
     if (!query) return json({ error: 'Informe uma pesquisa. Ex.: "bares em Curitiba"' }, 400);
 
     const parsed = parseQuery(query);
@@ -176,7 +176,6 @@ Deno.serve(async (req) => {
       'https://lz4.overpass-api.de/api/interpreter',
       'https://z.overpass-api.de/api/interpreter'
     ];
-    let elements: any[] = [];
     for (const endpoint of endpoints) {
       try {
         const r = await fetch(endpoint, {

@@ -182,7 +182,7 @@ export default function LeadProspecting() {
     queryKey: ['leads-all', user?.id],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
-        .from('leads').select('*').order('created_at', { ascending: false }).limit(10000);
+        .from('leads').select('*').order('created_at', { ascending: false }).limit(20000);
       if (error) throw error;
       return data || [];
     },
