@@ -113,44 +113,49 @@ async function sigmaLogin(base: string, username: string, password: string, prox
   let lastStatus = 0;
   let lastMessage = "";
   let lastPreview = "";
+  let lastError: any = null;
 
 
   for (const apiBase of candidates) {
     console.log(`[Sigma] Tentando login em: ${apiBase} (Proxy: ${proxy ? "Sim" : "Não"})`);
-    const res = await relay(`${apiBase}/api/auth/login`, {
-      method: "POST",
-      headers: { ...browserHeaders, "Content-Type": "application/json", "Origin": apiBase, "Referer": `${apiBase}/` },
-      body: JSON.stringify({
-        username,
-        password,
-        captcha: "not-a-robot",
-        captchaChecked: true,
-        twofactor_code: "",
-        twofactor_recovery_code: "",
-        twofactor_trusted_device_id: "",
-      }),
-    }, proxy);
-    
-    lastStatus = res.status;
-    let body: any = {};
-    try { body = res.text ? JSON.parse(res.text) : {}; } catch { body = {}; }
-    
-    if (res.ok && body?.token) {
-      console.log(`[Sigma] Login OK em ${apiBase}`);
-      return { token: String(body.token), me: body, apiBase };
+    try {
+      const res = await relay(`${apiBase}/api/auth/login`, {
+        method: "POST",
+        headers: { ...browserHeaders, "Content-Type": "application/json", "Origin": apiBase, "Referer": `${apiBase}/` },
+        body: JSON.stringify({
+          username,
+          password,
+          captcha: "not-a-robot",
+          captchaChecked: true,
+          twofactor_code: "",
+          twofactor_recovery_code: "",
+          twofactor_trusted_device_id: "",
+        }),
+      }, proxy);
+      
+      lastStatus = res.status;
+      let body: any = {};
+      try { body = res.text ? JSON.parse(res.text) : {}; } catch { body = {}; }
+      
+      if (res.ok && body?.token) {
+        console.log(`[Sigma] Login OK em ${apiBase}`);
+        return { token: String(body.token), me: body, apiBase };
+      }
+
+      lastMessage = body?.message || body?.error || body?.errors?.username?.[0] || body?.errors?.password?.[0] || "";
+      lastPreview = String(res.text || "").replace(/\s+/g, " ").slice(0, 300);
+      console.log(`[Sigma] Erro login ${apiBase} -> Status: ${res.status} | Resposta: ${lastPreview}`);
+
+      // 404 = host errado (nginx padrão): seguimos testando os outros candidatos.
+      // 403/503 = bloqueio real de WAF: não adianta insistir sem proxy.
+      if (!proxy && (res.status === 403 || res.status === 503)) {
+        console.log(`[Sigma] Bloqueio de WAF (${res.status}) em ${apiBase} sem proxy.`);
+        break;
+      }
+    } catch (err) {
+      lastError = err;
+      console.log(`[Sigma] Erro de rede/proxy em ${apiBase}:`, err instanceof Error ? err.message : String(err));
     }
-
-    lastMessage = body?.message || body?.error || body?.errors?.username?.[0] || body?.errors?.password?.[0] || "";
-    lastPreview = String(res.text || "").replace(/\s+/g, " ").slice(0, 300);
-    console.log(`[Sigma] Erro login ${apiBase} -> Status: ${res.status} | Resposta: ${lastPreview}`);
-
-    // 404 = host errado (nginx padrão): seguimos testando os outros candidatos.
-    // 403/503 = bloqueio real de WAF: não adianta insistir sem proxy.
-    if (!proxy && (res.status === 403 || res.status === 503)) {
-      console.log(`[Sigma] Bloqueio de WAF (${res.status}) em ${apiBase} sem proxy.`);
-      break;
-    }
-
   }
 
   // Se falhou sem proxy em todos os candidatos (ou interrompeu por bloqueio), tentamos usar o Proxy Residencial Global como última esperança se ele existir
@@ -190,6 +195,9 @@ async function sigmaLogin(base: string, username: string, password: string, prox
     throw new Error("O painel Sigma bloqueou a conexão (firewall/WAF). Ative o seu próprio Proxy Sigma ou use uma conexão direta (IP fixo liberado no painel).");
   }
 
+  if (lastError) {
+    throw lastError;
+  }
 
   throw new Error(lastMessage
     ? `Painel Sigma recusou o login: ${lastMessage}`

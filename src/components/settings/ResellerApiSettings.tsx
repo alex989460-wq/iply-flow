@@ -1165,6 +1165,11 @@ export default function ResellerApiSettings() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <p className="font-medium truncate">{connection.name}</p>
+                            {isOnline && (
+                              <Badge variant="outline" className="text-[10px] uppercase py-0 px-1 border-green-500 text-green-500 bg-green-500/10">
+                                Bridge Online
+                              </Badge>
+                            )}
                           </div>
                           <p className="text-xs text-muted-foreground truncate">{connection.base_url} • {connection.username}</p>
                         </div>
