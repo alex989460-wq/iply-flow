@@ -455,74 +455,32 @@ export default function ResellerApiSettings() {
   const getSigmaBridgeBookmarklet = (token: string) => {
     const code = `(function(){
       const TOKEN = "${token}";
-      const API = "${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sigma-bridge";
-      console.log("[SigmaBridge] Iniciando ponte...");
+      const RECEIVER = "${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sigma-bridge-receiver";
+      const sessionToken = window.localStorage.getItem('token');
+      console.log("[SigmaBridge] Iniciando conexão...", { token: TOKEN });
       
-      async function poll() {
-        try {
-          const res = await fetch(API + "?action=poll", {
-            headers: { "x-bridge-token": TOKEN }
-          });
-          const data = await res.json();
-          if (data.jobs && data.jobs.length > 0) {
-            for (const job of data.jobs) {
-              console.log("[SigmaBridge] Executando tarefa:", job.action);
-              try {
-                let result;
-                if (job.action === "renew_customer") {
-                  // Lógica de renovação via fetch na aba do Sigma (usa a sessão da aba)
-                  const findRes = await fetch("/api/customers?page=1&keyword=" + encodeURIComponent(job.payload.username), {
-                    headers: { "Accept": "application/json", "x-app-version": "3.89" }
-                  });
-                  const findData = await findRes.json();
-                  const customer = (findData.data || []).find(c => c.username.toLowerCase() === job.payload.username.toLowerCase());
-                  
-                  if (!customer) throw new Error("Cliente não encontrado no Sigma.");
-                  
-                  // Busca pacotes para bater o mês
-                  const serversRes = await fetch("/api/servers", { headers: { "Accept": "application/json", "x-app-version": "3.89" } });
-                  const serversData = await serversRes.json();
-                  const server = (serversData.data || []).find(s => s.id == customer.server_id);
-                  const pkg = (server.packages || []).find(p => !p.is_trial && Math.abs((p.duration_in === 'MONTHS' ? p.duration * 30 : p.duration) - (job.payload.months * 30)) <= 2);
-                  const packageId = pkg ? pkg.id : customer.package_id;
-
-                  const renewRes = await fetch("/api/customers/" + customer.id + "/renew", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", "Accept": "application/json", "x-app-version": "3.89" },
-                    body: JSON.stringify({ 
-                      package_id: packageId, 
-                      connections: job.payload.connections || 1,
-                      reference: "",
-                      create_manual_customer_order: false,
-                      manual_payment_total: null
-                    })
-                  });
-                  const renewData = await renewRes.json();
-                  if (!renewRes.ok) throw new Error(renewData.message || "Erro do painel Sigma.");
-                  result = renewData.data || renewData;
-                }
-                
-                await fetch(API + "?action=complete", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json", "x-bridge-token": TOKEN },
-                  body: JSON.stringify({ job_id: job.id, response: result })
-                });
-              } catch (err) {
-                console.error("[SigmaBridge] Falha na tarefa:", err);
-                await fetch(API + "?action=complete", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json", "x-bridge-token": TOKEN },
-                  body: JSON.stringify({ job_id: job.id, error: err.message })
-                });
-              }
-            }
-          }
-        } catch (e) { console.error("[SigmaBridge] Erro no poll:", e); }
-        setTimeout(poll, 5000);
+      if (!sessionToken) {
+        alert("Erro: Você precisa estar logado no painel Sigma para ativar a ponte!");
+        return;
       }
-      
-      poll();
-      alert("Ponte Sigma Ativada! Mantenha esta aba aberta.");
+
+      fetch(RECEIVER, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bridge_token: TOKEN, session_token: sessionToken })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          alert("Ponte Sigma Conectada com Sucesso! Seu sistema agora usará esta sessão para renovar.");
+        } else {
+          alert("Falha ao conectar ponte: " + (data.error || "Erro desconhecido"));
+        }
+      })
+      .catch(err => {
+        console.error("[SigmaBridge] Erro:", err);
+        alert("Erro de rede ao conectar ponte. Verifique o console.");
+      });
     })();`.replace(/\n/g, '').replace(/\s\s+/g, ' ');
     return `javascript:${code}`;
   };
