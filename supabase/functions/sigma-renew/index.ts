@@ -113,6 +113,7 @@ async function sigmaLogin(base: string, username: string, password: string, prox
   let lastStatus = 0;
   let lastMessage = "";
   let lastPreview = "";
+  let lastError: any = null;
 
 
   for (const apiBase of candidates) {
