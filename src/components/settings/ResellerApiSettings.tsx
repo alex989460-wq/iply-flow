@@ -455,11 +455,14 @@ export default function ResellerApiSettings() {
   const getSigmaBridgeBookmarklet = (token: string) => {
     const code = `(function(){
       const TOKEN = "${token}";
-      const RECEIVER = "${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sigma-bridge-receiver";
+      const RECEIVER = "${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sigma-session-capture";
       const sessionToken = window.localStorage.getItem('token');
-      console.log("[SigmaBridge] Iniciando conexão...", { token: TOKEN });
+      const apiToken = window.localStorage.getItem('api_token');
+      const sigmaUser = JSON.parse(window.localStorage.getItem('user') || '{}');
       
-      if (!sessionToken) {
+      console.log("[SigmaBridge] Iniciando captura de sessão...", { token: TOKEN });
+      
+      if (!sessionToken && !apiToken) {
         alert("Erro: Você precisa estar logado no painel Sigma para ativar a ponte!");
         return;
       }
@@ -467,19 +470,24 @@ export default function ResellerApiSettings() {
       fetch(RECEIVER, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bridge_token: TOKEN, session_token: sessionToken })
+        body: JSON.stringify({ 
+          bridge_token: TOKEN, 
+          session_token: sessionToken || apiToken,
+          sigma_user: sigmaUser,
+          url: window.location.origin
+        })
       })
       .then(res => res.json())
       .then(data => {
         if (data.success) {
-          alert("Ponte Sigma Conectada com Sucesso! Seu sistema agora usará esta sessão para renovar.");
+          alert("Ponte Sigma Conectada! Sessão capturada e ativa.");
         } else {
-          alert("Falha ao conectar ponte: " + (data.error || "Erro desconhecido"));
+          alert("Falha ao capturar sessão: " + (data.error || "Erro desconhecido"));
         }
       })
       .catch(err => {
         console.error("[SigmaBridge] Erro:", err);
-        alert("Erro de rede ao conectar ponte. Verifique o console.");
+        alert("Erro de rede ao capturar sessão. Verifique o console.");
       });
     })();`.replace(/\n/g, '').replace(/\s\s+/g, ' ');
     return `javascript:${code}`;
