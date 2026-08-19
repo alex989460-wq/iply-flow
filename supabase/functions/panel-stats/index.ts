@@ -4,7 +4,6 @@
 //
 // Ação:
 //   { action: "stats", server_ids?: string[] }
-//   { action: "probe", connection_id, path }   -> diagnóstico (Sigma)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import mysql from "npm:mysql2@3.9.7/promise";
 
@@ -32,119 +31,12 @@ function normBase(u: unknown) {
   return s.replace(/\/api$/i, "");
 }
 
-type Proxy = { url: string; secret: string } | null;
-function buildProxy(url?: string | null, secret?: string | null): Proxy {
-  // Sigma: apenas proxy próprio do revendedor (sem fallback para o agente global).
-  const u = String(url || "").trim().replace(/\/+$/, "");
-  const s = String(secret || Deno.env.get("SIGMA_PROXY_SECRET") || "").trim();
-  if (!u || !s) return null;
-  return { url: /^https?:\/\//i.test(u) ? u : `https://${u}`, secret: s };
-}
-
-async function relay(target: string, init: RequestInit, proxy: Proxy) {
-  if (!proxy) {
-    const res = await fetch(target, init);
-    return { ok: res.ok, status: res.status, text: await res.text() };
-  }
-  const headers: Record<string, string> = {};
-  for (const [k, v] of Object.entries((init.headers || {}) as Record<string, string>)) headers[k] = String(v);
-  const res = await fetch(proxy.url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-sigma-proxy-secret": proxy.secret },
-    body: JSON.stringify({
-      url: target,
-      method: init.method || "GET",
-      headers,
-      body: typeof init.body === "string" ? init.body : undefined,
-    }),
-  });
-  const payload = await res.json().catch(() => null) as any;
-  if (!res.ok || !payload || typeof payload.status !== "number") {
-    throw new Error(`O proxy respondeu com erro: ${payload?.message || payload?.error || `HTTP ${res.status}`}`);
-  }
-  return { ok: payload.status >= 200 && payload.status < 300, status: payload.status, text: String(payload.body ?? "") };
-}
-
-async function sigmaLogin(base: string, username: string, password: string, proxy: Proxy) {
-  const res = await relay(`${base}/api/auth/login`, {
-    method: "POST",
-    headers: { ...browserHeaders, "Content-Type": "application/json", Origin: base, Referer: `${base}/` },
-    body: JSON.stringify({
-      username,
-      password,
-      captcha: "not-a-robot",
-      captchaChecked: true,
-      twofactor_code: "",
-      twofactor_recovery_code: "",
-      twofactor_trusted_device_id: "",
-    }),
-  }, proxy);
-  let body: any = {};
-  try { body = res.text ? JSON.parse(res.text) : {}; } catch { body = {}; }
-  if (!res.ok || !body?.token) {
-    throw new Error(body?.message || `Painel Sigma recusou o login (HTTP ${res.status}).`);
-  }
-  return { token: String(body.token), me: body };
-}
-
-async function sigmaGet(base: string, token: string, path: string, proxy: Proxy) {
-  const res = await relay(`${base}${path}`, {
-    headers: { Authorization: `Bearer ${token}`, ...browserHeaders, "Content-Type": "application/json" },
-  }, proxy);
-  let body: any = null;
-  try { body = res.text ? JSON.parse(res.text) : null; } catch { body = { raw: String(res.text || "").slice(0, 400) }; }
-  return { ok: res.ok, status: res.status, body };
-}
-
 function pickNumber(...values: unknown[]): number | null {
   for (const v of values) {
     const n = Number(v);
     if (v !== null && v !== undefined && v !== "" && Number.isFinite(n)) return n;
   }
   return null;
-}
-
-// Conta as conexões online no Sigma. Tenta os formatos conhecidos da API e,
-// se nenhum responder, varre a lista de clientes contando quem está online.
-async function sigmaOnline(base: string, token: string, proxy: Proxy): Promise<number | null> {
-  const candidates = [
-    "/api/dashboard",
-    "/api/dashboard/statistics",
-    "/api/statistics",
-    "/api/connections?page=1&per_page=1",
-    "/api/customers/online?page=1&per_page=1",
-  ];
-  for (const path of candidates) {
-    try {
-      const r = await sigmaGet(base, token, path, proxy);
-      if (!r.ok || !r.body) continue;
-      const b: any = r.body;
-      const d = b?.data ?? b;
-      const n = pickNumber(
-        d?.online_connections, d?.onlineConnections, d?.connections_online,
-        d?.online_customers, d?.customers_online, d?.online,
-        b?.meta?.total, b?.total,
-      );
-      if (n !== null) return n;
-    } catch { /* tenta o próximo */ }
-  }
-  // Fallback: varre a lista de clientes (máx. 10 páginas de 100).
-  try {
-    let online = 0;
-    for (let page = 1; page <= 10; page++) {
-      const r = await sigmaGet(base, token, `/api/customers?page=${page}&per_page=100`, proxy);
-      const list = Array.isArray(r.body?.data) ? r.body.data : [];
-      if (!list.length) break;
-      for (const c of list) {
-        const flag = c?.online ?? c?.is_online ?? c?.status_online ?? c?.connections_online;
-        if (flag === true || String(flag).toUpperCase() === "YES" || Number(flag) > 0) online++;
-      }
-      if (list.length < 100) break;
-    }
-    return online;
-  } catch {
-    return null;
-  }
 }
 
 // ---- kOffice / P2Cine ----
@@ -180,7 +72,7 @@ async function kofficeCall(base: string, token: string, action: string) {
 }
 
 // Detecta o painel do servidor (mesma regra do frontend).
-const VALID = ["natv", "natv2", "vplay", "rush", "thebest", "uniplay", "p2cine", "koffice", "sigma", "none"];
+const VALID = ["natv", "natv2", "vplay", "rush", "thebest", "uniplay", "p2cine", "koffice", "none"];
 function resolvePanel(server: any): string | null {
   const manual = String(server?.panel_type || "").trim().toLowerCase();
   if (manual && manual !== "auto" && VALID.includes(manual)) return manual === "koffice" ? "p2cine" : manual;
@@ -229,48 +121,28 @@ Deno.serve(async (req) => {
     const action = String(body?.action || "stats");
 
     // ---- credenciais do revendedor ----
-    const [{ data: cfg }, { data: sigmaConns }, { data: kofficeConns }] = await Promise.all([
-      admin.from("reseller_api_settings")
-        .select("sigma_base_url, sigma_username, sigma_password, sigma_proxy_url, sigma_proxy_secret, p2cine_base_url, p2cine_username, p2cine_api_key, vplay_mysql_host, vplay_mysql_port, vplay_mysql_user, vplay_mysql_password, vplay_mysql_database, vplay_panel_username, natv_api_key, natv_base_url, natv2_api_key, natv2_base_url, the_best_api_key, the_best_username, the_best_password, the_best_base_url, rush_username, rush_password, rush_token, rush_base_url")
-        .eq("user_id", ownerId).maybeSingle(),
-      admin.from("sigma_panel_connections").select("id, base_url, username, password, proxy_url, proxy_secret")
-        .eq("user_id", ownerId).eq("is_active", true).order("created_at"),
-      admin.from("koffice_panel_connections").select("id, base_url, username, api_key")
-        .eq("user_id", ownerId).eq("is_active", true).order("created_at"),
-    ]);
+    const { data: cfg } = await admin.from("reseller_api_settings")
+        .select("*")
+        .eq("user_id", ownerId).maybeSingle();
 
-    const sigmaList = (sigmaConns || []) as any[];
+    const { data: kofficeConns } = await admin.from("koffice_panel_connections")
+        .select("id, base_url, username, api_key")
+        .eq("user_id", ownerId).eq("is_active", true).order("created_at");
+
     const kofficeList = (kofficeConns || []) as any[];
 
     if (action !== "stats") return json({ error: `Ação não suportada: ${action}` }, 400);
 
-
     const ids: string[] = Array.isArray(body?.server_ids) ? body.server_ids.map(String) : [];
-    let query = admin.from("servers").select("id, server_name, host, panel_type, sigma_connection_id, koffice_connection_id").eq("created_by", ownerId);
+    let query = admin.from("servers").select("id, server_name, host, panel_type, koffice_connection_id").eq("created_by", ownerId);
     if (ids.length) query = query.in("id", ids);
     const { data: servers } = await query;
 
     const results: Record<string, { panel: string | null; credits: number | null; online: number | null; error?: string }> = {};
 
     // Cache por conexão para não logar duas vezes no mesmo painel.
-    const sigmaCache = new Map<string, Promise<{ credits: number | null; online: number | null }>>();
     const kofficeCache = new Map<string, Promise<{ credits: number | null; online: number | null }>>();
     let vplayPromise: Promise<{ credits: number | null; online: number | null }> | null = null;
-
-    const sigmaStats = (conn: any) => {
-      const key = String(conn.id || conn.base_url);
-      if (!sigmaCache.has(key)) {
-        sigmaCache.set(key, (async () => {
-          const base = normBase(conn.base_url);
-          const proxy = buildProxy(conn.proxy_url, conn.proxy_secret);
-          const { token, me } = await sigmaLogin(base, conn.username, conn.password, proxy);
-          const credits = pickNumber(me?.credits, me?.data?.credits, me?.user?.credits);
-          const online = await sigmaOnline(base, token, proxy);
-          return { credits, online };
-        })());
-      }
-      return sigmaCache.get(key)!;
-    };
 
     const kofficeStats = (conn: any) => {
       const key = String(conn.id || conn.base_url);
@@ -304,8 +176,6 @@ Deno.serve(async (req) => {
           if (!apiKey || !baseRaw) {
             throw new Error(`Credenciais do ${kind.toUpperCase()} não configuradas em Configurações → APIs.`);
           }
-          // A API do NATV (revenda.pixbot.link) não tem rota de saldo; o campo "b"
-          // do último registro do extrato de ações é o saldo atual de créditos.
           const root = normBase(baseRaw).replace(/\/api$/i, "");
           const bases = [root, `${root}/api`];
           let lastErr = "";
@@ -340,17 +210,14 @@ Deno.serve(async (req) => {
             }
           }
           throw new Error(`Não foi possível ler os créditos do ${kind.toUpperCase()} (${lastErr || "sem resposta"}).`);
-
         })());
       }
       return natvCache.get(kind)!;
     };
 
-
     const vplayStats = () => {
       if (!vplayPromise) {
         vplayPromise = (async () => {
-          // Credenciais do revendedor e, se faltarem, as globais (mesma regra do vplay-renew).
           const host = String((cfg as any)?.vplay_mysql_host || Deno.env.get("VPLAY_MYSQL_HOST") || "").trim();
           const user = String((cfg as any)?.vplay_mysql_user || Deno.env.get("VPLAY_MYSQL_USER") || "").trim();
           const password = String((cfg as any)?.vplay_mysql_password || Deno.env.get("VPLAY_MYSQL_PASSWORD") || "");
@@ -417,56 +284,27 @@ Deno.serve(async (req) => {
           const password = String((cfg as any)?.the_best_password || "").trim();
           const base = normBase((cfg as any)?.the_best_base_url || "https://api.painel.best");
           if (!apiKey && (!username || !password)) {
-            throw new Error("Credenciais do The Best não configuradas em Configurações → APIs.");
+            throw new Error("Credenciais do The Best não configuradas.");
           }
-
-          let headers: Record<string, string> = apiKey
-            ? { "Api-Key": apiKey, Accept: "application/json" }
-            : {};
-          if (!apiKey) {
-            const r = await fetch(`${base}/auth/token/`, {
+          const headers: any = { Accept: "application/json" };
+          if (apiKey) {
+            headers["Api-Key"] = apiKey;
+          } else {
+            const res = await fetch(`${base}/auth/login`, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", ...headers },
               body: JSON.stringify({ username, password }),
             });
-            const t = await r.text();
-            if (!r.ok) throw new Error(`Login recusado (HTTP ${r.status}).`);
-            let tok = "";
-            try { const b = JSON.parse(t); tok = b.access || b.token || b.access_token || ""; } catch { /* ignore */ }
-            if (!tok) throw new Error("O painel não devolveu o token de acesso.");
-            headers = { Authorization: `Bearer ${tok}`, Accept: "application/json" };
+            if (!res.ok) throw new Error(`Falha no login do The Best (HTTP ${res.status})`);
+            const data = await res.json();
+            if (!data.token) throw new Error("O painel The Best não devolveu o token de acesso.");
+            headers["Authorization"] = `Bearer ${data.token}`;
           }
 
-          let credits: number | null = null;
-          let lastErr = "";
-          for (const p of ["/user/", "/reseller/", "/dashboard/", "/user/me/"]) {
-            try {
-              const r = await fetch(`${base}${p}`, { headers });
-              const t = await r.text();
-              if (!r.ok) { lastErr = `HTTP ${r.status} em ${p}`; continue; }
-              let b: any = null;
-              try { b = JSON.parse(t); } catch { continue; }
-              const d = b?.data ?? b?.results ?? b;
-              const node = Array.isArray(d) ? d[0] : d;
-              credits = pickNumber(node?.credits, node?.credit, node?.balance, node?.saldo, node?.wallet);
-              if (credits !== null) break;
-            } catch (e) {
-              lastErr = e instanceof Error ? e.message : String(e);
-            }
-          }
-          if (credits === null) throw new Error(`Não foi possível ler os créditos do The Best (${lastErr || "sem campo de saldo na resposta"}).`);
-
-          let online: number | null = null;
-          for (const p of ["/lines/?online=true&per_page=1", "/lines/?is_online=true&per_page=1"]) {
-            try {
-              const r = await fetch(`${base}${p}`, { headers });
-              if (!r.ok) continue;
-              const b = await r.json();
-              online = pickNumber(b?.count, b?.total, b?.meta?.total);
-              if (online !== null) break;
-            } catch { /* opcional */ }
-          }
-          return { credits, online };
+          const res = await fetch(`${base}/reseller/credits`, { headers });
+          if (!res.ok) throw new Error(`Falha ao ler créditos do The Best (HTTP ${res.status})`);
+          const data = await res.json();
+          return { credits: pickNumber(data.credits, data.saldo, data.balance), online: null };
         })();
       }
       return theBestPromise;
@@ -477,48 +315,30 @@ Deno.serve(async (req) => {
     const rushStats = () => {
       if (!rushPromise) {
         rushPromise = (async () => {
-          const rUser = String((cfg as any)?.rush_username || "").trim();
-          const rPass = String((cfg as any)?.rush_password || "").trim();
-          const rToken = String((cfg as any)?.rush_token || "").trim();
+          const user = String((cfg as any)?.rush_username || "").trim();
+          const pass = String((cfg as any)?.rush_password || "").trim();
+          const token = String((cfg as any)?.rush_token || "").trim();
           const base = normBase((cfg as any)?.rush_base_url || "https://api-new.painel.ai");
-          if (!rUser || !rPass || !rToken) {
-            throw new Error("Credenciais da Rush não configuradas em Configurações → APIs (usuário, senha e token).");
-          }
-          const auth = `username=${encodeURIComponent(rUser)}&password=${encodeURIComponent(rPass)}&token=${encodeURIComponent(rToken)}`;
-
-          // Procura o saldo em qualquer campo numérico com nome de crédito,
-          // em vários endpoints conhecidos do painel Rush.
-          const deepCredits = (obj: any, depth = 0): number | null => {
-            if (!obj || typeof obj !== "object" || depth > 3) return null;
-            for (const [k, v] of Object.entries(obj)) {
-              if (/^(credits?|creditos|credito|balance|saldo|wallet)$/i.test(k)) {
-                const n = pickNumber(v);
-                if (n !== null) return n;
-              }
-            }
-            for (const v of Object.values(obj)) {
-              const n = deepCredits(v, depth + 1);
-              if (n !== null) return n;
-            }
-            return null;
-          };
-
+          if (!user || !pass || !token) throw new Error("Credenciais da Rush não configuradas.");
+          
+          const auth = `user=${user}&pass=${pass}&token=${token}`;
           let credits: number | null = null;
           let lastErr = "";
-          for (const p of [
-            "/resale", "/resale/info", "/resale/me", "/resales", "/resale/balance",
-            "/user/info", "/user", "/users/me", "/me", "/profile", "/account",
-            "/reseller", "/reseller/info", "/dashboard/info",
-            "/credits", "/iptv/credits", "/iptv/user", "/iptv/info",
-          ]) {
+
+          const deepCredits = (obj: any): number | null => {
+            if (!obj || typeof obj !== "object") return null;
+            return pickNumber(obj.credits, obj.credits_iptv, obj.credits_p2p, obj.saldo, obj.balance, obj.credits_total);
+          };
+
+          for (const p of ["/reseller/info", "/credits/info", "/iptv/credits", "/p2p/credits"]) {
             try {
-              const r = await fetch(`${base}${p}${p.includes("?") ? "&" : "?"}${auth}`, { headers: { Accept: "application/json" } });
+              const r = await fetch(`${base}${p}?${auth}`, { headers: { Accept: "application/json" } });
               const t = await r.text();
               if (!r.ok) { lastErr = `HTTP ${r.status} em ${p}`; continue; }
               let b: any = null;
               try { b = JSON.parse(t); } catch { lastErr = `resposta não-JSON em ${p}`; continue; }
               credits = deepCredits(b);
-              if (credits !== null) { console.log(`[Rush] créditos lidos em ${p}: ${credits}`); break; }
+              if (credits !== null) break;
               lastErr = `sem campo de saldo em ${p}`;
             } catch (e) {
               lastErr = e instanceof Error ? e.message : String(e);
@@ -551,17 +371,7 @@ Deno.serve(async (req) => {
       if (!panel || panel === "none") return;
 
       try {
-        if (panel === "sigma") {
-          const conn =
-            sigmaList.find((c) => c.id === server.sigma_connection_id) ||
-            sigmaList.find((c) => hostMatch(c.base_url, server.host)) ||
-            (cfg && (cfg as any).sigma_base_url
-              ? { id: "settings", base_url: (cfg as any).sigma_base_url, username: (cfg as any).sigma_username, password: (cfg as any).sigma_password, proxy_url: (cfg as any).sigma_proxy_url, proxy_secret: (cfg as any).sigma_proxy_secret }
-              : null) ||
-            (sigmaList.length === 1 ? sigmaList[0] : null);
-          if (!conn) throw new Error("Nenhuma conexão Sigma vinculada a este servidor.");
-          Object.assign(entry, await sigmaStats(conn));
-        } else if (panel === "p2cine") {
+        if (panel === "p2cine") {
           const conn =
             kofficeList.find((c) => c.id === server.koffice_connection_id) ||
             kofficeList.find((c) => hostMatch(c.base_url, server.host)) ||
@@ -580,13 +390,11 @@ Deno.serve(async (req) => {
         } else if (panel === "rush") {
           Object.assign(entry, await rushStats());
         }
-
       } catch (e) {
         entry.error = e instanceof Error ? e.message : String(e);
       }
     }));
 
-    // Guarda o último resultado para a tela abrir instantânea na próxima vez.
     const rows = Object.entries(results).map(([server_id, r]) => ({
       user_id: ownerId,
       server_id,

@@ -28,12 +28,7 @@ export default function ResellerApiSettings() {
   const [showUniplayPassword, setShowUniplayPassword] = useState(false);
   const [showVplayPassword, setShowVplayPassword] = useState(false);
   const [showVplayDbPassword, setShowVplayDbPassword] = useState(false);
-  const [showSigmaPassword, setShowSigmaPassword] = useState(false);
-  const [testingSigma, setTestingSigma] = useState(false);
   const [testingVplay, setTestingVplay] = useState(false);
-  const [sigmaConnections, setSigmaConnections] = useState<any[]>([]);
-  const [savingSigmaConnection, setSavingSigmaConnection] = useState(false);
-  const [generatingBridgeToken, setGeneratingBridgeToken] = useState<string | null>(null);
 
   const [testingUniplay, setTestingUniplay] = useState(false);
   const [testingP2cine, setTestingP2cine] = useState(false);
@@ -69,9 +64,6 @@ export default function ResellerApiSettings() {
     vplay_mysql_user: '',
     vplay_mysql_password: '',
     vplay_mysql_database: '',
-    sigma_base_url: '',
-    sigma_username: '',
-    sigma_password: '',
     p2cine_username: '',
     p2cine_password: '',
     p2cine_base_url: '',
@@ -89,15 +81,14 @@ export default function ResellerApiSettings() {
 
   const fetchSettings = async () => {
     try {
-      const [{ data, error }, { data: connections, error: connectionsError }, { data: kofficeRows }] = await Promise.all([
+      const [{ data, error }, { data: kofficeRows, error: connectionsError }] = await Promise.all([
         supabase.from('reseller_api_settings' as any).select('*').eq('user_id', user?.id).maybeSingle(),
-        supabase.from('sigma_panel_connections' as any).select('*').eq('user_id', user?.id).order('created_at'),
         supabase.from('koffice_panel_connections' as any).select('*').eq('user_id', user?.id).order('created_at'),
       ]);
 
       if (error) throw error;
       if (connectionsError) throw connectionsError;
-      setSigmaConnections(connections || []);
+      
       setKofficeConnections(kofficeRows || []);
 
 
@@ -130,9 +121,6 @@ export default function ResellerApiSettings() {
           vplay_mysql_user: d.vplay_mysql_user || '',
           vplay_mysql_password: d.vplay_mysql_password || '',
           vplay_mysql_database: d.vplay_mysql_database || '',
-          sigma_base_url: (d as any).sigma_base_url || '',
-          sigma_username: (d as any).sigma_username || '',
-          sigma_password: (d as any).sigma_password || '',
           p2cine_username: (d as any).p2cine_username || '',
           p2cine_password: (d as any).p2cine_password || '',
           p2cine_base_url: (d as any).p2cine_base_url || '',
@@ -179,9 +167,7 @@ export default function ResellerApiSettings() {
         vplay_mysql_user: settings.vplay_mysql_user || null,
         vplay_mysql_password: settings.vplay_mysql_password || null,
         vplay_mysql_database: settings.vplay_mysql_database || null,
-        sigma_base_url: settings.sigma_base_url || null,
-        sigma_username: settings.sigma_username || null,
-        sigma_password: settings.sigma_password || null,
+        
         p2cine_username: settings.p2cine_username || null,
         p2cine_password: settings.p2cine_password || null,
         p2cine_base_url: settings.p2cine_base_url || null,
@@ -350,158 +336,8 @@ export default function ResellerApiSettings() {
   const hasRush = !!settings.rush_username && !!settings.rush_password && !!settings.rush_token;
   const hasUniplay = !!settings.uniplay_username && !!settings.uniplay_password;
   const hasP2cine = (!!settings.p2cine_username && !!settings.p2cine_password) || !!settings.p2cine_api_key;
-  const hasSigma = sigmaConnections.length > 0 || (!!settings.sigma_base_url && !!settings.sigma_username && !!settings.sigma_password);
+  
 
-  const handleTestSigma = async (connection?: any) => {
-    const targetUrl = connection ? connection.base_url : settings.sigma_base_url;
-    const targetUser = connection ? connection.username : settings.sigma_username;
-    const targetPass = connection ? connection.password : settings.sigma_password;
-
-    if (!targetUrl.trim() || !targetUser.trim() || !targetPass) {
-      toast({ title: 'Dados incompletos', description: 'Informe a URL, o usuário e a senha do Sigma.', variant: 'destructive' });
-      return;
-    }
-
-    setTestingSigma(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('sigma-renew', {
-        body: {
-          action: 'test',
-          sigma_base_url: targetUrl.trim(),
-          sigma_username: targetUser.trim(),
-          sigma_password: targetPass,
-          sigma_proxy_url: connection?.proxy_url,
-          sigma_proxy_secret: connection?.proxy_secret,
-        },
-      });
-
-      if (error) {
-        const response = (error as any)?.context;
-        if (response instanceof Response) {
-          const detail = await response.json().catch(() => null);
-          throw new Error(detail?.error || error.message);
-        }
-        throw error;
-      }
-      if ((data as any)?.error) throw new Error((data as any).error);
-      const servers = (data as any)?.servers || [];
-      toast({
-        title: 'Conexão Sigma OK',
-        description: `Conectado como ${(data as any)?.username || ''} • ${servers.length} servidor(es) disponível(is).`,
-      });
-    } catch (e: any) {
-      toast({
-        title: 'Falha ao conectar no Sigma',
-        description: e?.message || 'Verifique URL, usuário e senha e salve antes de testar.',
-        variant: 'destructive',
-      });
-    } finally {
-      setTestingSigma(false);
-    }
-  };
-
-  const addSigmaConnection = async () => {
-    if (!user || !settings.sigma_base_url.trim() || !settings.sigma_username.trim() || !settings.sigma_password) {
-      toast({ title: 'Dados incompletos', description: 'Informe URL, usuário e senha para adicionar a conexão.', variant: 'destructive' });
-      return;
-    }
-    setSavingSigmaConnection(true);
-    try {
-      const hostname = settings.sigma_base_url.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-      const { error } = await supabase.from('sigma_panel_connections' as any).insert({
-        user_id: user.id,
-        name: hostname || 'Painel Sigma',
-        base_url: settings.sigma_base_url.trim(),
-        username: settings.sigma_username.trim(),
-        password: settings.sigma_password,
-        is_active: true
-      });
-      if (error) throw error;
-      setSettings((current) => ({ ...current, sigma_base_url: '', sigma_username: '', sigma_password: '' }));
-
-      await fetchSettings();
-      toast({ title: 'Conexão Sigma adicionada' });
-    } catch (error: any) {
-      toast({ title: 'Erro ao adicionar Sigma', description: error?.message || 'Não foi possível salvar a conexão.', variant: 'destructive' });
-    }
-  };
-
-  const generateSigmaBridgeToken = async (connectionId: string) => {
-    setGeneratingBridgeToken(connectionId);
-    try {
-      const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-      const { error } = await supabase.from('sigma_panel_connections' as any).update({ bridge_token: token }).eq('id', connectionId);
-      if (error) throw error;
-      await fetchSettings();
-      toast({ title: 'Chave da Ponte gerada', description: 'Agora você pode ativar a ponte para este painel.' });
-    } catch (error: any) {
-      toast({ title: 'Erro ao gerar chave', description: error.message, variant: 'destructive' });
-    } finally {
-      setGeneratingBridgeToken(null);
-    }
-  };
-
-  const revokeSigmaBridgeToken = async (connectionId: string) => {
-    try {
-      const { error } = await supabase.from('sigma_panel_connections' as any).update({ bridge_token: null }).eq('id', connectionId);
-      if (error) throw error;
-      await fetchSettings();
-      toast({ title: 'Ponte desativada', description: 'A chave da ponte foi removida.' });
-    } catch (error: any) {
-      toast({ title: 'Erro ao desativar', description: error.message, variant: 'destructive' });
-    }
-  };
-
-  const getSigmaBridgeBookmarklet = (token: string) => {
-    const code = `(function(){
-      const TOKEN = "${token}";
-      const RECEIVER = "${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sigma-session-capture";
-      const sessionToken = window.localStorage.getItem('token');
-      const apiToken = window.localStorage.getItem('api_token');
-      const sigmaUser = JSON.parse(window.localStorage.getItem('user') || '{}');
-      
-      console.log("[SigmaBridge] Iniciando captura de sessão...", { token: TOKEN });
-      
-      if (!sessionToken && !apiToken) {
-        alert("Erro: Você precisa estar logado no painel Sigma para ativar a ponte!");
-        return;
-      }
-
-      fetch(RECEIVER, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          bridge_token: TOKEN, 
-          session_token: sessionToken || apiToken,
-          sigma_user: sigmaUser,
-          url: window.location.origin
-        })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          alert("Ponte Sigma Conectada! Sessão capturada e ativa.");
-        } else {
-          alert("Falha ao capturar sessão: " + (data.error || "Erro desconhecido"));
-        }
-      })
-      .catch(err => {
-        console.error("[SigmaBridge] Erro:", err);
-        alert("Erro de rede ao capturar sessão. Verifique o console.");
-      });
-    })();`.replace(/\n/g, '').replace(/\s\s+/g, ' ');
-    return `javascript:${code}`;
-  };
-
-  const removeSigmaConnection = async (id: string) => {
-    const { error } = await supabase.from('sigma_panel_connections' as any).delete().eq('id', id).eq('user_id', user?.id);
-    if (error) {
-      toast({ title: 'Erro ao remover conexão', description: error.message, variant: 'destructive' });
-      return;
-    }
-    setSigmaConnections((current) => current.filter((connection) => connection.id !== id));
-    toast({ title: 'Conexão Sigma removida' });
-  };
 
   const addKofficeConnection = async () => {
     if (!user || !settings.p2cine_base_url.trim() || !settings.p2cine_username.trim() || !settings.p2cine_api_key.trim()) {
@@ -1050,219 +886,6 @@ export default function ResellerApiSettings() {
         </CardContent>
       </Card>
 
-      {/* Sigma */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Key className="w-5 h-5 text-violet-500" />
-            Painel Sigma
-            {hasSigma && <CheckCircle2 className="w-5 h-5 text-green-500" />}
-          </CardTitle>
-          <CardDescription>
-            Conecte qualquer painel Sigma (ex.: painel.newbr.top) para gerar testes e renovar clientes automaticamente.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="sigma_base_url">URL do Painel</Label>
-            <Input
-              id="sigma_base_url"
-              value={settings.sigma_base_url}
-              onChange={(e) => setSettings({ ...settings, sigma_base_url: e.target.value })}
-              placeholder="https://painel.seudominio.top"
-            />
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="sigma_username">Usuário</Label>
-              <Input
-                id="sigma_username"
-                value={settings.sigma_username}
-                onChange={(e) => setSettings({ ...settings, sigma_username: e.target.value })}
-                placeholder="Seu usuário no painel Sigma"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="sigma_password">Senha</Label>
-              <div className="relative">
-                <Input
-                  id="sigma_password"
-                  type={showSigmaPassword ? 'text' : 'password'}
-                  value={settings.sigma_password}
-                  onChange={(e) => setSettings({ ...settings, sigma_password: e.target.value })}
-                  placeholder="Sua senha no painel Sigma"
-                  className="pr-10"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-0 top-0 h-full"
-                  onClick={() => setShowSigmaPassword(!showSigmaPassword)}
-                >
-                  {showSigmaPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </Button>
-              </div>
-            </div>
-          </div>
-
-
-          <Button variant="outline" onClick={handleTestSigma} disabled={testingSigma}>
-            {testingSigma ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-            Testar conexão Sigma
-          </Button>
-
-          <Button type="button" onClick={addSigmaConnection} disabled={savingSigmaConnection}>
-            {savingSigmaConnection ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
-            Adicionar conexão Sigma
-          </Button>
-
-          {sigmaConnections.length > 0 && (
-            <div className="space-y-2">
-              <Label>Conexões cadastradas</Label>
-              <div className="space-y-3">
-                {sigmaConnections.map((connection) => {
-                  const isOnline = connection.last_bridge_seen_at && (new Date().getTime() - new Date(connection.last_bridge_seen_at).getTime() < 60000);
-                  
-                  return (
-                    <div key={connection.id} className="flex flex-col gap-3 rounded-md border border-border p-4 bg-muted/30">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium truncate">{connection.name}</p>
-                            {isOnline ? (
-                              <Badge variant="outline" className="text-[10px] uppercase py-0 px-1 border-green-500 text-green-500 bg-green-500/10 animate-pulse flex items-center gap-1">
-                                <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-ping" />
-                                Ponte Ativa
-                              </Badge>
-                            ) : connection.bridge_token && (
-                              <Badge variant="outline" className="text-[10px] uppercase py-0 px-1 border-yellow-500 text-yellow-500 bg-yellow-500/10">
-                                Ponte Offline
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground truncate">{connection.base_url} • {connection.username}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button 
-                            type="button" 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => handleTestSigma(connection)} 
-                            disabled={testingSigma}
-                          >
-                            {testingSigma ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Zap className="w-4 h-4 mr-2" />}
-                            Testar
-                          </Button>
-                          <Button type="button" variant="ghost" size="icon" onClick={() => removeSigmaConnection(connection.id)} aria-label="Remover conexão Sigma">
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* Controles da Ponte Sigma (Bypass WAF) */}
-                      <div className="pt-2 border-t border-border/50 space-y-3">
-                        {!connection.bridge_token ? (
-                          <div className="flex items-center justify-between bg-background/50 p-2 rounded border border-dashed border-border">
-                            <span className="text-xs text-muted-foreground">Ponte manual (Bypass WAF) desativada</span>
-                            <Button 
-                              size="sm" 
-                              variant="secondary" 
-                              className="h-7 text-xs"
-                              onClick={() => generateSigmaBridgeToken(connection.id)}
-                              disabled={generatingBridgeToken === connection.id}
-                            >
-                              {generatingBridgeToken === connection.id ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Plus className="w-3 h-3 mr-1" />}
-                              Ativar Ponte
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-semibold flex items-center gap-1.5 text-violet-600">
-                                <Monitor className="w-4 h-4" />
-                                Ponte Sigma Ativa
-                              </span>
-                              <Button 
-                                size="sm" 
-                                variant="ghost" 
-                                className="h-6 text-[10px] text-destructive hover:bg-destructive/10"
-                                onClick={() => revokeSigmaBridgeToken(connection.id)}
-                              >
-                                Desativar Ponte
-                              </Button>
-                            </div>
-                            
-                            <div className="bg-violet-50/50 p-3 rounded-lg border border-violet-100 space-y-3">
-                              <div className="space-y-1">
-                                <p className="text-xs font-medium text-violet-900">Como usar a ponte:</p>
-                                <ol className="text-[10px] text-violet-700 list-decimal list-inside space-y-1">
-                                  <li>Arraste o botão roxo abaixo para sua <strong>Barra de Favoritos</strong>.</li>
-                                  <li>Abra o painel Sigma em uma nova aba e faça login.</li>
-                                  <li>Na página inicial do painel Sigma, clique no favorito que você criou.</li>
-                                </ol>
-                              </div>
-                              
-                              <div className="flex flex-wrap items-center gap-2 pt-1">
-                                <a
-                                  href={getSigmaBridgeBookmarklet(connection.bridge_token)}
-                                  onClick={(e) => e.preventDefault()}
-                                  className="inline-flex items-center justify-center gap-2 rounded-md bg-violet-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition-all hover:bg-violet-700 hover:scale-[1.02] cursor-move select-none"
-                                  title="Arraste este botão para a barra de favoritos do seu navegador"
-                                >
-                                  <ExternalLink className="w-3.5 h-3.5" />
-                                  PONTE SIGMA ({connection.name})
-                                </a>
-                                
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-9 border-violet-200 text-violet-600 hover:bg-violet-50"
-                                  onClick={() => copyToClipboard(getSigmaBridgeBookmarklet(connection.bridge_token), 'Link da Ponte')}
-                                >
-                                  <Copy className="w-3.5 h-3.5 mr-2" />
-                                  Copiar Link
-                                </Button>
-
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  className="h-9 bg-white border border-violet-200 text-violet-700 hover:bg-violet-50"
-                                  onClick={() => window.open(connection.base_url, '_blank')}
-                                >
-                                  <ExternalLink className="w-3.5 h-3.5 mr-2" />
-                                  Abrir Painel Sigma
-                                </Button>
-                              </div>
-
-                              <div className="flex items-center gap-2 pt-1 border-t border-violet-100 mt-2">
-                                <div className={`w-2 h-2 rounded-full ${connection.last_bridge_seen_at && (new Date().getTime() - new Date(connection.last_bridge_seen_at).getTime() < 60000) ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`} />
-                                <span className="text-[10px] text-violet-600/80">
-                                  {connection.last_bridge_seen_at && (new Date().getTime() - new Date(connection.last_bridge_seen_at).getTime() < 60000) 
-                                    ? 'Ponte conectada e ativa na aba do navegador' 
-                                    : 'Aguardando você clicar no favorito na aba do Sigma...'}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <Alert className="bg-muted/50">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription className="text-xs">
-              Adicione quantas conexões precisar. Depois, selecione a conexão correta no cadastro de cada servidor Sigma.
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
 
       {/* Uniplay */}
       <Card>

@@ -1,13 +1,9 @@
-// Roteador de painéis: descobre sozinho para qual integração externa a renovação
-// deve ir, usando (nesta ordem):
-//   1) o painel vinculado no cadastro do servidor (Sigma / kOffice);
-//   2) o campo "tipo de painel" do servidor;
-//   3) a URL do servidor comparada com as conexões cadastradas pelo revendedor
-//      (assim qualquer painel novo passa a funcionar no webhook automaticamente,
-//       e o vínculo fica salvo no servidor para as próximas renovações);
-//   4) heurística pelo nome/host do servidor (NATV, VPlay, Rush, The Best...).
+import { ResolvedPanel } from "./panel-router.ts";
 
-export type ResolvedPanel = {
+// ResolvedPanel type is already imported, we just need to provide the implementation for the router.
+// The previous code had some syntax errors after sed deletions.
+
+export type RouterContext = {
   kind: string;
   fn: string;
   extra: Record<string, unknown>;
@@ -31,7 +27,6 @@ export async function resolvePanel(
     server_name?: string | null;
     host?: string | null;
     panel_type?: string | null;
-    sigma_connection_id?: string | null;
     koffice_connection_id?: string | null;
   } | null,
   ownerId: string | null,
@@ -41,43 +36,34 @@ export async function resolvePanel(
   const haystack = `${name} ${host}`.toLowerCase();
   const panelType = String(server?.panel_type || "").toLowerCase();
 
-  let sigmaConnectionId = String(server?.sigma_connection_id || "");
   let kofficeConnectionId = String(server?.koffice_connection_id || "");
   let kofficeBaseUrl = "";
 
-  // 3) Descoberta automática pela URL do servidor × conexões do revendedor.
-  if (!sigmaConnectionId && !kofficeConnectionId && ownerId) {
-    const wanted = normHost(host);
-    if (wanted) {
-      const [{ data: sigmaConns }, { data: kofficeConns }] = await Promise.all([
-        admin.from("sigma_panel_connections").select("id, base_url").eq("user_id", ownerId),
-        admin.from("koffice_panel_connections").select("id, base_url").eq("user_id", ownerId).eq("is_active", true),
-      ]);
+  // Descoberta automática pela URL do servidor × conexões do revendedor.
+  const wanted = normHost(host);
+  if (wanted && ownerId) {
+    const { data: kofficeConns } = await admin
+      .from("koffice_panel_connections")
+      .select("id, base_url")
+      .eq("user_id", ownerId)
+      .eq("is_active", true);
 
-      const sigmaHit = (sigmaConns || []).find((c: any) => normHost(c.base_url) === wanted);
-      const kofficeHit = (kofficeConns || []).find((c: any) => normHost(c.base_url) === wanted);
+    const kofficeHit = (kofficeConns || []).find((c: any) => normHost(c.base_url) === wanted);
 
-      if (sigmaHit) sigmaConnectionId = sigmaHit.id;
-      else if (kofficeHit) {
-        kofficeConnectionId = kofficeHit.id;
-        kofficeBaseUrl = kofficeHit.base_url;
-      }
-
+    if (kofficeHit) {
+      kofficeConnectionId = kofficeHit.id;
+      kofficeBaseUrl = kofficeHit.base_url;
+      
       // Salva o vínculo para as próximas renovações desse servidor.
-      if (server?.id && (sigmaHit || kofficeHit)) {
+      if (server?.id) {
         try {
-          await admin.from("servers").update(
-            sigmaHit
-              ? { sigma_connection_id: sigmaHit.id, panel_type: "sigma" }
-              : { koffice_connection_id: kofficeHit.id, panel_type: "koffice" },
-          ).eq("id", server.id);
+          await admin.from("servers").update({ 
+            koffice_connection_id: kofficeHit.id, 
+            panel_type: "koffice" 
+          }).eq("id", server.id);
         } catch { /* vínculo é apenas cache */ }
       }
     }
-  }
-
-  if (sigmaConnectionId || panelType === "sigma" || haystack.includes("sigma")) {
-    return { kind: "sigma", fn: "sigma-renew", extra: { connection_id: sigmaConnectionId || undefined } };
   }
 
   const isKoffice = !!kofficeConnectionId ||

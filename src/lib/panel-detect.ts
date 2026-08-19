@@ -7,7 +7,6 @@ export type PanelType =
   | 'uniplay'
   | 'p2cine'
   | 'koffice'
-  | 'sigma'
   | 'none';
 
 export const PANEL_OPTIONS: { value: PanelType | 'auto'; label: string }[] = [
@@ -19,13 +18,10 @@ export const PANEL_OPTIONS: { value: PanelType | 'auto'; label: string }[] = [
   { value: 'thebest', label: 'The Best' },
   { value: 'uniplay', label: 'Uniplay' },
   { value: 'koffice', label: 'kOffice Panel (P2Cine)' },
-  { value: 'sigma', label: 'Sigma' },
   { value: 'none', label: 'Nenhum (renovar só no sistema)' },
 ];
 
-const VALID: PanelType[] = ['natv', 'natv2', 'vplay', 'rush', 'thebest', 'uniplay', 'p2cine', 'koffice', 'sigma', 'none'];
-
-
+const VALID: PanelType[] = ['natv', 'natv2', 'vplay', 'rush', 'thebest', 'uniplay', 'p2cine', 'koffice', 'none'];
 
 /**
  * Resolve qual painel externo deve ser usado para um servidor.
@@ -53,7 +49,6 @@ export function resolvePanel(server?: {
   if (sn.includes('rush') || sh.includes('rush')) return 'rush';
   if (hay.includes('uniplay') || hay.includes('searchdefense') || hay.includes('gesapioffice')) return 'uniplay';
   if (hay.includes('p2cine') || hay.includes('daily3') || hay.includes('painelacesso') || /\bp2c\b/.test(hay)) return 'p2cine';
-  if (hay.includes('sigma') || hay.includes('newbr') || hay.includes('newplay')) return 'sigma';
 
   return null;
 }
