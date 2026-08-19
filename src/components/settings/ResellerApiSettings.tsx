@@ -352,19 +352,24 @@ export default function ResellerApiSettings() {
   const hasP2cine = (!!settings.p2cine_username && !!settings.p2cine_password) || !!settings.p2cine_api_key;
   const hasSigma = sigmaConnections.length > 0 || (!!settings.sigma_base_url && !!settings.sigma_username && !!settings.sigma_password);
 
-  const handleTestSigma = async () => {
-    if (!settings.sigma_base_url.trim() || !settings.sigma_username.trim() || !settings.sigma_password) {
+  const handleTestSigma = async (connection?: any) => {
+    const targetUrl = connection ? connection.base_url : settings.sigma_base_url;
+    const targetUser = connection ? connection.username : settings.sigma_username;
+    const targetPass = connection ? connection.password : settings.sigma_password;
+
+    if (!targetUrl.trim() || !targetUser.trim() || !targetPass) {
       toast({ title: 'Dados incompletos', description: 'Informe a URL, o usuário e a senha do Sigma.', variant: 'destructive' });
       return;
     }
+
     setTestingSigma(true);
     try {
       const { data, error } = await supabase.functions.invoke('sigma-renew', {
         body: {
           action: 'test',
-          sigma_base_url: settings.sigma_base_url.trim(),
-          sigma_username: settings.sigma_username.trim(),
-          sigma_password: settings.sigma_password,
+          sigma_base_url: targetUrl.trim(),
+          sigma_username: targetUser.trim(),
+          sigma_password: targetPass,
         },
       });
 
@@ -407,6 +412,7 @@ export default function ResellerApiSettings() {
         base_url: settings.sigma_base_url.trim(),
         username: settings.sigma_username.trim(),
         password: settings.sigma_password,
+        is_active: true
       });
       if (error) throw error;
       setSettings((current) => ({ ...current, sigma_base_url: '', sigma_username: '', sigma_password: '' }));
@@ -414,6 +420,11 @@ export default function ResellerApiSettings() {
       await fetchSettings();
       toast({ title: 'Conexão Sigma adicionada' });
     } catch (error: any) {
+      toast({ title: 'Erro ao adicionar Sigma', description: error?.message || 'Não foi possível salvar a conexão.', variant: 'destructive' });
+    } finally {
+      setSavingSigmaConnection(false);
+    }
+  };
       toast({ title: 'Erro ao adicionar Sigma', description: error?.message || 'Não foi possível salvar a conexão.', variant: 'destructive' });
     } finally {
       setSavingSigmaConnection(false);
