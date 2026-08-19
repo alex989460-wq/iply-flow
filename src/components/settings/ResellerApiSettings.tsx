@@ -370,8 +370,8 @@ export default function ResellerApiSettings() {
           sigma_base_url: targetUrl.trim(),
           sigma_username: targetUser.trim(),
           sigma_password: targetPass,
-          sigma_proxy_url: connection?.proxy_url || settings.sigma_proxy_url,
-          sigma_proxy_secret: connection?.proxy_secret || settings.sigma_proxy_secret,
+          sigma_proxy_url: connection?.proxy_url,
+          sigma_proxy_secret: connection?.proxy_secret,
         },
       });
 
