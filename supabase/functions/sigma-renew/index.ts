@@ -275,13 +275,19 @@ Deno.serve(async (req) => {
       }
     }
     const { data: connection } = connectionId
-      ? await admin.from("sigma_panel_connections").select("base_url, username, password, proxy_url, proxy_secret").eq("id", connectionId).eq("user_id", ownerId).eq("is_active", true).maybeSingle()
+      ? await admin.from("sigma_panel_connections").select("*").eq("id", connectionId).eq("user_id", ownerId).eq("is_active", true).maybeSingle()
       : { data: null };
+
+    // Se tivermos um bridge_token e ele foi visto nos últimos 10 minutos, tentamos usar o bridge_token direto
+    let bridgeToken = connection?.bridge_token || null;
+    let lastBridgeSeen = connection?.last_bridge_seen_at ? new Date(connection.last_bridge_seen_at).getTime() : 0;
+    const isBridgeFresh = (Date.now() - lastBridgeSeen) < (10 * 60 * 1000); // 10 minutos
 
     const base = normBase(action === "test" ? (body.sigma_base_url || connection?.base_url || (cfg as any)?.sigma_base_url || "") : (connection?.base_url || (cfg as any)?.sigma_base_url || ""));
     const user = String(action === "test" ? (body.sigma_username || connection?.username || (cfg as any)?.sigma_username || "") : (connection?.username || (cfg as any)?.sigma_username || "")).trim();
     const pass = String(action === "test" ? (body.sigma_password || connection?.password || (cfg as any)?.sigma_password || "") : (connection?.password || (cfg as any)?.sigma_password || ""));
-    if (!base || !user || !pass) {
+    
+    if (!base || (!bridgeToken && (!user || !pass))) {
       return json({ error: "Credenciais do Painel Sigma não configuradas. Preencha URL, usuário e senha em Configurações → APIs." }, 400);
     }
 
@@ -290,7 +296,29 @@ Deno.serve(async (req) => {
       action === "test" ? (body.sigma_proxy_secret || (connection as any)?.proxy_secret || (cfg as any)?.sigma_proxy_secret) : ((connection as any)?.proxy_secret || (cfg as any)?.sigma_proxy_secret),
     );
 
-    const { token, me, apiBase } = await sigmaLogin(base, user, pass, proxy);
+    let token = "";
+    let me = null;
+    let apiBase = base;
+
+    if (bridgeToken && isBridgeFresh) {
+      console.log(`[Sigma] Usando Bridge Token existente para ${base}`);
+      token = bridgeToken;
+      // Valida se o token ainda funciona
+      const check = await sigmaFetch(base, token, "/api/settings/public", {}, proxy);
+      if (!check.ok) {
+        console.warn(`[Sigma] Bridge Token expirado ou inválido (HTTP ${check.status}). Tentando login convencional...`);
+        token = "";
+      } else {
+        apiBase = check.body?.api_url || base;
+      }
+    }
+
+    if (!token) {
+      const login = await sigmaLogin(base, user, pass, proxy);
+      token = login.token;
+      me = login.me;
+      apiBase = login.apiBase;
+    }
 
 
   // Busca robusta do cliente no Sigma: tenta múltiplos parâmetros de pesquisa e,
@@ -435,44 +463,10 @@ Deno.serve(async (req) => {
         apiError = err instanceof Error ? err.message : String(err);
       }
 
-      // Se falhou por WAF/bloqueio, tenta via Ponte Sigma se disponível
-      const useBridge = !customer && (apiError?.includes("firewall") || apiError?.includes("403") || apiError?.includes("bloqueou"));
-      
-      if (useBridge && connectionId) {
-        const { data: conn } = await admin.from("sigma_panel_connections").select("bridge_token, last_bridge_seen_at").eq("id", connectionId).maybeSingle();
-        const bridgeOnline = conn?.bridge_token && conn.last_bridge_seen_at && (new Date().getTime() - new Date(conn.last_bridge_seen_at).getTime() < 60000);
-        
-        if (bridgeOnline) {
-          // Cria tarefa na fila para a ponte
-          const { data: job, error: jobErr } = await admin.from("sigma_bridge_jobs").insert({
-            user_id: ownerId,
-            sigma_connection_id: connectionId,
-            action: "renew_customer",
-            payload: { username, months, connections }
-          }).select().single();
-
-          if (jobErr) throw new Error("Falha ao encaminhar renovação para a ponte.");
-
-          // Aguarda o resultado (long polling simulado curto)
-          for (let i = 0; i < 20; i++) {
-            await new Promise(r => setTimeout(r, 1500));
-            const { data: updatedJob } = await admin.from("sigma_bridge_jobs").select("*").eq("id", job.id).single();
-            if (updatedJob.status === "completed") {
-              const d = updatedJob.response_payload;
-              return json({
-                ok: true,
-                username: d?.username || username,
-                expires_at: d?.expires_at || null,
-                package: d?.package || null,
-                via_bridge: true
-              });
-            }
-            if (updatedJob.status === "failed") {
-              throw new Error(updatedJob.error_message || "A ponte Sigma falhou ao renovar.");
-            }
-          }
-          throw new Error("A ponte Sigma está demorando muito. Verifique se a aba do painel está aberta e ativa.");
-        }
+      // Se falhou e temos um bridge_token, tentamos via ponte se o token for recente
+      if (!customer && bridgeToken && isBridgeFresh) {
+         // O código acima já tentou usar o bridgeToken se fresh.
+         // Se chegou aqui, o findSigmaCustomer falhou mesmo com bridgeToken ou sem.
       }
 
       if (!customer) {

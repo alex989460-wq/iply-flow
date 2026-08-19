@@ -455,74 +455,32 @@ export default function ResellerApiSettings() {
   const getSigmaBridgeBookmarklet = (token: string) => {
     const code = `(function(){
       const TOKEN = "${token}";
-      const API = "${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sigma-bridge";
-      console.log("[SigmaBridge] Iniciando ponte...");
+      const RECEIVER = "${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sigma-bridge-receiver";
+      const sessionToken = window.localStorage.getItem('token');
+      console.log("[SigmaBridge] Iniciando conexão...", { token: TOKEN });
       
-      async function poll() {
-        try {
-          const res = await fetch(API + "?action=poll", {
-            headers: { "x-bridge-token": TOKEN }
-          });
-          const data = await res.json();
-          if (data.jobs && data.jobs.length > 0) {
-            for (const job of data.jobs) {
-              console.log("[SigmaBridge] Executando tarefa:", job.action);
-              try {
-                let result;
-                if (job.action === "renew_customer") {
-                  // Lógica de renovação via fetch na aba do Sigma (usa a sessão da aba)
-                  const findRes = await fetch("/api/customers?page=1&keyword=" + encodeURIComponent(job.payload.username), {
-                    headers: { "Accept": "application/json", "x-app-version": "3.89" }
-                  });
-                  const findData = await findRes.json();
-                  const customer = (findData.data || []).find(c => c.username.toLowerCase() === job.payload.username.toLowerCase());
-                  
-                  if (!customer) throw new Error("Cliente não encontrado no Sigma.");
-                  
-                  // Busca pacotes para bater o mês
-                  const serversRes = await fetch("/api/servers", { headers: { "Accept": "application/json", "x-app-version": "3.89" } });
-                  const serversData = await serversRes.json();
-                  const server = (serversData.data || []).find(s => s.id == customer.server_id);
-                  const pkg = (server.packages || []).find(p => !p.is_trial && Math.abs((p.duration_in === 'MONTHS' ? p.duration * 30 : p.duration) - (job.payload.months * 30)) <= 2);
-                  const packageId = pkg ? pkg.id : customer.package_id;
-
-                  const renewRes = await fetch("/api/customers/" + customer.id + "/renew", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", "Accept": "application/json", "x-app-version": "3.89" },
-                    body: JSON.stringify({ 
-                      package_id: packageId, 
-                      connections: job.payload.connections || 1,
-                      reference: "",
-                      create_manual_customer_order: false,
-                      manual_payment_total: null
-                    })
-                  });
-                  const renewData = await renewRes.json();
-                  if (!renewRes.ok) throw new Error(renewData.message || "Erro do painel Sigma.");
-                  result = renewData.data || renewData;
-                }
-                
-                await fetch(API + "?action=complete", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json", "x-bridge-token": TOKEN },
-                  body: JSON.stringify({ job_id: job.id, response: result })
-                });
-              } catch (err) {
-                console.error("[SigmaBridge] Falha na tarefa:", err);
-                await fetch(API + "?action=complete", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json", "x-bridge-token": TOKEN },
-                  body: JSON.stringify({ job_id: job.id, error: err.message })
-                });
-              }
-            }
-          }
-        } catch (e) { console.error("[SigmaBridge] Erro no poll:", e); }
-        setTimeout(poll, 5000);
+      if (!sessionToken) {
+        alert("Erro: Você precisa estar logado no painel Sigma para ativar a ponte!");
+        return;
       }
-      
-      poll();
-      alert("Ponte Sigma Ativada! Mantenha esta aba aberta.");
+
+      fetch(RECEIVER, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bridge_token: TOKEN, session_token: sessionToken })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          alert("Ponte Sigma Conectada com Sucesso! Seu sistema agora usará esta sessão para renovar.");
+        } else {
+          alert("Falha ao conectar ponte: " + (data.error || "Erro desconhecido"));
+        }
+      })
+      .catch(err => {
+        console.error("[SigmaBridge] Erro:", err);
+        alert("Erro de rede ao conectar ponte. Verifique o console.");
+      });
     })();`.replace(/\n/g, '').replace(/\s\s+/g, ' ');
     return `javascript:${code}`;
   };
@@ -1212,11 +1170,11 @@ export default function ResellerApiSettings() {
                             </Button>
                           </div>
                         ) : (
-                          <div className="space-y-2">
+                          <div className="space-y-3">
                             <div className="flex items-center justify-between">
-                              <span className="text-xs font-semibold flex items-center gap-1">
-                                <Monitor className="w-3 h-3" />
-                                Configuração da Ponte
+                              <span className="text-xs font-semibold flex items-center gap-1.5 text-violet-600">
+                                <Monitor className="w-4 h-4" />
+                                Ponte Sigma Ativa
                               </span>
                               <Button 
                                 size="sm" 
@@ -1224,34 +1182,59 @@ export default function ResellerApiSettings() {
                                 className="h-6 text-[10px] text-destructive hover:bg-destructive/10"
                                 onClick={() => revokeSigmaBridgeToken(connection.id)}
                               >
-                                Revogar Chave
+                                Desativar Ponte
                               </Button>
                             </div>
                             
-                            <div className="grid gap-2">
-                              <p className="text-[10px] text-muted-foreground leading-tight">
-                                Para contornar bloqueios de IP, arraste o botão abaixo para a barra de favoritos do navegador, abra o painel Sigma e clique no favorito.
-                              </p>
+                            <div className="bg-violet-50/50 p-3 rounded-lg border border-violet-100 space-y-3">
+                              <div className="space-y-1">
+                                <p className="text-xs font-medium text-violet-900">Como usar a ponte:</p>
+                                <ol className="text-[10px] text-violet-700 list-decimal list-inside space-y-1">
+                                  <li>Arraste o botão roxo abaixo para sua <strong>Barra de Favoritos</strong>.</li>
+                                  <li>Abra o painel Sigma em uma nova aba e faça login.</li>
+                                  <li>Na página inicial do painel Sigma, clique no favorito que você criou.</li>
+                                </ol>
+                              </div>
                               
-                              <div className="flex items-center gap-2">
+                              <div className="flex flex-wrap items-center gap-2 pt-1">
                                 <a
                                   href={getSigmaBridgeBookmarklet(connection.bridge_token)}
                                   onClick={(e) => e.preventDefault()}
-                                  className="inline-flex items-center justify-center gap-2 rounded-md bg-violet-600 px-3 py-1.5 text-xs font-medium text-white shadow transition-colors hover:bg-violet-700 cursor-move"
+                                  className="inline-flex items-center justify-center gap-2 rounded-md bg-violet-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition-all hover:bg-violet-700 hover:scale-[1.02] cursor-move select-none"
                                   title="Arraste este botão para a barra de favoritos do seu navegador"
                                 >
-                                  <ExternalLink className="w-3 h-3" />
-                                  Ponte Sigma ({connection.name})
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                  PONTE SIGMA ({connection.name})
                                 </a>
                                 
                                 <Button
                                   variant="outline"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => copyToClipboard(getSigmaBridgeBookmarklet(connection.bridge_token), 'Bookmarklet')}
+                                  size="sm"
+                                  className="h-9 border-violet-200 text-violet-600 hover:bg-violet-50"
+                                  onClick={() => copyToClipboard(getSigmaBridgeBookmarklet(connection.bridge_token), 'Link da Ponte')}
                                 >
-                                  <Copy className="w-3 h-3" />
+                                  <Copy className="w-3.5 h-3.5 mr-2" />
+                                  Copiar Link
                                 </Button>
+
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  className="h-9 bg-white border border-violet-200 text-violet-700 hover:bg-violet-50"
+                                  onClick={() => window.open(connection.base_url, '_blank')}
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5 mr-2" />
+                                  Abrir Painel Sigma
+                                </Button>
+                              </div>
+
+                              <div className="flex items-center gap-2 pt-1 border-t border-violet-100 mt-2">
+                                <div className={`w-2 h-2 rounded-full ${connection.last_bridge_seen_at && (new Date().getTime() - new Date(connection.last_bridge_seen_at).getTime() < 60000) ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`} />
+                                <span className="text-[10px] text-violet-600/80">
+                                  {connection.last_bridge_seen_at && (new Date().getTime() - new Date(connection.last_bridge_seen_at).getTime() < 60000) 
+                                    ? 'Ponte conectada e ativa na aba do navegador' 
+                                    : 'Aguardando você clicar no favorito na aba do Sigma...'}
+                                </span>
                               </div>
                             </div>
                           </div>
