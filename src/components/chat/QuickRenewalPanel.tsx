@@ -574,13 +574,13 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
                 toast.error(
                   <div className="flex flex-col gap-2">
                     <span className="font-bold">Bloqueio de Firewall (WAF)</span>
-                    <span className="text-xs">O painel Sigma bloqueou a conexão do servidor. Use a "Ponte Sigma" para renovar pelo seu navegador.</span>
+                    <span className="text-xs">O Sigma bloqueou a conexão automática. Use o botão abaixo para abrir o painel e clicar no favorito da Ponte Sigma.</span>
                     <Button 
                       size="sm" 
                       className="h-8 bg-violet-600 hover:bg-violet-700 text-white font-bold"
                       onClick={() => navigate('/settings')}
                     >
-                      CONFIGURAR PONTE SIGMA
+                      CONFIGURAR OU ABRIR SIGMA
                     </Button>
                   </div>,
                   { duration: 8000 }
@@ -594,13 +594,13 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
                 toast.error(
                   <div className="flex flex-col gap-2">
                     <span className="font-bold">Bloqueio de Firewall (WAF)</span>
-                    <span className="text-xs">O painel Sigma bloqueou a conexão do servidor. Use a "Ponte Sigma" para renovar pelo seu navegador.</span>
+                    <span className="text-xs">O Sigma bloqueou a conexão automática. Use o botão abaixo para abrir o painel e clicar no favorito da Ponte Sigma.</span>
                     <Button 
                       size="sm" 
                       className="h-8 bg-violet-600 hover:bg-violet-700 text-white font-bold"
                       onClick={() => navigate('/settings')}
                     >
-                      CONFIGURAR PONTE SIGMA
+                      CONFIGURAR OU ABRIR SIGMA
                     </Button>
                   </div>,
                   { duration: 8000 }
@@ -703,10 +703,19 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
       const { newDueDate, amount, customer, planName } = data;
       const formattedDate = formatDate(newDueDate);
 
-      // Update local UI immediately
+      // Force UI update and search results refresh
+      queryClient.setQueryData(['customer-search', searchTerm], (old: any) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((c: any) => 
+          c.id === customer.id 
+            ? { ...c, due_date: newDueDate, status: 'ativa', username: editedUsername.trim() || c.username }
+            : c
+        );
+      });
+
       setSelectedCustomer((prev) => {
         if (!prev || prev.id !== customer.id) return prev;
-        return { ...prev, due_date: newDueDate, status: 'ativa', username: editedUsername.trim() || null };
+        return { ...prev, due_date: newDueDate, status: 'ativa', username: editedUsername.trim() || prev.username };
       });
 
       // Generate renewal message with updated username
