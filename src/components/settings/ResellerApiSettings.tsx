@@ -352,19 +352,24 @@ export default function ResellerApiSettings() {
   const hasP2cine = (!!settings.p2cine_username && !!settings.p2cine_password) || !!settings.p2cine_api_key;
   const hasSigma = sigmaConnections.length > 0 || (!!settings.sigma_base_url && !!settings.sigma_username && !!settings.sigma_password);
 
-  const handleTestSigma = async () => {
-    if (!settings.sigma_base_url.trim() || !settings.sigma_username.trim() || !settings.sigma_password) {
+  const handleTestSigma = async (connection?: any) => {
+    const targetUrl = connection ? connection.base_url : settings.sigma_base_url;
+    const targetUser = connection ? connection.username : settings.sigma_username;
+    const targetPass = connection ? connection.password : settings.sigma_password;
+
+    if (!targetUrl.trim() || !targetUser.trim() || !targetPass) {
       toast({ title: 'Dados incompletos', description: 'Informe a URL, o usuário e a senha do Sigma.', variant: 'destructive' });
       return;
     }
+
     setTestingSigma(true);
     try {
       const { data, error } = await supabase.functions.invoke('sigma-renew', {
         body: {
           action: 'test',
-          sigma_base_url: settings.sigma_base_url.trim(),
-          sigma_username: settings.sigma_username.trim(),
-          sigma_password: settings.sigma_password,
+          sigma_base_url: targetUrl.trim(),
+          sigma_username: targetUser.trim(),
+          sigma_password: targetPass,
         },
       });
 
@@ -407,6 +412,7 @@ export default function ResellerApiSettings() {
         base_url: settings.sigma_base_url.trim(),
         username: settings.sigma_username.trim(),
         password: settings.sigma_password,
+        is_active: true
       });
       if (error) throw error;
       setSettings((current) => ({ ...current, sigma_base_url: '', sigma_username: '', sigma_password: '' }));
@@ -415,8 +421,6 @@ export default function ResellerApiSettings() {
       toast({ title: 'Conexão Sigma adicionada' });
     } catch (error: any) {
       toast({ title: 'Erro ao adicionar Sigma', description: error?.message || 'Não foi possível salvar a conexão.', variant: 'destructive' });
-    } finally {
-      setSavingSigmaConnection(false);
     }
   };
 
@@ -1159,63 +1163,24 @@ export default function ResellerApiSettings() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <p className="font-medium truncate">{connection.name}</p>
-                            {connection.bridge_token && (
-                              <Badge variant={isOnline ? "default" : "secondary"} className={isOnline ? "bg-green-500 hover:bg-green-600" : ""}>
-                                {isOnline ? "Ponte Online" : "Ponte Offline"}
-                              </Badge>
-                            )}
                           </div>
                           <p className="text-xs text-muted-foreground truncate">{connection.base_url} • {connection.username}</p>
                         </div>
-                        <Button type="button" variant="ghost" size="icon" onClick={() => removeSigmaConnection(connection.id)} aria-label="Remover conexão Sigma">
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
-                      </div>
-
-                      <div className="flex flex-col gap-2 pt-2 border-t border-border/50">
-                        {!connection.bridge_token ? (
+                        <div className="flex items-center gap-2">
                           <Button 
+                            type="button" 
                             variant="outline" 
                             size="sm" 
-                            className="w-full justify-start gap-2"
-                            onClick={() => generateSigmaBridgeToken(connection.id)}
-                            disabled={generatingBridgeToken === connection.id}
+                            onClick={() => handleTestSigma(connection)} 
+                            disabled={testingSigma}
                           >
-                            <Zap className="w-4 h-4 text-yellow-500" />
-                            Ativar Ponte Sigma (Bypass WAF)
+                            {testingSigma ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Zap className="w-4 h-4 mr-2" />}
+                            Testar
                           </Button>
-                        ) : (
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <a 
-                                href={getSigmaBridgeBookmarklet(connection.bridge_token)}
-                                className="flex-1 inline-flex items-center justify-center gap-2 rounded-md bg-yellow-500 px-3 py-2 text-sm font-medium text-white hover:bg-yellow-600 transition-colors cursor-move"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  toast({ 
-                                    title: "Instrução", 
-                                    description: "Arraste este botão para sua barra de favoritos. Depois, abra o painel Sigma e clique no favorito.",
-                                    duration: 5000 
-                                  });
-                                }}
-                              >
-                                <Zap className="w-4 h-4" />
-                                Arraste para os Favoritos
-                              </a>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                onClick={() => revokeSigmaBridgeToken(connection.id)}
-                              >
-                                Desativar
-                              </Button>
-                            </div>
-                            <p className="text-[10px] text-muted-foreground leading-tight">
-                              Para usar: arraste o botão amarelo para sua barra de favoritos, abra a aba do seu painel Sigma ({connection.base_url}) e clique no favorito. Deixe a aba aberta.
-                            </p>
-                          </div>
-                        )}
+                          <Button type="button" variant="ghost" size="icon" onClick={() => removeSigmaConnection(connection.id)} aria-label="Remover conexão Sigma">
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   );
