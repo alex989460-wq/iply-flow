@@ -102,7 +102,7 @@ function buildOverpass(filters: string[], bbox: number[], term: string) {
     parts.push(`node["amenity"~"${cleanTerm}",i](${box});`);
   }
   
-  return `[out:json][timeout:90];(${parts.join('')});out center tags 1000;`;
+  return `[out:json][timeout:90];(${parts.join('')});out center tags 5000;`;
 }
 
 function digitsOnly(v: string) {
