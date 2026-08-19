@@ -86,7 +86,7 @@ export default function ResellerApiSettings() {
 
   const fetchSettings = async () => {
     try {
-      const [{ data, error }, { data: connections, error: connectionsError }, { data: kofficeRows }] = await Promise.all([
+      const [{ data, error }, { data: kofficeRows, error: connectionsError }] = await Promise.all([
         supabase.from('reseller_api_settings' as any).select('*').eq('user_id', user?.id).maybeSingle(),
         supabase.from('koffice_panel_connections' as any).select('*').eq('user_id', user?.id).order('created_at'),
       ]);

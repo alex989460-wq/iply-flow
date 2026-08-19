@@ -50,7 +50,6 @@ async function relay(target: string, init: RequestInit, proxy: Proxy) {
   for (const [k, v] of Object.entries((init.headers || {}) as Record<string, string>)) headers[k] = String(v);
   const res = await fetch(proxy.url, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-sigma-proxy-secret": proxy.secret },
     body: JSON.stringify({
       url: target,
       method: init.method || "GET",
@@ -65,7 +64,6 @@ async function relay(target: string, init: RequestInit, proxy: Proxy) {
   return { ok: payload.status >= 200 && payload.status < 300, status: payload.status, text: String(payload.body ?? "") };
 }
 
-async function sigmaLogin(base: string, username: string, password: string, proxy: Proxy) {
   const res = await relay(`${base}/api/auth/login`, {
     method: "POST",
     headers: { ...browserHeaders, "Content-Type": "application/json", Origin: base, Referer: `${base}/` },
@@ -87,7 +85,6 @@ async function sigmaLogin(base: string, username: string, password: string, prox
   return { token: String(body.token), me: body };
 }
 
-async function sigmaGet(base: string, token: string, path: string, proxy: Proxy) {
   const res = await relay(`${base}${path}`, {
     headers: { Authorization: `Bearer ${token}`, ...browserHeaders, "Content-Type": "application/json" },
   }, proxy);
@@ -106,7 +103,6 @@ function pickNumber(...values: unknown[]): number | null {
 
 // Conta as conexões online no Sigma. Tenta os formatos conhecidos da API e,
 // se nenhum responder, varre a lista de clientes contando quem está online.
-async function sigmaOnline(base: string, token: string, proxy: Proxy): Promise<number | null> {
   const candidates = [
     "/api/dashboard",
     "/api/dashboard/statistics",
@@ -116,7 +112,6 @@ async function sigmaOnline(base: string, token: string, proxy: Proxy): Promise<n
   ];
   for (const path of candidates) {
     try {
-      const r = await sigmaGet(base, token, path, proxy);
       if (!r.ok || !r.body) continue;
       const b: any = r.body;
       const d = b?.data ?? b;
@@ -132,7 +127,6 @@ async function sigmaOnline(base: string, token: string, proxy: Proxy): Promise<n
   try {
     let online = 0;
     for (let page = 1; page <= 10; page++) {
-      const r = await sigmaGet(base, token, `/api/customers?page=${page}&per_page=100`, proxy);
       const list = Array.isArray(r.body?.data) ? r.body.data : [];
       if (!list.length) break;
       for (const c of list) {
@@ -180,7 +174,6 @@ async function kofficeCall(base: string, token: string, action: string) {
 }
 
 // Detecta o painel do servidor (mesma regra do frontend).
-const VALID = ["natv", "natv2", "vplay", "rush", "thebest", "uniplay", "p2cine", "koffice", "sigma", "none"];
 function resolvePanel(server: any): string | null {
   const manual = String(server?.panel_type || "").trim().toLowerCase();
   if (manual && manual !== "auto" && VALID.includes(manual)) return manual === "koffice" ? "p2cine" : manual;
@@ -229,47 +222,35 @@ Deno.serve(async (req) => {
     const action = String(body?.action || "stats");
 
     // ---- credenciais do revendedor ----
-    const [{ data: cfg }, { data: sigmaConns }, { data: kofficeConns }] = await Promise.all([
       admin.from("reseller_api_settings")
-        .select("sigma_base_url, sigma_username, sigma_password, sigma_proxy_url, sigma_proxy_secret, p2cine_base_url, p2cine_username, p2cine_api_key, vplay_mysql_host, vplay_mysql_port, vplay_mysql_user, vplay_mysql_password, vplay_mysql_database, vplay_panel_username, natv_api_key, natv_base_url, natv2_api_key, natv2_base_url, the_best_api_key, the_best_username, the_best_password, the_best_base_url, rush_username, rush_password, rush_token, rush_base_url")
         .eq("user_id", ownerId).maybeSingle(),
-      admin.from("sigma_panel_connections").select("id, base_url, username, password, proxy_url, proxy_secret")
         .eq("user_id", ownerId).eq("is_active", true).order("created_at"),
       admin.from("koffice_panel_connections").select("id, base_url, username, api_key")
         .eq("user_id", ownerId).eq("is_active", true).order("created_at"),
     ]);
 
-    const sigmaList = (sigmaConns || []) as any[];
     const kofficeList = (kofficeConns || []) as any[];
 
     if (action !== "stats") return json({ error: `Ação não suportada: ${action}` }, 400);
 
 
     const ids: string[] = Array.isArray(body?.server_ids) ? body.server_ids.map(String) : [];
-    let query = admin.from("servers").select("id, server_name, host, panel_type, sigma_connection_id, koffice_connection_id").eq("created_by", ownerId);
     if (ids.length) query = query.in("id", ids);
     const { data: servers } = await query;
 
     const results: Record<string, { panel: string | null; credits: number | null; online: number | null; error?: string }> = {};
 
     // Cache por conexão para não logar duas vezes no mesmo painel.
-    const sigmaCache = new Map<string, Promise<{ credits: number | null; online: number | null }>>();
     const kofficeCache = new Map<string, Promise<{ credits: number | null; online: number | null }>>();
     let vplayPromise: Promise<{ credits: number | null; online: number | null }> | null = null;
 
-    const sigmaStats = (conn: any) => {
       const key = String(conn.id || conn.base_url);
-      if (!sigmaCache.has(key)) {
-        sigmaCache.set(key, (async () => {
           const base = normBase(conn.base_url);
           const proxy = buildProxy(conn.proxy_url, conn.proxy_secret);
-          const { token, me } = await sigmaLogin(base, conn.username, conn.password, proxy);
           const credits = pickNumber(me?.credits, me?.data?.credits, me?.user?.credits);
-          const online = await sigmaOnline(base, token, proxy);
           return { credits, online };
         })());
       }
-      return sigmaCache.get(key)!;
     };
 
     const kofficeStats = (conn: any) => {
@@ -551,16 +532,9 @@ Deno.serve(async (req) => {
       if (!panel || panel === "none") return;
 
       try {
-        if (panel === "sigma") {
           const conn =
-            sigmaList.find((c) => c.id === server.sigma_connection_id) ||
-            sigmaList.find((c) => hostMatch(c.base_url, server.host)) ||
-            (cfg && (cfg as any).sigma_base_url
-              ? { id: "settings", base_url: (cfg as any).sigma_base_url, username: (cfg as any).sigma_username, password: (cfg as any).sigma_password, proxy_url: (cfg as any).sigma_proxy_url, proxy_secret: (cfg as any).sigma_proxy_secret }
               : null) ||
-            (sigmaList.length === 1 ? sigmaList[0] : null);
           if (!conn) throw new Error("Nenhuma conexão Sigma vinculada a este servidor.");
-          Object.assign(entry, await sigmaStats(conn));
         } else if (panel === "p2cine") {
           const conn =
             kofficeList.find((c) => c.id === server.koffice_connection_id) ||
