@@ -1166,7 +1166,8 @@ export default function ResellerApiSettings() {
                           <div className="flex items-center gap-2">
                             <p className="font-medium truncate">{connection.name}</p>
                             {isOnline ? (
-                              <Badge variant="outline" className="text-[10px] uppercase py-0 px-1 border-green-500 text-green-500 bg-green-500/10 animate-pulse">
+                              <Badge variant="outline" className="text-[10px] uppercase py-0 px-1 border-green-500 text-green-500 bg-green-500/10 animate-pulse flex items-center gap-1">
+                                <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-ping" />
                                 Ponte Ativa
                               </Badge>
                             ) : connection.bridge_token && (
