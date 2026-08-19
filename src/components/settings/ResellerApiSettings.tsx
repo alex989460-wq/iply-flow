@@ -31,9 +31,6 @@ export default function ResellerApiSettings() {
   const [showSigmaPassword, setShowSigmaPassword] = useState(false);
   const [testingSigma, setTestingSigma] = useState(false);
   const [testingVplay, setTestingVplay] = useState(false);
-  const [sigmaConnections, setSigmaConnections] = useState<any[]>([]);
-  const [savingSigmaConnection, setSavingSigmaConnection] = useState(false);
-  const [generatingBridgeToken, setGeneratingBridgeToken] = useState<string | null>(null);
 
   const [testingUniplay, setTestingUniplay] = useState(false);
   const [testingP2cine, setTestingP2cine] = useState(false);
@@ -91,13 +88,12 @@ export default function ResellerApiSettings() {
     try {
       const [{ data, error }, { data: connections, error: connectionsError }, { data: kofficeRows }] = await Promise.all([
         supabase.from('reseller_api_settings' as any).select('*').eq('user_id', user?.id).maybeSingle(),
-        supabase.from('sigma_panel_connections' as any).select('*').eq('user_id', user?.id).order('created_at'),
         supabase.from('koffice_panel_connections' as any).select('*').eq('user_id', user?.id).order('created_at'),
       ]);
 
       if (error) throw error;
       if (connectionsError) throw connectionsError;
-      setSigmaConnections(connections || []);
+      
       setKofficeConnections(kofficeRows || []);
 
 
@@ -350,12 +346,12 @@ export default function ResellerApiSettings() {
   const hasRush = !!settings.rush_username && !!settings.rush_password && !!settings.rush_token;
   const hasUniplay = !!settings.uniplay_username && !!settings.uniplay_password;
   const hasP2cine = (!!settings.p2cine_username && !!settings.p2cine_password) || !!settings.p2cine_api_key;
-  const hasSigma = sigmaConnections.length > 0 || (!!settings.sigma_base_url && !!settings.sigma_username && !!settings.sigma_password);
+  const hasSigma = (!!settings.sigma_base_url && !!settings.sigma_username && !!settings.sigma_password);
 
-  const handleTestSigma = async (connection?: any) => {
-    const targetUrl = connection ? connection.base_url : settings.sigma_base_url;
-    const targetUser = connection ? connection.username : settings.sigma_username;
-    const targetPass = connection ? connection.password : settings.sigma_password;
+  const handleTestSigma = async () => {
+    const targetUrl = settings.sigma_base_url;
+    const targetUser = settings.sigma_username;
+    const targetPass = settings.sigma_password;
 
     if (!targetUrl.trim() || !targetUser.trim() || !targetPass) {
       toast({ title: 'Dados incompletos', description: 'Informe a URL, o usuário e a senha do Sigma.', variant: 'destructive' });
@@ -370,8 +366,6 @@ export default function ResellerApiSettings() {
           sigma_base_url: targetUrl.trim(),
           sigma_username: targetUser.trim(),
           sigma_password: targetPass,
-          sigma_proxy_url: connection?.proxy_url,
-          sigma_proxy_secret: connection?.proxy_secret,
         },
       });
 
@@ -399,23 +393,6 @@ export default function ResellerApiSettings() {
       setTestingSigma(false);
     }
   };
-
-  const addSigmaConnection = async () => {
-    if (!user || !settings.sigma_base_url.trim() || !settings.sigma_username.trim() || !settings.sigma_password) {
-      toast({ title: 'Dados incompletos', description: 'Informe URL, usuário e senha para adicionar a conexão.', variant: 'destructive' });
-      return;
-    }
-    setSavingSigmaConnection(true);
-    try {
-      const hostname = settings.sigma_base_url.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-      const { error } = await supabase.from('sigma_panel_connections' as any).insert({
-        user_id: user.id,
-        name: hostname || 'Painel Sigma',
-        base_url: settings.sigma_base_url.trim(),
-        username: settings.sigma_username.trim(),
-        password: settings.sigma_password,
-        is_active: true
-      });
       if (error) throw error;
       setSettings((current) => ({ ...current, sigma_base_url: '', sigma_username: '', sigma_password: '' }));
 
