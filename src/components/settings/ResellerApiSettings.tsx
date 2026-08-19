@@ -1212,11 +1212,11 @@ export default function ResellerApiSettings() {
                             </Button>
                           </div>
                         ) : (
-                          <div className="space-y-2">
+                          <div className="space-y-3">
                             <div className="flex items-center justify-between">
-                              <span className="text-xs font-semibold flex items-center gap-1">
-                                <Monitor className="w-3 h-3" />
-                                Configuração da Ponte
+                              <span className="text-xs font-semibold flex items-center gap-1.5 text-violet-600">
+                                <Monitor className="w-4 h-4" />
+                                Ponte Sigma Ativa
                               </span>
                               <Button 
                                 size="sm" 
@@ -1224,34 +1224,59 @@ export default function ResellerApiSettings() {
                                 className="h-6 text-[10px] text-destructive hover:bg-destructive/10"
                                 onClick={() => revokeSigmaBridgeToken(connection.id)}
                               >
-                                Revogar Chave
+                                Desativar Ponte
                               </Button>
                             </div>
                             
-                            <div className="grid gap-2">
-                              <p className="text-[10px] text-muted-foreground leading-tight">
-                                Para contornar bloqueios de IP, arraste o botão abaixo para a barra de favoritos do navegador, abra o painel Sigma e clique no favorito.
-                              </p>
+                            <div className="bg-violet-50/50 p-3 rounded-lg border border-violet-100 space-y-3">
+                              <div className="space-y-1">
+                                <p className="text-xs font-medium text-violet-900">Como usar a ponte:</p>
+                                <ol className="text-[10px] text-violet-700 list-decimal list-inside space-y-1">
+                                  <li>Arraste o botão roxo abaixo para sua <strong>Barra de Favoritos</strong>.</li>
+                                  <li>Abra o painel Sigma em uma nova aba e faça login.</li>
+                                  <li>Na página inicial do painel Sigma, clique no favorito que você criou.</li>
+                                </ol>
+                              </div>
                               
-                              <div className="flex items-center gap-2">
+                              <div className="flex flex-wrap items-center gap-2 pt-1">
                                 <a
                                   href={getSigmaBridgeBookmarklet(connection.bridge_token)}
                                   onClick={(e) => e.preventDefault()}
-                                  className="inline-flex items-center justify-center gap-2 rounded-md bg-violet-600 px-3 py-1.5 text-xs font-medium text-white shadow transition-colors hover:bg-violet-700 cursor-move"
+                                  className="inline-flex items-center justify-center gap-2 rounded-md bg-violet-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition-all hover:bg-violet-700 hover:scale-[1.02] cursor-move select-none"
                                   title="Arraste este botão para a barra de favoritos do seu navegador"
                                 >
-                                  <ExternalLink className="w-3 h-3" />
-                                  Ponte Sigma ({connection.name})
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                  PONTE SIGMA ({connection.name})
                                 </a>
                                 
                                 <Button
                                   variant="outline"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => copyToClipboard(getSigmaBridgeBookmarklet(connection.bridge_token), 'Bookmarklet')}
+                                  size="sm"
+                                  className="h-9 border-violet-200 text-violet-600 hover:bg-violet-50"
+                                  onClick={() => copyToClipboard(getSigmaBridgeBookmarklet(connection.bridge_token), 'Link da Ponte')}
                                 >
-                                  <Copy className="w-3 h-3" />
+                                  <Copy className="w-3.5 h-3.5 mr-2" />
+                                  Copiar Link
                                 </Button>
+
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  className="h-9 bg-white border border-violet-200 text-violet-700 hover:bg-violet-50"
+                                  onClick={() => window.open(connection.base_url, '_blank')}
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5 mr-2" />
+                                  Abrir Painel Sigma
+                                </Button>
+                              </div>
+
+                              <div className="flex items-center gap-2 pt-1 border-t border-violet-100 mt-2">
+                                <div className={`w-2 h-2 rounded-full ${connection.last_bridge_seen_at && (new Date().getTime() - new Date(connection.last_bridge_seen_at).getTime() < 60000) ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`} />
+                                <span className="text-[10px] text-violet-600/80">
+                                  {connection.last_bridge_seen_at && (new Date().getTime() - new Date(connection.last_bridge_seen_at).getTime() < 60000) 
+                                    ? 'Ponte conectada e ativa na aba do navegador' 
+                                    : 'Aguardando você clicar no favorito na aba do Sigma...'}
+                                </span>
                               </div>
                             </div>
                           </div>
