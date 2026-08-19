@@ -100,13 +100,10 @@ async function discoverSigmaApiBase(base: string, proxy: Proxy): Promise<string 
 }
 
 function preferredSigmaApiBase(base: string, discovered: string | null): string {
-  try {
-    const hostname = new URL(base).hostname.toLowerCase();
-    if (discovered && !hostname.endsWith("sigma.vin")) return discovered;
-  } catch {
-    return discovered || base;
-  }
-  return base;
+  // O host informado pelo revendedor muitas vezes é apenas o site do painel (nginx),
+  // enquanto a API fica em outro host publicado em /api/settings/public (panel_url).
+  // Por isso, quando existir um host descoberto, ele tem prioridade.
+  return discovered || base;
 }
 
 async function sigmaLogin(base: string, username: string, password: string, proxy: Proxy) {
@@ -116,6 +113,7 @@ async function sigmaLogin(base: string, username: string, password: string, prox
   let lastStatus = 0;
   let lastMessage = "";
   let lastPreview = "";
+
 
   for (const apiBase of candidates) {
     console.log(`[Sigma] Tentando login em: ${apiBase} (Proxy: ${proxy ? "Sim" : "Não"})`);
@@ -146,11 +144,13 @@ async function sigmaLogin(base: string, username: string, password: string, prox
     lastPreview = String(res.text || "").replace(/\s+/g, " ").slice(0, 300);
     console.log(`[Sigma] Erro login ${apiBase} -> Status: ${res.status} | Resposta: ${lastPreview}`);
 
-    // Se o erro for especificamente bloqueio de IP/WAF e não estiver usando proxy, não adianta tentar outros candidatos sem proxy
-    if (!proxy && (res.status === 403 || res.status === 404 || res.status === 503)) {
-      console.log(`[Sigma] Detectado bloqueio (403/404/503) em ${apiBase} sem proxy. Interrompendo tentativas sem proxy.`);
+    // 404 = host errado (nginx padrão): seguimos testando os outros candidatos.
+    // 403/503 = bloqueio real de WAF: não adianta insistir sem proxy.
+    if (!proxy && (res.status === 403 || res.status === 503)) {
+      console.log(`[Sigma] Bloqueio de WAF (${res.status}) em ${apiBase} sem proxy.`);
       break;
     }
+
   }
 
   // Se falhou sem proxy em todos os candidatos (ou interrompeu por bloqueio), tentamos usar o Proxy Residencial Global como última esperança se ele existir
