@@ -35,17 +35,13 @@ type Proxy = { url: string; secret: string } | null;
 
 function buildProxy(url?: string | null, secret?: string | null): Proxy {
   const u = String(url || "").trim().replace(/\/+$/, "");
-  // Se o revendedor configurou um proxy próprio, usamos ele.
-  // Caso contrário, tentamos o proxy residencial global do sistema.
-  const s = String(secret || Deno.env.get("SIGMA_PROXY_SECRET") || "").trim();
+  const s = String(secret || "").trim();
   
   if (u && s) return { url: /^https?:\/\//i.test(u) ? u : `https://${u}`, secret: s };
   
-  // Fallback para o Proxy Residencial Global (SIGMA_RESIDENTIAL_PROXY)
-  const globalProxy = Deno.env.get("SIGMA_RESIDENTIAL_PROXY");
-  if (globalProxy && s) {
-    return { url: globalProxy, secret: s };
-  }
+  // Se não tem proxy individual, não tentamos injetar o global aqui automaticamente no buildProxy,
+  // pois o sigmaLogin agora tem lógica de fallback explícita que usa as env vars.
+  // Isso evita que o buildProxy retorne um objeto incompleto se o segredo vier de env mas a URL não.
   
   return null;
 }
@@ -122,6 +118,7 @@ async function sigmaLogin(base: string, username: string, password: string, prox
   let lastPreview = "";
 
   for (const apiBase of candidates) {
+    console.log(`[Sigma] Tentando login em: ${apiBase} (Proxy: ${proxy ? "Sim" : "Não"})`);
     const res = await relay(`${apiBase}/api/auth/login`, {
       method: "POST",
       headers: { ...browserHeaders, "Content-Type": "application/json", "Origin": apiBase, "Referer": `${apiBase}/` },
@@ -135,23 +132,63 @@ async function sigmaLogin(base: string, username: string, password: string, prox
         twofactor_trusted_device_id: "",
       }),
     }, proxy);
+    
     lastStatus = res.status;
     let body: any = {};
     try { body = res.text ? JSON.parse(res.text) : {}; } catch { body = {}; }
-    if (res.ok && body?.token) return { token: String(body.token), me: body, apiBase };
+    
+    if (res.ok && body?.token) {
+      console.log(`[Sigma] Login OK em ${apiBase}`);
+      return { token: String(body.token), me: body, apiBase };
+    }
+
     lastMessage = body?.message || body?.error || body?.errors?.username?.[0] || body?.errors?.password?.[0] || "";
     lastPreview = String(res.text || "").replace(/\s+/g, " ").slice(0, 300);
-    console.log(`[Sigma] login ${apiBase} -> ${res.status} | ${lastPreview}`);
+    console.log(`[Sigma] Erro login ${apiBase} -> Status: ${res.status} | Resposta: ${lastPreview}`);
+
+    // Se o erro for especificamente bloqueio de IP/WAF e não estiver usando proxy, não adianta tentar outros candidatos sem proxy
+    if (!proxy && (res.status === 403 || res.status === 404 || res.status === 503)) {
+      console.log(`[Sigma] Detectado bloqueio (403/404/503) em ${apiBase} sem proxy. Interrompendo tentativas sem proxy.`);
+      break;
+    }
+  }
+
+  // Se falhou sem proxy em todos os candidatos (ou interrompeu por bloqueio), tentamos usar o Proxy Residencial Global como última esperança se ele existir
+  const globalProxyUrl = Deno.env.get("SIGMA_RESIDENTIAL_PROXY");
+  const globalProxySecret = Deno.env.get("SIGMA_PROXY_SECRET");
+  
+  if (!proxy && globalProxyUrl && globalProxySecret) {
+    const fallbackProxy = { url: globalProxyUrl, secret: globalProxySecret };
+    console.log(`[Sigma] Iniciando fallback para Proxy Residencial Global...`);
+    
+    for (const apiBase of candidates) {
+      try {
+        const res = await relay(`${apiBase}/api/auth/login`, {
+          method: "POST",
+          headers: { ...browserHeaders, "Content-Type": "application/json", "Origin": apiBase, "Referer": `${apiBase}/` },
+          body: JSON.stringify({ username, password, captcha: "not-a-robot", captchaChecked: true }),
+        }, fallbackProxy);
+        
+        let body: any = {};
+        try { body = res.text ? JSON.parse(res.text) : {}; } catch { body = {}; }
+        
+        if (res.ok && body?.token) {
+          console.log(`[Sigma] Login OK em ${apiBase} via Proxy Global`);
+          return { token: String(body.token), me: body, apiBase };
+        }
+      } catch (e) {
+        console.log(`[Sigma] Erro no fallback proxy para ${apiBase}:`, e instanceof Error ? e.message : e);
+      }
+    }
   }
 
   if (!proxy && (lastStatus === 403 || lastStatus === 404 || lastStatus === 503)) {
-    throw new Error("O painel Sigma bloqueou a conexão vinda do servidor (proteção de firewall). Avise o suporte do SuperGestor para liberar o acesso ao seu painel.");
+    throw new Error("O painel Sigma bloqueou a conexão (firewall/WAF). Ative o seu próprio Proxy Sigma ou use uma conexão direta (IP fixo liberado no painel).");
   }
 
   throw new Error(lastMessage
     ? `Painel Sigma recusou o login: ${lastMessage}`
     : `Não foi possível autenticar no Painel Sigma (HTTP ${lastStatus || "sem resposta"}). Resposta: ${lastPreview || "vazia"}`);
-
 }
 
 async function sigmaFetch(base: string, token: string, path: string, init: RequestInit = {}, proxy: Proxy = null) {
