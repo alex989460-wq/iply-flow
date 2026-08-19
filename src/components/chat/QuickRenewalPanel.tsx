@@ -567,9 +567,19 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
             });
             if (sgError) {
               console.error('[Sigma] Erro:', sgError);
-              toast.warning('Renovado localmente, mas ' + describePanelError('Sigma', sgError));
+              const msg = sgError.message || String(sgError);
+              if (msg.includes('bloqueou') || msg.includes('403') || msg.includes('firewall')) {
+                toast.error('O painel Sigma bloqueou a conexão. Ative a "Ponte Sigma" em Configurações para renovar via navegador.', { duration: 6000 });
+              } else {
+                toast.warning('Renovado localmente, mas ' + describePanelError('Sigma', sgError));
+              }
             } else if ((sgResult as any)?.error) {
-              toast.warning('Renovado localmente, mas ' + describePanelError('Sigma', (sgResult as any).error));
+              const msg = (sgResult as any).error;
+              if (msg.includes('bloqueou') || msg.includes('403') || msg.includes('firewall')) {
+                toast.error('O painel Sigma bloqueou a conexão. Ative a "Ponte Sigma" em Configurações para renovar via navegador.', { duration: 6000 });
+              } else {
+                toast.warning('Renovado localmente, mas ' + describePanelError('Sigma', msg));
+              }
             } else {
               console.log('[Sigma] Sucesso:', sgResult);
             }

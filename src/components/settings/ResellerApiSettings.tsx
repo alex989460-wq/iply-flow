@@ -1165,9 +1165,13 @@ export default function ResellerApiSettings() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <p className="font-medium truncate">{connection.name}</p>
-                            {isOnline && (
-                              <Badge variant="outline" className="text-[10px] uppercase py-0 px-1 border-green-500 text-green-500 bg-green-500/10">
-                                Bridge Online
+                            {isOnline ? (
+                              <Badge variant="outline" className="text-[10px] uppercase py-0 px-1 border-green-500 text-green-500 bg-green-500/10 animate-pulse">
+                                Ponte Ativa
+                              </Badge>
+                            ) : connection.bridge_token && (
+                              <Badge variant="outline" className="text-[10px] uppercase py-0 px-1 border-yellow-500 text-yellow-500 bg-yellow-500/10">
+                                Ponte Offline
                               </Badge>
                             )}
                           </div>
@@ -1188,6 +1192,69 @@ export default function ResellerApiSettings() {
                             <Trash2 className="w-4 h-4 text-destructive" />
                           </Button>
                         </div>
+                      </div>
+
+                      {/* Controles da Ponte Sigma (Bypass WAF) */}
+                      <div className="pt-2 border-t border-border/50 space-y-3">
+                        {!connection.bridge_token ? (
+                          <div className="flex items-center justify-between bg-background/50 p-2 rounded border border-dashed border-border">
+                            <span className="text-xs text-muted-foreground">Ponte manual (Bypass WAF) desativada</span>
+                            <Button 
+                              size="sm" 
+                              variant="secondary" 
+                              className="h-7 text-xs"
+                              onClick={() => generateSigmaBridgeToken(connection.id)}
+                              disabled={generatingBridgeToken === connection.id}
+                            >
+                              {generatingBridgeToken === connection.id ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Plus className="w-3 h-3 mr-1" />}
+                              Ativar Ponte
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-semibold flex items-center gap-1">
+                                <Monitor className="w-3 h-3" />
+                                Configuração da Ponte
+                              </span>
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                className="h-6 text-[10px] text-destructive hover:bg-destructive/10"
+                                onClick={() => revokeSigmaBridgeToken(connection.id)}
+                              >
+                                Revogar Chave
+                              </Button>
+                            </div>
+                            
+                            <div className="grid gap-2">
+                              <p className="text-[10px] text-muted-foreground leading-tight">
+                                Para contornar bloqueios de IP, arraste o botão abaixo para a barra de favoritos do navegador, abra o painel Sigma e clique no favorito.
+                              </p>
+                              
+                              <div className="flex items-center gap-2">
+                                <a
+                                  href={getSigmaBridgeBookmarklet(connection.bridge_token)}
+                                  onClick={(e) => e.preventDefault()}
+                                  className="inline-flex items-center justify-center gap-2 rounded-md bg-violet-600 px-3 py-1.5 text-xs font-medium text-white shadow transition-colors hover:bg-violet-700 cursor-move"
+                                  title="Arraste este botão para a barra de favoritos do seu navegador"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                  Ponte Sigma ({connection.name})
+                                </a>
+                                
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => copyToClipboard(getSigmaBridgeBookmarklet(connection.bridge_token), 'Bookmarklet')}
+                                >
+                                  <Copy className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
