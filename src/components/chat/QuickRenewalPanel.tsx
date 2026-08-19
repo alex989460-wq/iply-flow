@@ -569,14 +569,40 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
               console.error('[Sigma] Erro:', sgError);
               const msg = sgError.message || String(sgError);
               if (msg.includes('bloqueou') || msg.includes('403') || msg.includes('firewall')) {
-                toast.error('O painel Sigma bloqueou a conexão. Ative a "Ponte Sigma" em Configurações para renovar via navegador.', { duration: 6000 });
+                toast.error(
+                  <div className="flex flex-col gap-2">
+                    <span className="font-bold">Bloqueio de Firewall (WAF)</span>
+                    <span className="text-xs">O painel Sigma bloqueou a conexão do servidor. Use a "Ponte Sigma" para renovar pelo seu navegador.</span>
+                    <Button 
+                      size="sm" 
+                      className="h-8 bg-violet-600 hover:bg-violet-700 text-white font-bold"
+                      onClick={() => navigate('/settings')}
+                    >
+                      CONFIGURAR PONTE SIGMA
+                    </Button>
+                  </div>,
+                  { duration: 8000 }
+                );
               } else {
                 toast.warning('Renovado localmente, mas ' + describePanelError('Sigma', sgError));
               }
             } else if ((sgResult as any)?.error) {
               const msg = (sgResult as any).error;
               if (msg.includes('bloqueou') || msg.includes('403') || msg.includes('firewall')) {
-                toast.error('O painel Sigma bloqueou a conexão. Ative a "Ponte Sigma" em Configurações para renovar via navegador.', { duration: 6000 });
+                toast.error(
+                  <div className="flex flex-col gap-2">
+                    <span className="font-bold">Bloqueio de Firewall (WAF)</span>
+                    <span className="text-xs">O painel Sigma bloqueou a conexão do servidor. Use a "Ponte Sigma" para renovar pelo seu navegador.</span>
+                    <Button 
+                      size="sm" 
+                      className="h-8 bg-violet-600 hover:bg-violet-700 text-white font-bold"
+                      onClick={() => navigate('/settings')}
+                    >
+                      CONFIGURAR PONTE SIGMA
+                    </Button>
+                  </div>,
+                  { duration: 8000 }
+                );
               } else {
                 toast.warning('Renovado localmente, mas ' + describePanelError('Sigma', msg));
               }
