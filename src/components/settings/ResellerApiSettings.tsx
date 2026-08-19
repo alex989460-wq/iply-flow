@@ -28,8 +28,6 @@ export default function ResellerApiSettings() {
   const [showUniplayPassword, setShowUniplayPassword] = useState(false);
   const [showVplayPassword, setShowVplayPassword] = useState(false);
   const [showVplayDbPassword, setShowVplayDbPassword] = useState(false);
-  const [showSigmaPassword, setShowSigmaPassword] = useState(false);
-  const [testingSigma, setTestingSigma] = useState(false);
   const [testingVplay, setTestingVplay] = useState(false);
 
   const [testingUniplay, setTestingUniplay] = useState(false);
@@ -66,9 +64,6 @@ export default function ResellerApiSettings() {
     vplay_mysql_user: '',
     vplay_mysql_password: '',
     vplay_mysql_database: '',
-    sigma_base_url: '',
-    sigma_username: '',
-    sigma_password: '',
     p2cine_username: '',
     p2cine_password: '',
     p2cine_base_url: '',
@@ -126,9 +121,6 @@ export default function ResellerApiSettings() {
           vplay_mysql_user: d.vplay_mysql_user || '',
           vplay_mysql_password: d.vplay_mysql_password || '',
           vplay_mysql_database: d.vplay_mysql_database || '',
-          sigma_base_url: (d as any).sigma_base_url || '',
-          sigma_username: (d as any).sigma_username || '',
-          sigma_password: (d as any).sigma_password || '',
           p2cine_username: (d as any).p2cine_username || '',
           p2cine_password: (d as any).p2cine_password || '',
           p2cine_base_url: (d as any).p2cine_base_url || '',
@@ -176,8 +168,6 @@ export default function ResellerApiSettings() {
         vplay_mysql_password: settings.vplay_mysql_password || null,
         vplay_mysql_database: settings.vplay_mysql_database || null,
         sigma_base_url: settings.sigma_base_url || null,
-        sigma_username: settings.sigma_username || null,
-        sigma_password: settings.sigma_password || null,
         p2cine_username: settings.p2cine_username || null,
         p2cine_password: settings.p2cine_password || null,
         p2cine_base_url: settings.p2cine_base_url || null,
@@ -346,53 +336,8 @@ export default function ResellerApiSettings() {
   const hasRush = !!settings.rush_username && !!settings.rush_password && !!settings.rush_token;
   const hasUniplay = !!settings.uniplay_username && !!settings.uniplay_password;
   const hasP2cine = (!!settings.p2cine_username && !!settings.p2cine_password) || !!settings.p2cine_api_key;
-  const hasSigma = (!!settings.sigma_base_url && !!settings.sigma_username && !!settings.sigma_password);
+  
 
-  const handleTestSigma = async () => {
-    const targetUrl = settings.sigma_base_url;
-    const targetUser = settings.sigma_username;
-    const targetPass = settings.sigma_password;
-
-    if (!targetUrl.trim() || !targetUser.trim() || !targetPass) {
-      toast({ title: 'Dados incompletos', description: 'Informe a URL, o usuário e a senha do Sigma.', variant: 'destructive' });
-      return;
-    }
-
-    setTestingSigma(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('sigma-renew', {
-        body: {
-          action: 'test',
-          sigma_base_url: targetUrl.trim(),
-          sigma_username: targetUser.trim(),
-          sigma_password: targetPass,
-        },
-      });
-
-      if (error) {
-        const response = (error as any)?.context;
-        if (response instanceof Response) {
-          const detail = await response.json().catch(() => null);
-          throw new Error(detail?.error || error.message);
-        }
-        throw error;
-      }
-      if ((data as any)?.error) throw new Error((data as any).error);
-      const servers = (data as any)?.servers || [];
-      toast({
-        title: 'Conexão Sigma OK',
-        description: `Conectado como ${(data as any)?.username || ''} • ${servers.length} servidor(es) disponível(is).`,
-      });
-    } catch (e: any) {
-      toast({
-        title: 'Falha ao conectar no Sigma',
-        description: e?.message || 'Verifique URL, usuário e senha e salve antes de testar.',
-        variant: 'destructive',
-      });
-    } finally {
-      setTestingSigma(false);
-    }
-  };
 
   const addKofficeConnection = async () => {
     if (!user || !settings.p2cine_base_url.trim() || !settings.p2cine_username.trim() || !settings.p2cine_api_key.trim()) {
