@@ -421,9 +421,8 @@ export default function ResellerApiSettings() {
       toast({ title: 'Conexão Sigma adicionada' });
     } catch (error: any) {
       toast({ title: 'Erro ao adicionar Sigma', description: error?.message || 'Não foi possível salvar a conexão.', variant: 'destructive' });
-    } finally {
-      setSavingSigmaConnection(false);
     }
+  };
 
   const generateSigmaBridgeToken = async (connectionId: string) => {
     setGeneratingBridgeToken(connectionId);
