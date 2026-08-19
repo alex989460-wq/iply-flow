@@ -1,13 +1,9 @@
-// Roteador de painéis: descobre sozinho para qual integração externa a renovação
-// deve ir, usando (nesta ordem):
-//   1) o painel vinculado no cadastro do servidor (Sigma / kOffice);
-//   2) o campo "tipo de painel" do servidor;
-//   3) a URL do servidor comparada com as conexões cadastradas pelo revendedor
-//      (assim qualquer painel novo passa a funcionar no webhook automaticamente,
-//       e o vínculo fica salvo no servidor para as próximas renovações);
-//   4) heurística pelo nome/host do servidor (NATV, VPlay, Rush, The Best...).
+import { ResolvedPanel } from "./panel-router.ts";
 
-export type ResolvedPanel = {
+// ResolvedPanel type is already imported, we just need to provide the implementation for the router.
+// The previous code had some syntax errors after sed deletions.
+
+export type RouterContext = {
   kind: string;
   fn: string;
   extra: Record<string, unknown>;
@@ -43,29 +39,31 @@ export async function resolvePanel(
   let kofficeConnectionId = String(server?.koffice_connection_id || "");
   let kofficeBaseUrl = "";
 
-  // 3) Descoberta automática pela URL do servidor × conexões do revendedor.
-    const wanted = normHost(host);
-    if (wanted) {
-        admin.from("koffice_panel_connections").select("id, base_url").eq("user_id", ownerId).eq("is_active", true),
-      ]);
+  // Descoberta automática pela URL do servidor × conexões do revendedor.
+  const wanted = normHost(host);
+  if (wanted && ownerId) {
+    const { data: kofficeConns } = await admin
+      .from("koffice_panel_connections")
+      .select("id, base_url")
+      .eq("user_id", ownerId)
+      .eq("is_active", true);
 
-      const kofficeHit = (kofficeConns || []).find((c: any) => normHost(c.base_url) === wanted);
+    const kofficeHit = (kofficeConns || []).find((c: any) => normHost(c.base_url) === wanted);
 
-      else if (kofficeHit) {
-        kofficeConnectionId = kofficeHit.id;
-        kofficeBaseUrl = kofficeHit.base_url;
-      }
-
+    if (kofficeHit) {
+      kofficeConnectionId = kofficeHit.id;
+      kofficeBaseUrl = kofficeHit.base_url;
+      
       // Salva o vínculo para as próximas renovações desse servidor.
+      if (server?.id) {
         try {
-          await admin.from("servers").update(
-              : { koffice_connection_id: kofficeHit.id, panel_type: "koffice" },
-          ).eq("id", server.id);
+          await admin.from("servers").update({ 
+            koffice_connection_id: kofficeHit.id, 
+            panel_type: "koffice" 
+          }).eq("id", server.id);
         } catch { /* vínculo é apenas cache */ }
       }
     }
-  }
-
   }
 
   const isKoffice = !!kofficeConnectionId ||
