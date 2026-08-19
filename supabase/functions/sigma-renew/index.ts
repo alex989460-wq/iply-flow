@@ -275,13 +275,19 @@ Deno.serve(async (req) => {
       }
     }
     const { data: connection } = connectionId
-      ? await admin.from("sigma_panel_connections").select("base_url, username, password, proxy_url, proxy_secret").eq("id", connectionId).eq("user_id", ownerId).eq("is_active", true).maybeSingle()
+      ? await admin.from("sigma_panel_connections").select("*").eq("id", connectionId).eq("user_id", ownerId).eq("is_active", true).maybeSingle()
       : { data: null };
+
+    // Se tivermos um bridge_token e ele foi visto nos últimos 10 minutos, tentamos usar o bridge_token direto
+    let bridgeToken = connection?.bridge_token || null;
+    let lastBridgeSeen = connection?.last_bridge_seen_at ? new Date(connection.last_bridge_seen_at).getTime() : 0;
+    const isBridgeFresh = (Date.now() - lastBridgeSeen) < (10 * 60 * 1000); // 10 minutos
 
     const base = normBase(action === "test" ? (body.sigma_base_url || connection?.base_url || (cfg as any)?.sigma_base_url || "") : (connection?.base_url || (cfg as any)?.sigma_base_url || ""));
     const user = String(action === "test" ? (body.sigma_username || connection?.username || (cfg as any)?.sigma_username || "") : (connection?.username || (cfg as any)?.sigma_username || "")).trim();
     const pass = String(action === "test" ? (body.sigma_password || connection?.password || (cfg as any)?.sigma_password || "") : (connection?.password || (cfg as any)?.sigma_password || ""));
-    if (!base || !user || !pass) {
+    
+    if (!base || (!bridgeToken && (!user || !pass))) {
       return json({ error: "Credenciais do Painel Sigma não configuradas. Preencha URL, usuário e senha em Configurações → APIs." }, 400);
     }
 
@@ -290,7 +296,29 @@ Deno.serve(async (req) => {
       action === "test" ? (body.sigma_proxy_secret || (connection as any)?.proxy_secret || (cfg as any)?.sigma_proxy_secret) : ((connection as any)?.proxy_secret || (cfg as any)?.sigma_proxy_secret),
     );
 
-    const { token, me, apiBase } = await sigmaLogin(base, user, pass, proxy);
+    let token = "";
+    let me = null;
+    let apiBase = base;
+
+    if (bridgeToken && isBridgeFresh) {
+      console.log(`[Sigma] Usando Bridge Token existente para ${base}`);
+      token = bridgeToken;
+      // Valida se o token ainda funciona
+      const check = await sigmaFetch(base, token, "/api/settings/public", {}, proxy);
+      if (!check.ok) {
+        console.warn(`[Sigma] Bridge Token expirado ou inválido (HTTP ${check.status}). Tentando login convencional...`);
+        token = "";
+      } else {
+        apiBase = check.body?.api_url || base;
+      }
+    }
+
+    if (!token) {
+      const login = await sigmaLogin(base, user, pass, proxy);
+      token = login.token;
+      me = login.me;
+      apiBase = login.apiBase;
+    }
 
 
   // Busca robusta do cliente no Sigma: tenta múltiplos parâmetros de pesquisa e,
