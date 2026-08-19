@@ -182,9 +182,14 @@ async function sigmaLogin(base: string, username: string, password: string, prox
     }
   }
 
-  if (!proxy && (lastStatus === 403 || lastStatus === 404 || lastStatus === 503)) {
+  if (lastStatus === 404) {
+    throw new Error(`O endereço do painel Sigma parece incorreto (o servidor respondeu "404 Não encontrado" em ${candidates.join(", ")}). Confira a URL exata usada para acessar o painel no navegador.`);
+  }
+
+  if (!proxy && (lastStatus === 403 || lastStatus === 503)) {
     throw new Error("O painel Sigma bloqueou a conexão (firewall/WAF). Ative o seu próprio Proxy Sigma ou use uma conexão direta (IP fixo liberado no painel).");
   }
+
 
   throw new Error(lastMessage
     ? `Painel Sigma recusou o login: ${lastMessage}`
