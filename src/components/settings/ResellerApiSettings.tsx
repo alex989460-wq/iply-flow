@@ -167,7 +167,7 @@ export default function ResellerApiSettings() {
         vplay_mysql_user: settings.vplay_mysql_user || null,
         vplay_mysql_password: settings.vplay_mysql_password || null,
         vplay_mysql_database: settings.vplay_mysql_database || null,
-        sigma_base_url: settings.sigma_base_url || null,
+        
         p2cine_username: settings.p2cine_username || null,
         p2cine_password: settings.p2cine_password || null,
         p2cine_base_url: settings.p2cine_base_url || null,
