@@ -131,6 +131,7 @@ function SortableMessageRow({ msg, children }: { msg: QuickMessage; children: (h
 
 
 export default function QuickRenewalPanel({ isMobile = false, onClose, initialPhone }: QuickRenewalPanelProps) {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const lastInitialPhoneRef = useRef<string | null>(null);
