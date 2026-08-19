@@ -703,10 +703,19 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
       const { newDueDate, amount, customer, planName } = data;
       const formattedDate = formatDate(newDueDate);
 
-      // Update local UI immediately
+      // Force UI update and search results refresh
+      queryClient.setQueryData(['customer-search', searchTerm], (old: any) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((c: any) => 
+          c.id === customer.id 
+            ? { ...c, due_date: newDueDate, status: 'ativa', username: editedUsername.trim() || c.username }
+            : c
+        );
+      });
+
       setSelectedCustomer((prev) => {
         if (!prev || prev.id !== customer.id) return prev;
-        return { ...prev, due_date: newDueDate, status: 'ativa', username: editedUsername.trim() || null };
+        return { ...prev, due_date: newDueDate, status: 'ativa', username: editedUsername.trim() || prev.username };
       });
 
       // Generate renewal message with updated username
