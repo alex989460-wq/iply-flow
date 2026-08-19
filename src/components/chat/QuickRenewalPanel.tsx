@@ -560,7 +560,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
             } else {
               console.log('[VPlay] Sucesso:', vpResult);
             }
-          } else if (panel === 'sigma') {
+          } else if (panel === 'sigma' || serverName.toLowerCase().includes('sigma') || serverHost.toLowerCase().includes('newbr') || serverHost.toLowerCase().includes('newplay')) {
             const months = Math.max(1, Math.round(durationDays / 30));
             const { data: sgResult, error: sgError } = await supabase.functions.invoke('sigma-renew', {
               body: { action: 'renew', username: xuiUsername, months, customer_id: customer.id, connection_id: (customer.server as any)?.sigma_connection_id || null },

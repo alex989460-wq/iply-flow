@@ -53,6 +53,7 @@ export function resolvePanel(server?: {
   if (sn.includes('rush') || sh.includes('rush')) return 'rush';
   if (hay.includes('uniplay') || hay.includes('searchdefense') || hay.includes('gesapioffice')) return 'uniplay';
   if (hay.includes('p2cine') || hay.includes('daily3') || hay.includes('painelacesso') || /\bp2c\b/.test(hay)) return 'p2cine';
+  if (hay.includes('sigma') || hay.includes('newbr') || hay.includes('newplay')) return 'sigma';
 
   return null;
 }
