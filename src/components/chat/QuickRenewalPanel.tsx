@@ -562,55 +562,6 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
             } else {
               console.log('[VPlay] Sucesso:', vpResult);
             }
-          } else if (panel === 'sigma' || serverName.toLowerCase().includes('sigma') || serverHost.toLowerCase().includes('newbr') || serverHost.toLowerCase().includes('newplay')) {
-            const months = Math.max(1, Math.round(durationDays / 30));
-            const { data: sgResult, error: sgError } = await supabase.functions.invoke('sigma-renew', {
-              body: { action: 'renew', username: xuiUsername, months, customer_id: customer.id, connection_id: (customer.server as any)?.sigma_connection_id || null },
-            });
-            if (sgError) {
-              console.error('[Sigma] Erro:', sgError);
-              const msg = sgError.message || String(sgError);
-              if (msg.includes('bloqueou') || msg.includes('403') || msg.includes('firewall')) {
-                toast.error(
-                  <div className="flex flex-col gap-2">
-                    <span className="font-bold">Bloqueio de Firewall (WAF)</span>
-                    <span className="text-xs">O Sigma bloqueou a conexão automática. Use o botão abaixo para abrir o painel e clicar no favorito da Ponte Sigma.</span>
-                    <Button 
-                      size="sm" 
-                      className="h-8 bg-violet-600 hover:bg-violet-700 text-white font-bold"
-                      onClick={() => navigate('/settings')}
-                    >
-                      CONFIGURAR OU ABRIR SIGMA
-                    </Button>
-                  </div>,
-                  { duration: 8000 }
-                );
-              } else {
-                toast.warning('Renovado localmente, mas ' + describePanelError('Sigma', sgError));
-              }
-            } else if ((sgResult as any)?.error) {
-              const msg = (sgResult as any).error;
-              if (msg.includes('bloqueou') || msg.includes('403') || msg.includes('firewall')) {
-                toast.error(
-                  <div className="flex flex-col gap-2">
-                    <span className="font-bold">Bloqueio de Firewall (WAF)</span>
-                    <span className="text-xs">O Sigma bloqueou a conexão automática. Use o botão abaixo para abrir o painel e clicar no favorito da Ponte Sigma.</span>
-                    <Button 
-                      size="sm" 
-                      className="h-8 bg-violet-600 hover:bg-violet-700 text-white font-bold"
-                      onClick={() => navigate('/settings')}
-                    >
-                      CONFIGURAR OU ABRIR SIGMA
-                    </Button>
-                  </div>,
-                  { duration: 8000 }
-                );
-              } else {
-                toast.warning('Renovado localmente, mas ' + describePanelError('Sigma', msg));
-              }
-            } else {
-              console.log('[Sigma] Sucesso:', sgResult);
-            }
           } else if (isRush) {
 
             const months = Math.max(1, Math.round(durationDays / 30));
