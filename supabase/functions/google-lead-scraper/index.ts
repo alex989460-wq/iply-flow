@@ -102,7 +102,7 @@ function buildOverpass(filters: string[], bbox: number[], term: string) {
     parts.push(`node["amenity"~"${cleanTerm}",i](${box});`);
   }
   
-  return `[out:json][timeout:90];(${parts.join('')});out center tags 1000;`;
+  return `[out:json][timeout:90];(${parts.join('')});out center tags 5000;`;
 }
 
 function digitsOnly(v: string) {
@@ -169,7 +169,15 @@ Deno.serve(async (req) => {
 
     const overpassQuery = buildOverpass(parsed.filters, place.boundingbox, parsed.term);
     let elements: any[] = [];
-    for (const endpoint of ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter']) {
+    const endpoints = [
+      'https://overpass-api.de/api/interpreter',
+      'https://overpass.kumi.systems/api/interpreter',
+      'https://overpass.osm.ch/api/interpreter',
+      'https://lz4.overpass-api.de/api/interpreter',
+      'https://z.overpass-api.de/api/interpreter'
+    ];
+    let elements: any[] = [];
+    for (const endpoint of endpoints) {
       try {
         const r = await fetch(endpoint, {
           method: 'POST',
@@ -178,8 +186,10 @@ Deno.serve(async (req) => {
         });
         if (!r.ok) continue;
         const data = await r.json().catch(() => null);
-        if (data?.elements?.length) { elements = data.elements; break; }
-        if (data?.elements) { elements = data.elements; break; }
+        if (data?.elements?.length) { 
+          elements = data.elements; 
+          break; 
+        }
       } catch { /* tenta o próximo endpoint */ }
     }
 
