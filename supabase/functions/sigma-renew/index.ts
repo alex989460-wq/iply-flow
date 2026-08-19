@@ -162,7 +162,7 @@ async function sigmaLogin(base: string, username: string, password: string, prox
   }
 
   // Se falhou sem proxy em todos os candidatos (ou interrompeu por bloqueio), tentamos usar o Proxy Residencial Global como última esperança se ele existir
-  const globalProxyUrl = Deno.env.get("SIGMA_RESIDENTIAL_PROXY");
+  const globalProxyUrl = Deno.env.get("SIGMA_RESIDENTIAL_PROXY") || Deno.env.get("SIGMA_PROXY_URL");
   const globalProxySecret = Deno.env.get("SIGMA_PROXY_SECRET");
   
   if (!proxy && globalProxyUrl && globalProxySecret) {
