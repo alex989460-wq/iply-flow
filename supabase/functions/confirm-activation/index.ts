@@ -384,20 +384,13 @@ serve(async (req) => {
         }
       };
 
-      if (inWindow) {
+      // PRIORIDADE: API Não Oficial (Evolution) para maior velocidade de entrega instantânea
+      notified = await sendEvolution();
+      if (notified) channelUsed = 'evolution';
+      
+      if (!notified) {
         notified = await sendOfficial();
         if (notified) channelUsed = 'crm_oficial';
-        if (!notified) {
-          notified = await sendEvolution();
-          if (notified) channelUsed = 'evolution';
-        }
-      } else {
-        notified = await sendEvolution();
-        if (notified) channelUsed = 'evolution';
-        if (!notified) {
-          notified = await sendOfficial();
-          if (notified) channelUsed = 'crm_oficial';
-        }
       }
 
       // Registro para auditoria em Logs de Mensagens.

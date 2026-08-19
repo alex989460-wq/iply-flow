@@ -35,7 +35,7 @@ function toWaPhone(raw: any): string {
   return d;
 }
 
-const TIMEOUT = 25000;
+const TIMEOUT = 12000;
 async function fetchT(url: string, init: RequestInit) {
   const c = new AbortController();
   const t = setTimeout(() => c.abort(), TIMEOUT);
