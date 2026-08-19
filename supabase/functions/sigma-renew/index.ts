@@ -195,6 +195,9 @@ async function sigmaLogin(base: string, username: string, password: string, prox
     throw new Error("O painel Sigma bloqueou a conexão (firewall/WAF). Ative o seu próprio Proxy Sigma ou use uma conexão direta (IP fixo liberado no painel).");
   }
 
+  if (lastError) {
+    throw lastError;
+  }
 
   throw new Error(lastMessage
     ? `Painel Sigma recusou o login: ${lastMessage}`
