@@ -44,6 +44,8 @@ export interface ScreensMismatchParams {
   serverName?: string | null;
   serverHost?: string | null;
   source: string;
+  /** Total de telas já cobertas pelo pagamento (soma dos cadastros renovados). */
+  coveredScreens?: number | null;
 }
 
 /**
