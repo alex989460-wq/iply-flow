@@ -292,16 +292,12 @@ export default function ResellerCheckout() {
     finally { setCreating(false); }
   };
 
+  const pixTotal = group?.pix?.price ?? 0;
+  const cardTotal = group?.card?.price ?? group?.pix?.price ?? 0;
+
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#0d0d0d]"><Loader2 className="w-8 h-8 text-white/60 animate-spin" /></div>;
   if (!data) return <div className="min-h-screen flex items-center justify-center bg-[#0d0d0d] text-white">Link inválido ou desativado.</div>;
 
-  const pixTotal = useMemo(() => {
-    return group?.pix?.price ?? 0;
-  }, [group]);
-
-  const cardTotal = useMemo(() => {
-    return group?.card?.price ?? group?.pix?.price ?? 0;
-  }, [group]);
 
   const renderPlanCard = (g: PlanGroup, popular = false, saveBadge?: string) => {
     const primary = g.pix || g.card;
