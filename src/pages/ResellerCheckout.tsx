@@ -11,6 +11,7 @@ import cardLogo from '@/assets/card-logo.png.asset.json';
 import efiLogo from '@/assets/efi-logo.png.asset.json';
 import mpLogo from '@/assets/mercadopago-logo.png.asset.json';
 import caktoLogo from '@/assets/cakto-logo.png.asset.json';
+import { PageErrorBoundary } from '@/components/PageErrorBoundary';
 
 interface Plan {
   id: string; name: string; duration_days: number; price: number;
