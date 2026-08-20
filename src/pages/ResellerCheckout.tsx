@@ -246,10 +246,7 @@ export default function ResellerCheckout() {
   const validateCoupon = async () => {
     setCheckingCoupon(true);
     try {
-      const base = selectedIds.reduce((s, id) => {
-        const c = customers.find(x => x.id === id);
-        return s + Number((c as any)?.custom_price ?? group?.pix?.price ?? group?.card?.price ?? 0);
-      }, 0);
+      const base = Number(group?.pix?.price ?? group?.card?.price ?? 0);
 
       const res = await fetch(`${FN_BASE}/reseller-checkout-charge`, {
         method: 'POST',
@@ -298,14 +295,13 @@ export default function ResellerCheckout() {
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#0d0d0d]"><Loader2 className="w-8 h-8 text-white/60 animate-spin" /></div>;
   if (!data) return <div className="min-h-screen flex items-center justify-center bg-[#0d0d0d] text-white">Link inválido ou desativado.</div>;
 
-  const pixTotal = selectedIds.reduce((s, id) => {
-    const c = customers.find(x => x.id === id);
-    return s + Number((c as any)?.custom_price ?? group?.pix?.price ?? 0);
-  }, 0);
-  const cardTotal = selectedIds.reduce((s, id) => {
-    const c = customers.find(x => x.id === id);
-    return s + Number((c as any)?.custom_price ?? group?.card?.price ?? group?.pix?.price ?? 0);
-  }, 0);
+  const pixTotal = useMemo(() => {
+    return group?.pix?.price ?? 0;
+  }, [group]);
+
+  const cardTotal = useMemo(() => {
+    return group?.card?.price ?? group?.pix?.price ?? 0;
+  }, [group]);
 
   const renderPlanCard = (g: PlanGroup, popular = false, saveBadge?: string) => {
     const primary = g.pix || g.card;
