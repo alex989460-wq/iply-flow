@@ -219,14 +219,8 @@ Deno.serve(async (req) => {
     // Sum per-customer prices. custom_price só vale quando o cliente está
     // comprando exatamente o mesmo plano que já possui — caso contrário o preço
     // do plano selecionado é o correto (evita cobrar valor de outro plano).
-    let amount = 0;
-    for (const c of customers) {
-      const custom = Number((c as any).custom_price);
-      const samePlan = String((c as any).plan_id || "") === String(plan.id);
-      const p = samePlan && isFinite(custom) && custom > 0 ? custom : Number(plan.price);
-      if (!isFinite(p) || p <= 0) return json({ error: "invalid_amount" }, 400);
-      amount += p;
-    }
+    let amount = Number(plan.price);
+    if (!isFinite(amount) || amount <= 0) return json({ error: "invalid_amount" }, 400);
     amount = Math.round(amount * 100) / 100;
 
     // ---- cupom de desconto (opcional) ----
