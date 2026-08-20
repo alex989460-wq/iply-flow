@@ -700,10 +700,10 @@ function ResellerCheckoutInner() {
             </div>
           ) : pix && (
             <div className="space-y-3">
-              {pix.qr ? (
+              {String(pix.qr || '') ? (
                 <div className="bg-white p-4 rounded-xl w-fit mx-auto">
                   <img
-                    src={pix.qr.startsWith('data:') ? pix.qr : `data:image/png;base64,${pix.qr}`}
+                    src={String(pix.qr).startsWith('data:') ? String(pix.qr) : `data:image/png;base64,${pix.qr}`}
                     alt="QR Code Pix" className="w-56 h-56"
                   />
                 </div>
@@ -715,8 +715,24 @@ function ResellerCheckoutInner() {
               <div className="bg-[#0d0d0d] rounded-lg p-3 border border-white/10">
                 <p className="text-[11px] text-white/50 mb-2">Ou copie e cole o código Pix:</p>
                 <div className="flex gap-2">
-                  <Input readOnly value={pix.copy} className="text-[11px] bg-black/40 border-white/10 h-9" />
-                  <Button size="sm" onClick={() => { navigator.clipboard.writeText(pix.copy); toast.success('Copiado!'); }} style={{ background: brand }} className="h-9">
+                  <Input readOnly value={String(pix.copy || '')} className="text-[11px] bg-black/40 border-white/10 h-9" />
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      const text = String(pix.copy || '');
+                      try {
+                        if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+                        else {
+                          const ta = document.createElement('textarea');
+                          ta.value = text; document.body.appendChild(ta); ta.select();
+                          document.execCommand('copy'); ta.remove();
+                        }
+                        toast.success('Copiado!');
+                      } catch { toast.error('Não foi possível copiar. Selecione o código manualmente.'); }
+                    }}
+                    style={{ background: brand }}
+                    className="h-9"
+                  >
                     <Copy className="w-4 h-4" />
                   </Button>
                 </div>
