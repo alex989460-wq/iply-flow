@@ -95,6 +95,14 @@ const COUNTRIES = [
 ];
 
 export default function ResellerCheckout() {
+  return (
+    <PageErrorBoundary>
+      <ResellerCheckoutInner />
+    </PageErrorBoundary>
+  );
+}
+
+function ResellerCheckoutInner() {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams] = useSearchParams();
   const [data, setData] = useState<CheckoutData | null>(null);
