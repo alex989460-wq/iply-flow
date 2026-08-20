@@ -32,7 +32,10 @@ interface CheckoutData {
 const FN_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 const ANON = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-const fmtBRL = (n: number) => `R$ ${Number(n).toFixed(2).replace('.', ',')}`;
+const fmtBRL = (n: unknown) => {
+  const v = Number(n);
+  return `R$ ${(Number.isFinite(v) ? v : 0).toFixed(2).replace('.', ',')}`;
+};
 function durationLabel(days: number) {
   if (days <= 31) return 'MENSAL';
   if (days <= 62) return 'BIMESTRAL';
