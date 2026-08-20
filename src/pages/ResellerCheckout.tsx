@@ -11,6 +11,7 @@ import cardLogo from '@/assets/card-logo.png.asset.json';
 import efiLogo from '@/assets/efi-logo.png.asset.json';
 import mpLogo from '@/assets/mercadopago-logo.png.asset.json';
 import caktoLogo from '@/assets/cakto-logo.png.asset.json';
+import { PageErrorBoundary } from '@/components/PageErrorBoundary';
 
 interface Plan {
   id: string; name: string; duration_days: number; price: number;
@@ -31,7 +32,10 @@ interface CheckoutData {
 const FN_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 const ANON = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-const fmtBRL = (n: number) => `R$ ${Number(n).toFixed(2).replace('.', ',')}`;
+const fmtBRL = (n: unknown) => {
+  const v = Number(n);
+  return `R$ ${(Number.isFinite(v) ? v : 0).toFixed(2).replace('.', ',')}`;
+};
 function durationLabel(days: number) {
   if (days <= 31) return 'MENSAL';
   if (days <= 62) return 'BIMESTRAL';
@@ -95,6 +99,14 @@ const COUNTRIES = [
 ];
 
 export default function ResellerCheckout() {
+  return (
+    <PageErrorBoundary>
+      <ResellerCheckoutInner />
+    </PageErrorBoundary>
+  );
+}
+
+function ResellerCheckoutInner() {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams] = useSearchParams();
   const [data, setData] = useState<CheckoutData | null>(null);
@@ -688,10 +700,10 @@ export default function ResellerCheckout() {
             </div>
           ) : pix && (
             <div className="space-y-3">
-              {pix.qr ? (
+              {String(pix.qr || '') ? (
                 <div className="bg-white p-4 rounded-xl w-fit mx-auto">
                   <img
-                    src={pix.qr.startsWith('data:') ? pix.qr : `data:image/png;base64,${pix.qr}`}
+                    src={String(pix.qr).startsWith('data:') ? String(pix.qr) : `data:image/png;base64,${pix.qr}`}
                     alt="QR Code Pix" className="w-56 h-56"
                   />
                 </div>
@@ -703,8 +715,24 @@ export default function ResellerCheckout() {
               <div className="bg-[#0d0d0d] rounded-lg p-3 border border-white/10">
                 <p className="text-[11px] text-white/50 mb-2">Ou copie e cole o código Pix:</p>
                 <div className="flex gap-2">
-                  <Input readOnly value={pix.copy} className="text-[11px] bg-black/40 border-white/10 h-9" />
-                  <Button size="sm" onClick={() => { navigator.clipboard.writeText(pix.copy); toast.success('Copiado!'); }} style={{ background: brand }} className="h-9">
+                  <Input readOnly value={String(pix.copy || '')} className="text-[11px] bg-black/40 border-white/10 h-9" />
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      const text = String(pix.copy || '');
+                      try {
+                        if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+                        else {
+                          const ta = document.createElement('textarea');
+                          ta.value = text; document.body.appendChild(ta); ta.select();
+                          document.execCommand('copy'); ta.remove();
+                        }
+                        toast.success('Copiado!');
+                      } catch { toast.error('Não foi possível copiar. Selecione o código manualmente.'); }
+                    }}
+                    style={{ background: brand }}
+                    className="h-9"
+                  >
                     <Copy className="w-4 h-4" />
                   </Button>
                 </div>
