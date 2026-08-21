@@ -58,7 +58,10 @@ export async function reportScreensMismatch(admin: any, params: ScreensMismatchP
     if (!paidScreens) return null;
 
     const currentScreens = Number(params.customer?.screens || 1);
-    if (paidScreens <= currentScreens) return null;
+    // Quando o pagamento já renovou vários cadastros (1 tela cada), a soma das
+    // telas cobertas satisfaz o plano — não é divergência.
+    const covered = Math.max(currentScreens, Number(params.coveredScreens || 0));
+    if (paidScreens <= covered) return null;
 
     const ownerId = params.customer?.created_by;
     if (!ownerId) return null;
