@@ -65,6 +65,33 @@ function convertNamedToPositional(payload: any): any | null {
   }
 }
 
+/** Verdadeiro quando o template usa cabeçalho de mídia (IMAGE/VIDEO/DOCUMENT). */
+function hasMediaHeader(payload: any): boolean {
+  return (Array.isArray(payload?.components) ? payload.components : []).some(
+    (c: any) => c?.type === "HEADER" && ["IMAGE", "VIDEO", "DOCUMENT"].includes(String(c?.format || "")),
+  );
+}
+
+/** Troca o header_handle (escopo do nosso app) pela URL pública do arquivo. */
+function withHeaderUrl(payload: any, url?: string | null): any | null {
+  if (!url || !hasMediaHeader(payload)) return null;
+  const components = payload.components.map((c: any) =>
+    c?.type === "HEADER" && ["IMAGE", "VIDEO", "DOCUMENT"].includes(String(c?.format || ""))
+      ? { ...c, example: { header_handle: [url] } }
+      : c,
+  );
+  return { ...payload, components };
+}
+
+/** Remove o cabeçalho de mídia (último recurso para não travar o envio). */
+function withoutMediaHeader(payload: any): any | null {
+  if (!hasMediaHeader(payload)) return null;
+  const components = payload.components.filter(
+    (c: any) => !(c?.type === "HEADER" && ["IMAGE", "VIDEO", "DOCUMENT"].includes(String(c?.format || ""))),
+  );
+  return { ...payload, components };
+}
+
 /**
  * Valida limites da Meta antes de enviar (evita o genérico "Invalid parameter").
  * Botões: 25 caracteres. Rodapé: 60. Corpo: 1024. Cabeçalho texto: 60.
