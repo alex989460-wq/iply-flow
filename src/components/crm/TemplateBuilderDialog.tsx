@@ -329,8 +329,8 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
       const components = buildComponents();
       const parameterFormat = getParameterFormat();
       const payload: any = mode === 'edit' && (initial as any)?.metaId
-        ? { action: 'update', template_id: (initial as any).metaId, components, parameter_format: parameterFormat }
-        : { action: 'create', name: slug, category: form.category, language: form.language, components, parameter_format: parameterFormat, allow_category_change: form.allowCategoryChange };
+        ? { action: 'update', template_id: (initial as any).metaId, components, parameter_format: parameterFormat, header_media_url: form.headerMediaUrl || undefined }
+        : { action: 'create', name: slug, category: form.category, language: form.language, components, parameter_format: parameterFormat, allow_category_change: form.allowCategoryChange, header_media_url: form.headerMediaUrl || undefined };
       const { data: res, error } = await supabase.functions.invoke('meta-templates', { body: payload });
       if (error || res?.error) throw new Error(res?.error || error?.message || 'Falha na Meta API');
       toast({ title: mode === 'edit' ? 'Template atualizado' : 'Template enviado', description: 'Aguarde validação da Meta.' });
