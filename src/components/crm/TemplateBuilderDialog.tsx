@@ -314,6 +314,16 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
         return;
       }
     }
+    // Limite da Meta: botões com no máximo 25 caracteres (emojis contam).
+    const longBtn = form.buttons.find(b => [...String(b.text || '')].length > 25);
+    if (longBtn) {
+      toast({
+        title: 'Botão muito longo',
+        description: `"${longBtn.text}" tem ${[...String(longBtn.text)].length} caracteres. A Meta permite no máximo 25 por botão (emojis contam). Ex: "1 TELA — R$ 24,99".`,
+        variant: 'destructive',
+      });
+      return;
+    }
     setSaving(true);
     try {
       const components = buildComponents();
