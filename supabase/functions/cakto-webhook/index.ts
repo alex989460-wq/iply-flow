@@ -1931,6 +1931,11 @@ serve(async (req) => {
       planName: matchedPlanName,
       amount: amountNumeric,
       source: 'cakto-webhook',
+      // Soma das telas de TODOS os cadastros renovados por este pagamento.
+      coveredScreens: (allMatchedCustomers || []).reduce(
+        (sum: number, c: any) => sum + Number(c?.screens || 1),
+        0,
+      ),
     });
 
     // Prepare calendar month mapping
