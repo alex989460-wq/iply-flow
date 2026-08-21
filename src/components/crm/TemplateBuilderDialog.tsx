@@ -523,10 +523,17 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
                     <Phone className="w-4 h-4 mr-2" /> Telefone
                   </Button>
                 </div>
-                {form.buttons.map(b => (
+                {form.buttons.map(b => {
+                  const btnLen = [...String(b.text || '')].length;
+                  return (
                   <div key={b.id} className="flex gap-2 items-center rounded-lg border border-border/50 p-2">
                     <span className="text-[10px] font-bold px-2 py-1 rounded bg-muted">{b.type === 'QUICK_REPLY' ? 'RESP' : b.type === 'URL' ? 'URL' : 'TEL'}</span>
-                    <Input placeholder="Rótulo do botão" value={b.text} onChange={e => updateButton(b.id, { text: e.target.value })} className="flex-1" />
+                    <div className="flex-1">
+                      <Input placeholder="Rótulo do botão (máx 25)" value={b.text} onChange={e => updateButton(b.id, { text: e.target.value })} />
+                      <span className={`text-[10px] ${btnLen > 25 ? 'text-red-400 font-semibold' : 'text-muted-foreground'}`}>
+                        {btnLen}/25 {btnLen > 25 ? '— a Meta rejeita botões acima de 25 caracteres (emojis contam)' : ''}
+                      </span>
+                    </div>
                     {b.type === 'URL' && (
                       <Input placeholder="https://..." value={b.url || ''} onChange={e => updateButton(b.id, { url: e.target.value })} className="flex-1" />
                     )}
