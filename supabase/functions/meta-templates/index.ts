@@ -65,6 +65,41 @@ function convertNamedToPositional(payload: any): any | null {
   }
 }
 
+/**
+ * Valida limites da Meta antes de enviar (evita o genérico "Invalid parameter").
+ * Botões: 25 caracteres. Rodapé: 60. Corpo: 1024. Cabeçalho texto: 60.
+ */
+function validateTemplateComponents(components: any): string | null {
+  const list = Array.isArray(components) ? components : [];
+  const len = (s: any) => [...String(s ?? "")].length;
+
+  for (const c of list) {
+    if (c?.type === "BODY" && len(c.text) > 1024) {
+      return `O corpo do template tem ${len(c.text)} caracteres (limite da Meta: 1024).`;
+    }
+    if (c?.type === "FOOTER" && len(c.text) > 60) {
+      return `O rodapé tem ${len(c.text)} caracteres (limite da Meta: 60).`;
+    }
+    if (c?.type === "HEADER" && c?.format === "TEXT" && len(c.text) > 60) {
+      return `O cabeçalho tem ${len(c.text)} caracteres (limite da Meta: 60).`;
+    }
+    if (c?.type === "BUTTONS") {
+      const seen = new Set<string>();
+      for (const b of (Array.isArray(c.buttons) ? c.buttons : [])) {
+        const t = String(b?.text ?? "");
+        if (!t.trim()) return "Há um botão sem texto. Preencha ou remova o botão.";
+        if (len(t) > 25) {
+          return `O botão "${t}" tem ${len(t)} caracteres — a Meta permite no máximo 25 (emojis contam). Encurte o texto.`;
+        }
+        const key = t.trim().toLowerCase();
+        if (seen.has(key)) return `Existem dois botões com o mesmo texto ("${t}"). A Meta exige textos diferentes.`;
+        seen.add(key);
+      }
+    }
+  }
+  return null;
+}
+
 async function fetchWithTimeout(input: string, init: RequestInit = {}, timeoutMs = 30_000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
