@@ -314,6 +314,8 @@ serve(async (req) => {
 
       if (action === "create") {
         const { name, category, language, components, allow_category_change, parameter_format } = body;
+        const vErr = validateTemplateComponents(components);
+        if (vErr) return json({ error: vErr }, 400);
         const payload: any = { name, category, language, components };
         if (parameter_format === "NAMED" || parameter_format === "POSITIONAL") payload.parameter_format = parameter_format;
         if (allow_category_change) payload.allow_category_change = true;
