@@ -542,7 +542,8 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
                     )}
                     <Button size="icon" variant="ghost" className="h-8 w-8 text-red-400" onClick={() => removeButton(b.id)}><Trash2 className="w-4 h-4" /></Button>
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               <label className="flex items-start gap-3 rounded-xl border border-border/60 p-4 cursor-pointer">
