@@ -1,0 +1,1 @@
+UPDATE public.platform_settings SET two_factor_enabled = false WHERE user_id = '04f6856a-f330-4140-bb87-8c39aef29ebe';

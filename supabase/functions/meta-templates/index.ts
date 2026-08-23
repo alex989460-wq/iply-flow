@@ -403,6 +403,23 @@ serve(async (req) => {
           }
         }
 
+        // Fallback de mídia: o handle é do nosso app e pode ser recusado pelo CRM.
+        // Tenta com a URL pública do arquivo antes de desistir.
+        if (!r.ok && hasMediaHeader(payload)) {
+          const byUrl = withHeaderUrl(payload, body?.header_media_url);
+          if (byUrl) {
+            console.warn("[MetaTemplates] Retry com header_handle = URL pública");
+            r = await crmFetch("/api/public/v1/templates", crmApiKey, { method: "POST", body: JSON.stringify(byUrl) });
+          }
+          if (!r.ok) {
+            return json({
+              error: "A Meta recusou a imagem do cabeçalho. Envie a imagem novamente (JPG/PNG até 5MB) ou salve o template sem cabeçalho de mídia.",
+              details: r.body,
+            }, 400);
+          }
+        }
+
+
         if (!r.ok) {
           console.error(`[MetaTemplates] CRM create ${r.status}:`, JSON.stringify(r.body).slice(0, 500));
           const detailMsg = (r.body as any)?.error?.error_user_msg

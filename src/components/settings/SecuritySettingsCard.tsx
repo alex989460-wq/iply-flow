@@ -96,6 +96,11 @@ export default function SecuritySettingsCard() {
         <p className="text-[11px] text-muted-foreground">
           E-mail da conta: <span className="font-mono">{user?.email}</span>
         </p>
+        <p className="text-[11px] text-amber-500">
+          Atenção: com o 2 fatores ativo, o login só é concluído com o código do e-mail.
+          Se o e-mail não chegar (verifique spam), você não conseguirá entrar — mantenha desativado
+          se não tiver acesso garantido a esta caixa de entrada.
+        </p>
       </CardContent>
     </Card>
   );
