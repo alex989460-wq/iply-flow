@@ -457,7 +457,7 @@ export default function CrmOficialChatbots({ embed = false, overrideToken }: { e
         {!apiKey && <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertDescription>Configure sua chave em Configurações → CRM Oficial.</AlertDescription></Alert>}
         {apiKey && !enabled && <Alert><AlertCircle className="h-4 w-4" /><AlertDescription>A integração está desativada; ative em Configurações para disparos automáticos.</AlertDescription></Alert>}
 
-        {!embed && (
+        {embed && (
           <>
             {loading || syncing ? (
               <div className="flex justify-center py-12"><Loader2 className="w-7 h-7 animate-spin text-emerald-500" /></div>
@@ -512,10 +512,10 @@ export default function CrmOficialChatbots({ embed = false, overrideToken }: { e
                 ))}
               </div>
             )}
+            <div className="text-xs text-muted-foreground">Total: {bots.length} • Ativos: {activeBots}</div>
           </>
         )}
 
-        <div className="text-xs text-muted-foreground">Total: {bots.length} • Ativos: {activeBots}</div>
 
         <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
           <DialogContent className="max-w-6xl h-[82vh] p-0 overflow-hidden">
