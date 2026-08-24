@@ -56,6 +56,7 @@ interface WhatsAppTemplate {
   language?: string;
   status?: string;
   category?: string;
+  phone_number_id?: string;
 }
 
 type StatusFilter = 'all' | 'ativa' | 'inativa' | 'suspensa' | 'bloqueado' | 'vencidos' | 'vencidos_mes_anterior' | 'ativos';
@@ -330,6 +331,7 @@ export default function MassBroadcast() {
           language: t.language || 'pt_BR',
           status: t.status,
           category: (t.category || 'UTILITY').toUpperCase(),
+          phone_number_id: t.phone_number_id ? String(t.phone_number_id) : undefined,
         }));
 
       setTemplates(approved);
@@ -697,7 +699,7 @@ export default function MassBroadcast() {
           template_language: selectedTemplateInfo?.language || selectedTemplateLanguage || 'pt_BR',
           audience_mode: audienceMode,
           campaign_name: campaignName || `Disparo ${templateName}`,
-          phone_number_id: senderPhoneId || undefined,
+          phone_number_id: selectedTemplateInfo?.phone_number_id || senderPhoneId || undefined,
         },
 
       });
@@ -784,7 +786,7 @@ export default function MassBroadcast() {
             customer_ids: batch,
             template_name: templateName,
             template_language: selectedTemplateInfo?.language || selectedTemplateLanguage || 'pt_BR',
-            phone_number_id: senderPhoneId || undefined,
+            phone_number_id: selectedTemplateInfo?.phone_number_id || senderPhoneId || undefined,
             campaign_id: campaignIdRef.current || undefined,
           },
         });
@@ -1728,22 +1730,23 @@ export default function MassBroadcast() {
                         key={`${template.id || template.name}-${template.language || ''}`}
                         className={cn(
                           "p-3 rounded-lg border cursor-pointer transition-colors",
-                          selectedTemplate === template.name
+                          selectedTemplate === template.name && selectedTemplateLanguage === (template.language || 'pt_BR')
                             ? "bg-primary/10 border-primary"
                             : "bg-card hover:bg-muted/50"
                         )}
                         onClick={() => {
                           setSelectedTemplate(template.name);
                           setSelectedTemplateLanguage(template.language || 'pt_BR');
+                          if (template.phone_number_id) setSenderPhoneId(template.phone_number_id);
                         }}
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
                             <div className={cn(
                               "w-4 h-4 rounded-full border-2 flex items-center justify-center",
-                              selectedTemplate === template.name ? "border-primary" : "border-muted-foreground"
+                              selectedTemplate === template.name && selectedTemplateLanguage === (template.language || 'pt_BR') ? "border-primary" : "border-muted-foreground"
                             )}>
-                              {selectedTemplate === template.name && (
+                              {selectedTemplate === template.name && selectedTemplateLanguage === (template.language || 'pt_BR') && (
                                 <div className="w-2 h-2 rounded-full bg-primary" />
                               )}
                             </div>

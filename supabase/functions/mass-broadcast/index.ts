@@ -56,7 +56,7 @@ async function sendWhatsAppTemplate(
 
     console.log(`[CRM Oficial] Sending template "${templateName}" to ${formattedPhone}`);
 
-    const response = await fetch(
+    const invokeTemplate = (selectedPhoneNumberId?: string | null) => fetch(
       `${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`,
       {
         method: 'POST',
@@ -74,12 +74,24 @@ async function sendWhatsAppTemplate(
           ...(customerName && String(customerName).trim()
             ? { parameters: [String(customerName).trim()], contact_name: String(customerName).trim() }
             : {}),
-          ...(phoneNumberId ? { phone_number_id: phoneNumberId, from_phone_number_id: phoneNumberId } : {}),
+          ...(selectedPhoneNumberId ? { phone_number_id: selectedPhoneNumberId, from_phone_number_id: selectedPhoneNumberId } : {}),
         }),
       }
     );
 
-    const result = await response.json().catch(() => ({}));
+    let response = await invokeTemplate(phoneNumberId);
+
+    let result = await response.json().catch(() => ({}));
+    const initialError = String(result?.send?.body?.error || result?.error || '');
+    if (
+      phoneNumberId &&
+      (!response.ok || result?.success === false) &&
+      /Canal WhatsApp Oficial não configurado|does not exist in the translation|não existe no idioma|132001/i.test(initialError)
+    ) {
+      console.warn(`[CRM Oficial] Retrying template "${templateName}" without forced sender ${phoneNumberId}`);
+      response = await invokeTemplate(null);
+      result = await response.json().catch(() => ({}));
+    }
     if (!response.ok || result?.success === false) {
       console.error(`[CRM Oficial] template error: ${response.status}`, result);
       return { success: false, error: (result?.send?.body?.error || result?.error || 'Falha ao enviar template') as string };
