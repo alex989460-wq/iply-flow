@@ -457,16 +457,16 @@ async function directMetaMediaSend(args: {
   const selectorChannel = args.channelId ? String(args.channelId) : "";
 
   let channels = await crmRest(
-    `channels?select=id,phone_number_id,system_user_token,waba_id,is_active,created_at&kind=eq.whatsapp_cloud&is_active=eq.true&order=created_at.desc`,
+    `channels?select=id,phone_number_id,system_user_token,waba_id,is_active,created_at&is_active=eq.true&order=created_at.desc`,
     accessToken,
   ) as any[];
   if (selectorPhone) channels = channels.filter((c) => String(c.phone_number_id) === selectorPhone);
   if (selectorChannel) channels = channels.filter((c) => String(c.id) === selectorChannel || String(c.phone_number_id) === selectorChannel);
 
   let creds = channels.find((c) => c?.phone_number_id && c?.system_user_token);
-  if (!creds && !selectorChannel && !selectorPhone) {
+  if (!creds) {
     const legacy = await crmRest(`whatsapp_settings?select=phone_number_id,system_user_token,waba_id&limit=1`, accessToken) as any[];
-    creds = legacy.find((c) => c?.phone_number_id && c?.system_user_token);
+    creds = legacy.find((c) => c?.phone_number_id && c?.system_user_token && (!selectorPhone || String(c.phone_number_id) === selectorPhone));
   }
   if (!creds?.phone_number_id || !creds?.system_user_token) throw new Error("Canal WhatsApp Oficial não configurado no CRM");
 
@@ -569,16 +569,16 @@ async function directMetaTemplateSend(args: {
   const selectorChannel = args.channelId ? String(args.channelId) : "";
 
   let channels = await crmRest(
-    `channels?select=id,phone_number_id,system_user_token,waba_id,is_active,created_at&kind=eq.whatsapp_cloud&is_active=eq.true&order=created_at.desc`,
+    `channels?select=id,phone_number_id,system_user_token,waba_id,is_active,created_at&is_active=eq.true&order=created_at.desc`,
     accessToken,
   ) as any[];
   if (selectorPhone) channels = channels.filter((c) => String(c.phone_number_id) === selectorPhone);
   if (selectorChannel) channels = channels.filter((c) => String(c.id) === selectorChannel || String(c.phone_number_id) === selectorChannel);
 
   let creds = channels.find((c) => c?.phone_number_id && c?.system_user_token);
-  if (!creds && !selectorChannel && !selectorPhone) {
+  if (!creds) {
     const legacy = await crmRest(`whatsapp_settings?select=phone_number_id,system_user_token,waba_id&limit=1`, accessToken) as any[];
-    creds = legacy.find((c) => c?.phone_number_id && c?.system_user_token);
+    creds = legacy.find((c) => c?.phone_number_id && c?.system_user_token && (!selectorPhone || String(c.phone_number_id) === selectorPhone));
   }
   if (!creds?.phone_number_id || !creds?.system_user_token) throw new Error("Canal WhatsApp Oficial não configurado no CRM");
 
@@ -712,22 +712,37 @@ async function fetchOfficialTemplateHeaderImage(templateName: string, language: 
 
 // Busca a definição do template diretamente na Graph API (filtrando por nome),
 // usado quando a listagem do CRM falha (ex.: rate limit #80008).
-async function fetchTemplateFromGraph(templateName: string, apiKey?: string): Promise<any[]> {
+async function fetchTemplateFromGraph(templateName: string, apiKey?: string, phoneNumberId?: string): Promise<any[]> {
   try {
     const { accessToken } = await getCrmOwnerSession(apiKey);
-    const channels = await crmRest(
-      `channels?select=phone_number_id,system_user_token,waba_id,is_active,created_at&kind=eq.whatsapp_cloud&is_active=eq.true&order=created_at.desc`,
+    const channelRows = await crmRest(
+      `channels?select=phone_number_id,system_user_token,waba_id,is_active,created_at&is_active=eq.true&order=created_at.desc`,
       accessToken,
     ) as any[];
-    const creds = channels.find((c) => c?.waba_id && c?.system_user_token);
-    if (!creds) return [];
-    const res = await fetch(
-      `https://graph.facebook.com/v21.0/${creds.waba_id}/message_templates?name=${encodeURIComponent(templateName)}&limit=50`,
-      { headers: { Authorization: `Bearer ${creds.system_user_token}` } },
-    );
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok || !Array.isArray(j?.data)) return [];
-    return j.data.filter((t: any) => String(t?.name || "") === templateName);
+    let legacyRows: any[] = [];
+    try {
+      legacyRows = await crmRest(`whatsapp_settings?select=phone_number_id,system_user_token,waba_id&limit=10`, accessToken) as any[];
+    } catch { /* configuração antiga é opcional */ }
+    const requestedPhoneId = String(phoneNumberId || "");
+    const credentials = [...channelRows, ...legacyRows]
+      .filter((c) => c?.waba_id && c?.system_user_token)
+      .sort((a, b) => Number(String(b?.phone_number_id || "") === requestedPhoneId) - Number(String(a?.phone_number_id || "") === requestedPhoneId));
+    const seen = new Set<string>();
+    const matches: any[] = [];
+    for (const creds of credentials) {
+      const key = `${creds.waba_id}:${creds.system_user_token}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const res = await fetch(
+        `https://graph.facebook.com/v21.0/${creds.waba_id}/message_templates?fields=id,name,status,language,category,components,parameter_format&name=${encodeURIComponent(templateName)}&limit=50`,
+        { headers: { Authorization: `Bearer ${creds.system_user_token}` } },
+      );
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !Array.isArray(json?.data)) continue;
+      matches.push(...json.data.filter((t: any) => String(t?.name || "") === templateName));
+      if (requestedPhoneId && String(creds.phone_number_id || "") === requestedPhoneId && matches.length) break;
+    }
+    return matches;
   } catch { return []; }
 }
 
@@ -775,7 +790,7 @@ async function writeTemplateCache(templateName: string, definition: any) {
 
 // Returns the full template definition (components + parameter_format) so we
 // can build correct body params (positional vs named) for sendTemplate.
-async function fetchOfficialTemplate(templateName: string, language: string, apiKey?: string): Promise<any | null> {
+async function fetchOfficialTemplate(templateName: string, language: string, apiKey?: string, phoneNumberId?: string): Promise<any | null> {
   const pick = async (matches: any[]) => {
     if (!matches.length) return null;
     for (const m of matches) await writeTemplateCache(templateName, m);
@@ -791,7 +806,7 @@ async function fetchOfficialTemplate(templateName: string, language: string, api
   // A Graph API da Meta é a fonte da verdade do idioma/estrutura do template.
   // A listagem do CRM às vezes devolve metadados de idioma errados (ex.: "en"),
   // por isso ela é apenas fallback.
-  let matches: any[] = await fetchTemplateFromGraph(templateName, apiKey);
+  let matches: any[] = await fetchTemplateFromGraph(templateName, apiKey, phoneNumberId);
 
   if (!matches.length) {
     try {
@@ -984,9 +999,9 @@ async function doSendWhatsapp(payload: {
     // fall back to whatever locale actually exists (fetchOfficialTemplate returns matches[0]).
     // Then use the *actual* language of the resolved template on the wire, so Meta doesn't
     // reject with 132001 "template name does not exist in <lang>".
-    let officialTemplate = await fetchOfficialTemplate(String(payload.template_name), String(requestedLang), apiKey).catch(() => null);
+    let officialTemplate = await fetchOfficialTemplate(String(payload.template_name), String(requestedLang), apiKey, payload.phone_number_id || payload.from_phone_number_id).catch(() => null);
     if (!officialTemplate) {
-      officialTemplate = await fetchOfficialTemplate(String(payload.template_name), "", apiKey).catch(() => null);
+      officialTemplate = await fetchOfficialTemplate(String(payload.template_name), "", apiKey, payload.phone_number_id || payload.from_phone_number_id).catch(() => null);
     }
     const resolvedLang = String(
       officialTemplate?.language || officialTemplate?.language_code || officialTemplate?.lang || requestedLang
@@ -995,7 +1010,7 @@ async function doSendWhatsapp(payload: {
     // (a definição vem da Graph API). O idioma pedido só é usado quando não
     // conseguimos resolver a definição real do template.
     const normLang = (l: string) => String(l || "").toLowerCase().replace(/-/g, "_");
-    const lang = officialTemplate ? resolvedLang : String(requestedLang);
+    const lang = String(resolvedLang || requestedLang);
 
 
     const paramNames = officialTemplate ? getTemplateBodyParamNames(officialTemplate) : [];
@@ -1175,7 +1190,7 @@ async function doSendWhatsapp(payload: {
         if (db) await db.from("meta_template_cache").delete().eq("name", String(payload.template_name)).eq("language", String(lang));
       } catch { /* best effort */ }
       const tried = new Set<string>([normLang(lang)]);
-      const fallbackLangs = [resolvedLang, String(requestedLang), "pt_BR", "pt_PT", "pt", "en_US", "en", "es"].filter((l) => {
+      const fallbackLangs = [resolvedLang].filter((l) => {
         if (!l || tried.has(normLang(l))) return false;
         tried.add(normLang(l));
 
@@ -1483,7 +1498,7 @@ Deno.serve(async (req) => {
       }
       // Fetch the official template so we can build the correct body component
       // (positional OR named params, depending on parameter_format).
-      const officialTemplate = await fetchOfficialTemplate(templateName, language, resellerApiKey);
+      const officialTemplate = await fetchOfficialTemplate(templateName, language, resellerApiKey, tplPhoneNumberId);
       const paramNames = officialTemplate ? getTemplateBodyParamNames(officialTemplate) : [];
       const isNamed = String(officialTemplate?.parameter_format || "").toUpperCase() === "NAMED"
         || (paramNames.length > 0 && paramNames.every((n) => n));

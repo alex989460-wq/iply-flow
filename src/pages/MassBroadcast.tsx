@@ -56,6 +56,7 @@ interface WhatsAppTemplate {
   language?: string;
   status?: string;
   category?: string;
+  phone_number_id?: string;
 }
 
 type StatusFilter = 'all' | 'ativa' | 'inativa' | 'suspensa' | 'bloqueado' | 'vencidos' | 'vencidos_mes_anterior' | 'ativos';
@@ -112,6 +113,7 @@ export default function MassBroadcast() {
   const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
   const [selectedServers, setSelectedServers] = useState<Set<string>>(new Set());
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  const [selectedTemplateLanguage, setSelectedTemplateLanguage] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [sendingProgress, setSendingProgress] = useState(0);
   const [isSending, setIsSending] = useState(false);
@@ -227,7 +229,9 @@ export default function MassBroadcast() {
             primary: !!(c.primary || c.is_primary),
           };
         })
-        .filter((c: any) => !!c.id)
+        // Somente phone_number_id reais podem ser usados como remetente.
+        // O UUID interno de um canal não é aceito pela Graph API.
+        .filter((c: any) => /^\d+$/.test(c.id))
         .sort((a: any, b: any) => Number(!!b.primary) - Number(!!a.primary));
     },
 
@@ -327,6 +331,7 @@ export default function MassBroadcast() {
           language: t.language || 'pt_BR',
           status: t.status,
           category: (t.category || 'UTILITY').toUpperCase(),
+          phone_number_id: t.phone_number_id ? String(t.phone_number_id) : undefined,
         }));
 
       setTemplates(approved);
@@ -480,8 +485,9 @@ export default function MassBroadcast() {
 
   // Get selected template info
   const selectedTemplateInfo = useMemo(() => {
-    return templates.find(t => t.name === selectedTemplate);
-  }, [templates, selectedTemplate]);
+    return templates.find(t => t.name === selectedTemplate && t.language === selectedTemplateLanguage)
+      || templates.find(t => t.name === selectedTemplate);
+  }, [templates, selectedTemplate, selectedTemplateLanguage]);
 
   // Check how many selected customers already received the template
   // (debounced + paralelo: antes disparava dezenas de queries sequenciais a cada clique)
@@ -690,9 +696,10 @@ export default function MassBroadcast() {
           action: 'start',
           customer_ids: allCustomerIds,
           template_name: templateName,
+          template_language: selectedTemplateInfo?.language || selectedTemplateLanguage || 'pt_BR',
           audience_mode: audienceMode,
           campaign_name: campaignName || `Disparo ${templateName}`,
-          phone_number_id: senderPhoneId || undefined,
+          phone_number_id: selectedTemplateInfo?.phone_number_id || senderPhoneId || undefined,
         },
 
       });
@@ -778,7 +785,8 @@ export default function MassBroadcast() {
             action: 'batch',
             customer_ids: batch,
             template_name: templateName,
-            phone_number_id: senderPhoneId || undefined,
+            template_language: selectedTemplateInfo?.language || selectedTemplateLanguage || 'pt_BR',
+            phone_number_id: selectedTemplateInfo?.phone_number_id || senderPhoneId || undefined,
             campaign_id: campaignIdRef.current || undefined,
           },
         });
@@ -1719,22 +1727,26 @@ export default function MassBroadcast() {
                     const isMarketing = template.category?.toUpperCase() === 'MARKETING';
                     return (
                       <div
-                        key={template.id || template.name}
+                        key={`${template.id || template.name}-${template.language || ''}`}
                         className={cn(
                           "p-3 rounded-lg border cursor-pointer transition-colors",
-                          selectedTemplate === template.name
+                          selectedTemplate === template.name && selectedTemplateLanguage === (template.language || 'pt_BR')
                             ? "bg-primary/10 border-primary"
                             : "bg-card hover:bg-muted/50"
                         )}
-                        onClick={() => setSelectedTemplate(template.name)}
+                        onClick={() => {
+                          setSelectedTemplate(template.name);
+                          setSelectedTemplateLanguage(template.language || 'pt_BR');
+                          if (template.phone_number_id) setSenderPhoneId(template.phone_number_id);
+                        }}
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
                             <div className={cn(
                               "w-4 h-4 rounded-full border-2 flex items-center justify-center",
-                              selectedTemplate === template.name ? "border-primary" : "border-muted-foreground"
+                              selectedTemplate === template.name && selectedTemplateLanguage === (template.language || 'pt_BR') ? "border-primary" : "border-muted-foreground"
                             )}>
-                              {selectedTemplate === template.name && (
+                              {selectedTemplate === template.name && selectedTemplateLanguage === (template.language || 'pt_BR') && (
                                 <div className="w-2 h-2 rounded-full bg-primary" />
                               )}
                             </div>
@@ -1753,7 +1765,7 @@ export default function MassBroadcast() {
                           </Badge>
                         </div>
                         <p className="text-xs text-muted-foreground mt-1 ml-6">
-                          {isMarketing ? formatCurrency(COST_MARKETING) : formatCurrency(COST_UTILITY)} por msg
+                          {template.language || 'pt_BR'} · {isMarketing ? formatCurrency(COST_MARKETING) : formatCurrency(COST_UTILITY)} por msg
                         </p>
                       </div>
                     );
