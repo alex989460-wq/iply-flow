@@ -1647,8 +1647,10 @@ Deno.serve(async (req) => {
     }
 
     if (action === "list-channels") {
-      results.channels = await crmFetch("/api/public/v1/channels", { method: "GET", apiKey });
+      const listed = await crmFetch("/api/public/v1/channels", { method: "GET", apiKey });
+      results.channels = await enrichChannelsWithMetaNumbers(listed, apiKey);
     }
+
 
     if (action === "create-channel") {
       const payload = (data?.channel as Record<string, unknown>) || {};
