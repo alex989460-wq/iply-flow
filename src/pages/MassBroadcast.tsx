@@ -31,6 +31,7 @@ import {
   Ban
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { normalizeWhatsAppPhone } from '@/lib/phone';
 import { BroadcastProgressModal, BroadcastResult } from '@/components/broadcast/BroadcastProgressModal';
 
 interface Customer {
@@ -509,7 +510,12 @@ export default function MassBroadcast() {
     const timer = setTimeout(async () => {
       setIsCheckingAlreadySent(true);
       try {
-        const uniquePhones = [...new Set(getSelectedCustomersList.map(c => String(c.phone || '').replace(/\D/g, '')))].filter(Boolean);
+        const uniquePhones = [...new Set(getSelectedCustomersList.flatMap((customer) => {
+          const normalized = normalizeWhatsAppPhone(customer.phone);
+          return normalized.startsWith('55') && normalized.length >= 12
+            ? [normalized, normalized.slice(2)]
+            : [normalized];
+        }))].filter(Boolean);
         const CHUNK_SIZE = 400;
         const chunks: string[][] = [];
         for (let i = 0; i < uniquePhones.length; i += CHUNK_SIZE) {
@@ -789,6 +795,7 @@ export default function MassBroadcast() {
             template_language: selectedTemplateInfo?.language || selectedTemplateLanguage || 'pt_BR',
             phone_number_id: selectedTemplateInfo?.phone_number_id || senderPhoneId || undefined,
             campaign_id: campaignIdRef.current || undefined,
+            audience_mode: audienceMode,
           },
         });
         if (res.error) throw new Error(res.error.message);
