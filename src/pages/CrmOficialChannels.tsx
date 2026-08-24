@@ -71,7 +71,7 @@ function normalizeChannelLists(body: any) {
       : body?.webchat
         ? [body.webchat]
         : [];
-  const whatsapp = whats.map((c: any, index: number) => {
+  const normalized = whats.map((c: any, index: number) => {
     const rawKind = String(c.kind || c.type || 'whatsapp_cloud').toLowerCase();
     const phoneId = pickString(c.phone_number_id, c.phoneNumberId);
     // Ter Phone Number ID = canal oficial da Meta, mesmo que venha com outros campos.
@@ -105,6 +105,20 @@ function normalizeChannelLists(body: any) {
         : Boolean(c.is_active ?? c.active ?? c.connected ?? c.primary),
     };
   }) as WhatsAppChannel[];
+
+  const digits = (value?: string) => String(value || '').replace(/\D/g, '');
+  const officialPhones = normalized
+    .filter((channel) => channel.kind === 'whatsapp_cloud' && channel.phone_number_id)
+    .map((channel) => digits(channel.display_phone_number || channel.phone_number))
+    .filter((phone) => phone.length >= 10);
+  const whatsapp = normalized.filter((channel) => {
+    if (channel.kind !== 'whatsapp_evolution') return true;
+    const phone = digits(channel.display_phone_number || channel.phone_number);
+    if (phone.length < 10) return true;
+    return !officialPhones.some((officialPhone) =>
+      officialPhone === phone || officialPhone.endsWith(phone.slice(-10)) || phone.endsWith(officialPhone.slice(-10)),
+    );
+  });
 
   return { whatsapp: whatsapp.sort((a, b) => Number(!!b.primary || !!b.is_primary) - Number(!!a.primary || !!a.is_primary)), webchat: webRaw[0] || null };
 }
