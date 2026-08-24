@@ -418,10 +418,17 @@ async function processBroadcastBatch(args: {
     ...(sendResult.messageId ? { wa_message_id: sendResult.messageId } : {}),
   }));
 
+  // Deduplica por (phone_normalized, template_name): o Postgres nao aceita
+  // afetar a mesma linha duas vezes no mesmo ON CONFLICT.
+  const dedupedRows = Array.from(
+    new Map(broadcastRows.map((row) => [`${row.phone_normalized}|${row.template_name}`, row])).values(),
+  );
+
   const { error: broadcastError } = await supabase
     .from('broadcast_logs')
-    .upsert(broadcastRows, { onConflict: 'phone_normalized,template_name' });
+    .upsert(dedupedRows, { onConflict: 'phone_normalized,template_name' });
   if (broadcastError) console.error('Error upserting broadcast logs (batch):', broadcastError);
+
 
   const sent = results.filter((r) => r.sendResult.success).length;
   const errors = results.length - sent;
