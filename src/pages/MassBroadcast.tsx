@@ -132,6 +132,8 @@ export default function MassBroadcast() {
   const [overdueMax, setOverdueMax] = useState<string>('300');
   // 'new' = só quem nunca recebeu | 'all' = todos | 'already' = só quem já recebeu
   const [audienceMode, setAudienceMode] = useState<'new' | 'all' | 'already'>('new');
+  const [campaignName, setCampaignName] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
 
 
 
