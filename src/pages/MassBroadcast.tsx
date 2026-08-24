@@ -141,8 +141,24 @@ export default function MassBroadcast() {
   const realtimeResultsRef = useRef<Map<string, BroadcastResult>>(new Map());
   const cancelSendRef = useRef(false);
   const completeRef = useRef(false);
+  const campaignIdRef = useRef<string | null>(null);
 
   const recomputeRef = useRef<() => void>(() => {});
+
+  // Histórico de campanhas de disparo
+  const { data: campaigns = [], isLoading: isLoadingCampaigns } = useQuery({
+    queryKey: ['broadcast-campaigns'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('broadcast_campaigns' as any)
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+  });
+
 
   // Templates from API
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
