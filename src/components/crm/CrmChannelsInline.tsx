@@ -55,7 +55,8 @@ function normalize(body: any): WAChannel[] {
       );
       const phone = rawPhone && rawPhone.replace(/\D/g, '').length <= 15 ? rawPhone : '';
       const kind = String(c.kind || c.type || 'whatsapp_cloud').toLowerCase();
-      const official = !(kind.includes('evolution') || kind.includes('baileys') || !!c.evolution_instance_name || !!c.evolution_status);
+      // Ter Phone Number ID = canal oficial da Meta (nunca tratar como Evolution).
+      const official = !!phoneId || !(kind.includes('evolution') || kind.includes('baileys') || !!c.evolution_instance_name || !!c.evolution_status);
       return {
         official,
         instance_name: pick(c.evolution_instance_name, c.instance_name, c.instance),
