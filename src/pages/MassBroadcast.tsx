@@ -630,9 +630,12 @@ export default function MassBroadcast() {
           customer_ids: allCustomerIds,
           template_name: templateName,
           audience_mode: audienceMode,
+          campaign_name: campaignName || `Disparo ${templateName}`,
+          phone_number_id: senderPhoneId || undefined,
         },
 
       });
+
 
       if (startResponse.error) throw new Error(startResponse.error.message);
 
