@@ -779,12 +779,14 @@ async function fetchOfficialTemplate(templateName: string, language: string, api
   const pick = async (matches: any[]) => {
     if (!matches.length) return null;
     for (const m of matches) await writeTemplateCache(templateName, m);
-    const langHit = matches.find((t: any) => {
-      const lang = String(t?.language || t?.language_code || t?.lang || "");
-      return !language || lang === language;
-    }) || matches.find((t: any) => String(t?.status || "").toUpperCase() === "APPROVED") || matches[0];
-    return langHit;
+    const norm = (l: unknown) => String(l || "").toLowerCase().replace(/-/g, "_");
+    const langOf = (t: any) => norm(t?.language || t?.language_code || t?.lang);
+    const approved = matches.filter((t: any) => String(t?.status || "").toUpperCase() === "APPROVED");
+    const pool = approved.length ? approved : matches;
+    const exact = language ? pool.find((t: any) => langOf(t) === norm(language)) : null;
+    return exact || pool[0];
   };
+
 
   // A Graph API da Meta é a fonte da verdade do idioma/estrutura do template.
   // A listagem do CRM às vezes devolve metadados de idioma errados (ex.: "en"),
