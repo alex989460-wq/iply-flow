@@ -1226,14 +1226,25 @@ async function doSendWhatsapp(payload: {
     }
 
 
+    // Mostra o motivo REAL devolvido pela Meta/CRM (rate limit, template pausado,
+    // idioma inexistente, canal sem token...) em vez da mensagem genérica.
+    const rawAttempts = JSON.stringify(attemptsSummary || []);
+    const realReason =
+      /80007|80008|rate limit/i.test(rawAttempts) ? "Limite de envio da Meta atingido (rate limit). Reduza a cadência do disparo." :
+      /132001|does not exist in the translation/i.test(rawAttempts) ? `Template "${payload.template_name}" não existe no idioma ${lang} na Meta.` :
+      /132015|PAUSED|paused/i.test(rawAttempts) ? `Template "${payload.template_name}" está pausado/reprovado na Meta.` :
+      /não configurado no CRM|phone_number_id|channel/i.test(rawAttempts) ? "Canal WhatsApp Oficial sem phone_number_id/token válido no CRM." :
+      "Nenhum endpoint de template do CRM Oficial respondeu com sucesso.";
+
     return {
       ok: false,
       status: templateResult.status || 502,
       body: {
-        error: "Nenhum endpoint de template do CRM Oficial respondeu com sucesso. Peça ao dev do CRM para confirmar /api/public/v1/whatsapp-template-send (envio de template Meta com header/imagem/botões).",
+        error: `${realReason} (template: ${payload.template_name} · idioma: ${lang})`,
         attempts: attemptsSummary,
       },
     };
+
 
   }
 
