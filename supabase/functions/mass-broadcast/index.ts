@@ -225,12 +225,14 @@ async function startBroadcastPlan(args: {
     if (error) console.error('Error inserting duplicate skip logs:', error);
   }
 
+  const skipReason = audienceMode === 'already' ? 'ainda não recebeu este template' : 'já enviado anteriormente';
+
   if (alreadySentCustomers.length > 0) {
     const { error } = await supabase.from('billing_logs').insert(
       alreadySentCustomers.map((customer) => ({
         customer_id: customer.id,
         billing_type: 'D0' as any,
-        message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName} - IGNORADO (já enviado anteriormente)`,
+        message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName} - IGNORADO (${skipReason})`,
         whatsapp_status: 'skipped',
       }))
     );
@@ -243,8 +245,9 @@ async function startBroadcastPlan(args: {
       customer: c.name,
       phone: c.phone,
       status: 'skipped' as const,
-      error: 'Já enviado anteriormente',
+      error: audienceMode === 'already' ? 'Ainda não recebeu este template' : 'Já enviado anteriormente',
     })),
+
     ...duplicateCustomers.map((c) => ({
       customer: c.name,
       phone: c.phone,
