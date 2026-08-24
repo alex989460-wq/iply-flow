@@ -350,8 +350,21 @@ async function enrichChannelsWithMetaNumbers(listed: any, apiKey?: string) {
     for (const row of rows || []) {
       const phoneId = row?.phone_number_id || row?.phoneNumberId;
       if (!phoneId || listedOfficialIds.has(String(phoneId))) continue;
-      const { system_user_token: _secretToken, ...safeRow } = row;
-      arr.push({ ...safeRow, kind: "whatsapp_cloud", phone_number_id: String(phoneId) });
+      arr.push({
+        id: row?.id || String(phoneId),
+        kind: "whatsapp_cloud",
+        name: row?.name,
+        verified_name: row?.verified_name,
+        display_phone_number: row?.display_phone_number,
+        phone_number: row?.phone_number,
+        phone_number_id: String(phoneId),
+        waba_id: row?.waba_id,
+        quality_rating: row?.quality_rating,
+        avatar_url: row?.avatar_url,
+        is_active: row?.is_active,
+        primary: row?.primary,
+        is_primary: row?.is_primary,
+      });
       listedOfficialIds.add(String(phoneId));
     }
 
