@@ -392,8 +392,8 @@ export default function MassBroadcast() {
       if (!customer.server_id || !selectedServers.has(customer.server_id)) return false;
       return matchesFilters(customer);
     });
+  }, [customers, selectedServers, matchesFilters]);
 
-  }, [customers, selectedServers, statusFilter]);
 
   // Telefones que possuem pelo menos um cliente ATIVO (status ativa e vencimento em dia)
   const activePhones = useMemo(() => {
