@@ -1224,38 +1224,17 @@ export default function MassBroadcast() {
                     ) : (
                       servers.map(server => {
                         const serverCustomers = customers.filter(c => c.server_id === server.id);
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
-                        const firstDayCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-                        
-                        // Count based on current filter
-                        const filteredCount = serverCustomers.filter(customer => {
-                          if (statusFilter === 'ativa') return customer.status === 'ativa';
-                          if (statusFilter === 'inativa') return customer.status === 'inativa';
-                          if (statusFilter === 'vencidos') {
-                            const dueDate = new Date(customer.due_date);
-                            dueDate.setHours(0, 0, 0, 0);
-                            return dueDate < today;
-                          }
-                          if (statusFilter === 'vencidos_mes_anterior') {
-                            const dueDate = new Date(customer.due_date);
-                            dueDate.setHours(0, 0, 0, 0);
-                            return dueDate < firstDayCurrentMonth;
-                          }
-                          if (statusFilter === 'ativos') {
-                            const dueDate = new Date(customer.due_date);
-                            dueDate.setHours(0, 0, 0, 0);
-                            return dueDate >= today;
-                          }
-                          return true;
-                        }).length;
+                        const filteredCount = serverCustomers.filter(matchesFilters).length;
 
-                        const filterLabel = statusFilter === 'all' ? '' : 
+                        const filterLabel = overdueSegmentEnabled
+                          ? ` (${overdueRange.min}-${overdueRange.max}d vencidos)`
+                          : statusFilter === 'all' ? '' :
                           statusFilter === 'ativa' ? ' ativos' :
                           statusFilter === 'inativa' ? ' inativos' :
                           statusFilter === 'vencidos' ? ' vencidos' :
                           statusFilter === 'vencidos_mes_anterior' ? ' vencidos mês ant.' :
                           statusFilter === 'ativos' ? ' em dia' : '';
+
 
                         return (
                           <div
