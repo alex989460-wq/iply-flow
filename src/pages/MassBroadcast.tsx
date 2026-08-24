@@ -627,7 +627,9 @@ export default function MassBroadcast() {
           action: 'start',
           customer_ids: allCustomerIds,
           template_name: templateName,
+          audience_mode: audienceMode,
         },
+
       });
 
       if (startResponse.error) throw new Error(startResponse.error.message);
