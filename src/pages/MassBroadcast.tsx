@@ -718,6 +718,7 @@ export default function MassBroadcast() {
             customer_ids: batch,
             template_name: templateName,
             phone_number_id: senderPhoneId || undefined,
+            campaign_id: campaignIdRef.current || undefined,
           },
         });
         if (res.error) throw new Error(res.error.message);
