@@ -1174,10 +1174,11 @@ async function doSendWhatsapp(payload: {
         const db = templateCacheClient();
         if (db) await db.from("meta_template_cache").delete().eq("name", String(payload.template_name)).eq("language", String(lang));
       } catch { /* best effort */ }
-      const tried = new Set<string>([String(lang)]);
-      const fallbackLangs = [resolvedLang, "pt_BR", "pt_PT", "pt", "en_US", "en", "es"].filter((l) => {
-        if (!l || tried.has(l)) return false;
-        tried.add(l);
+      const tried = new Set<string>([normLang(lang)]);
+      const fallbackLangs = [resolvedLang, String(requestedLang), "pt_BR", "pt_PT", "pt", "en_US", "en", "es"].filter((l) => {
+        if (!l || tried.has(normLang(l))) return false;
+        tried.add(normLang(l));
+
         return true;
       });
 
