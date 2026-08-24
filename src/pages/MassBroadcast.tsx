@@ -129,6 +129,7 @@ export default function MassBroadcast() {
   const [activeBroadcast, setActiveBroadcast] = useState<ActiveBroadcast | null>(null);
   const [alreadySentCount, setAlreadySentCount] = useState(0);
   const [senderPhoneId, setSenderPhoneId] = useState<string>('');
+  const senderTouchedRef = useRef(false);
   const [isCheckingAlreadySent, setIsCheckingAlreadySent] = useState(false);
   const [excludeActivePhones, setExcludeActivePhones] = useState(false);
   const [overdueSegmentEnabled, setOverdueSegmentEnabled] = useState(false);
@@ -706,7 +707,7 @@ export default function MassBroadcast() {
           template_language: selectedTemplateInfo?.language || selectedTemplateLanguage || 'pt_BR',
           audience_mode: audienceMode,
           campaign_name: campaignName || `Disparo ${templateName}`,
-          phone_number_id: selectedTemplateInfo?.phone_number_id || senderPhoneId || undefined,
+          phone_number_id: senderPhoneId || selectedTemplateInfo?.phone_number_id || undefined,
         },
 
       });
@@ -793,7 +794,7 @@ export default function MassBroadcast() {
             customer_ids: batch,
             template_name: templateName,
             template_language: selectedTemplateInfo?.language || selectedTemplateLanguage || 'pt_BR',
-            phone_number_id: selectedTemplateInfo?.phone_number_id || senderPhoneId || undefined,
+            phone_number_id: senderPhoneId || selectedTemplateInfo?.phone_number_id || undefined,
             campaign_id: campaignIdRef.current || undefined,
             audience_mode: audienceMode,
           },
@@ -1538,7 +1539,7 @@ export default function MassBroadcast() {
                         <button
                           key={n.id}
                           type="button"
-                          onClick={() => setSenderPhoneId(n.id)}
+                          onClick={() => { senderTouchedRef.current = true; setSenderPhoneId(n.id); }}
                           className={cn(
                             'w-full text-left rounded-xl border p-3 transition-all',
                             active
@@ -1757,7 +1758,7 @@ export default function MassBroadcast() {
                         onClick={() => {
                           setSelectedTemplate(template.name);
                           setSelectedTemplateLanguage(template.language || 'pt_BR');
-                          if (template.phone_number_id) setSenderPhoneId(template.phone_number_id);
+                          if (template.phone_number_id && !senderTouchedRef.current) setSenderPhoneId(template.phone_number_id);
                         }}
                       >
                         <div className="flex items-center justify-between gap-2">
