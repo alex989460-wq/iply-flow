@@ -641,24 +641,34 @@ export default function MassBroadcast() {
 
       const initialResults: BroadcastResult[] = startData.initial_results || [];
       const queueCustomerIds: string[] = startData.queue_customer_ids || [];
+      campaignIdRef.current = startData.campaign_id || null;
 
       initialResultsRef.current = initialResults;
+
+      // A barra considera apenas quem realmente vai receber (ignorados ficam de fora)
+      setActiveBroadcast({
+        templateName,
+        startedAtIso,
+        customerById,
+        total: queueCustomerIds.length,
+      });
 
       setBroadcastResults(initialResults);
       setBroadcastStats({
         sent: 0,
         errors: 0,
-        skipped: startData.skipped || 0,
+        skipped: 0,
       });
       setBroadcastReport({
-        total: customersToSend.length,
+        total: queueCustomerIds.length,
         sent: 0,
         errors: 0,
-        skipped: startData.skipped || 0,
+        skipped: 0,
         details: initialResults,
         templateName,
         startedAt,
       });
+
 
       const alreadySentCount = startData.already_sent || 0;
       const duplicatesCount = startData.duplicates || 0;
