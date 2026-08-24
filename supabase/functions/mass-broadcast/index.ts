@@ -628,6 +628,20 @@ Deno.serve(async (req) => {
     // Get fallback zapToken from env
     const zapTokenEnv = Deno.env.get('ZAP_RESPONDER_TOKEN') || '';
 
+    if (action === 'finish') {
+      const campaignId = String((body as any).campaign_id || '');
+      if (campaignId) {
+        await supabase
+          .from('broadcast_campaigns')
+          .update({ finished_at: new Date().toISOString() })
+          .eq('id', campaignId)
+          .eq('owner_id', userId);
+      }
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     if (action === 'start') {
       console.log(`Starting broadcast plan: customers=${customer_ids.length}, template=${template_name}`);
 
@@ -637,6 +651,10 @@ Deno.serve(async (req) => {
         customerIds: customer_ids,
         templateName: template_name,
         audienceMode: ((body as any).audience_mode as 'new' | 'all' | 'already') || 'new',
+        ownerId: userId,
+        campaignName: (body as any).campaign_name || null,
+        phoneNumberId: (body as any).phone_number_id || null,
+        logSkips: (body as any).log_skips === true,
       });
 
 
@@ -658,6 +676,7 @@ Deno.serve(async (req) => {
         userId,
         isAdmin: isAdminUser,
         phoneNumberId: (body as any).phone_number_id || null,
+        campaignId: (body as any).campaign_id || null,
       });
 
       return new Response(JSON.stringify(batched.body), {
@@ -665,6 +684,7 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
 
     // Legacy mode (kept for compatibility)
     console.log(`Starting legacy mass broadcast: customers=${customer_ids.length}, template=${template_name}`);
