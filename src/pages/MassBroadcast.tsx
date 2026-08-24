@@ -1281,8 +1281,16 @@ export default function MassBroadcast() {
                           />
                           <div className="flex-1 min-w-0">
                             <p className="font-medium truncate">{customer.name}</p>
-                            <p className="text-sm text-muted-foreground">{customer.phone}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {customer.phone}
+                              {daysOverdueOf(customer.due_date) > 0 && (
+                                <span className="ml-2 text-destructive">
+                                  · {daysOverdueOf(customer.due_date)}d vencido
+                                </span>
+                              )}
+                            </p>
                           </div>
+
                           <div className="text-right">
                             {getStatusBadge(customer)}
                             {customer.servers && (
