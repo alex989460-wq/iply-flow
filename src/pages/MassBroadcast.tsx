@@ -766,6 +766,14 @@ export default function MassBroadcast() {
       setBroadcastReport((prev) => (prev ? { ...prev, completedAt: new Date() } : prev));
       queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
 
+      if (campaignIdRef.current) {
+        await supabase.functions.invoke('mass-broadcast', {
+          body: { action: 'finish', campaign_id: campaignIdRef.current },
+        }).catch(() => null);
+        queryClient.invalidateQueries({ queryKey: ['broadcast-campaigns'] });
+      }
+
+
       if (lastError) {
         toast({
           title: 'Disparo finalizado com falhas',
