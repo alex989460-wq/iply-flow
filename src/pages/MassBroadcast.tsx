@@ -107,6 +107,10 @@ export default function MassBroadcast() {
   const [senderPhoneId, setSenderPhoneId] = useState<string>('');
   const [isCheckingAlreadySent, setIsCheckingAlreadySent] = useState(false);
   const [excludeActivePhones, setExcludeActivePhones] = useState(false);
+  const [overdueSegmentEnabled, setOverdueSegmentEnabled] = useState(false);
+  const [overdueMin, setOverdueMin] = useState<string>('30');
+  const [overdueMax, setOverdueMax] = useState<string>('300');
+
 
   const initialResultsRef = useRef<BroadcastResult[]>([]);
   const realtimeResultsRef = useRef<Map<string, BroadcastResult>>(new Map());
