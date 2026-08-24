@@ -333,10 +333,18 @@ async function enrichChannelsWithMetaNumbers(listed: any, apiKey?: string) {
             : [];
 
     const { accessToken } = await getCrmOwnerSession(apiKey);
-    const rows = await crmRest(
-      `channels?select=*&kind=eq.whatsapp_cloud`,
-      accessToken,
-    ) as any[];
+    // Busca TODOS os canais internos: números em coexistência podem estar
+    // gravados com outro "kind" (ex.: whatsapp_coexistence) mas continuam
+    // sendo oficiais da Meta porque possuem phone_number_id.
+    const allRows = await crmRest(`channels?select=*`, accessToken) as any[];
+    const rows = (allRows || []).filter((r: any) => !!(r?.phone_number_id || r?.phoneNumberId));
+
+    const digits = (v: unknown) => String(v || "").replace(/\D/g, "");
+    const sameNumber = (a: unknown, b: unknown) => {
+      const x = digits(a), y = digits(b);
+      if (x.length < 10 || y.length < 10) return false;
+      return x === y || x.endsWith(y.slice(-10)) || y.endsWith(x.slice(-10));
+    };
 
     // A rota pública do CRM pode omitir o canal Cloud e devolver apenas a
     // instância QR ligada ao mesmo telefone. Recoloca os canais oficiais da
@@ -348,16 +356,38 @@ async function enrichChannelsWithMetaNumbers(listed: any, apiKey?: string) {
         .map(String),
     );
     for (const row of rows || []) {
-      const phoneId = row?.phone_number_id || row?.phoneNumberId;
-      if (!phoneId || listedOfficialIds.has(String(phoneId))) continue;
+      const phoneId = String(row?.phone_number_id || row?.phoneNumberId);
+      if (!phoneId || listedOfficialIds.has(phoneId)) continue;
+
+      const rowPhone = row?.display_phone_number || row?.phone_number;
+      // Se o mesmo número já veio na listagem pública (como QR/Evolution),
+      // promove aquele registro a oficial em vez de duplicar o cartão.
+      const existing = arr.find((c) =>
+        sameNumber(c?.display_phone_number || c?.phone_number || c?.phone, rowPhone) ||
+        String(c?.name || "").trim().toLowerCase() === String(row?.name || "").trim().toLowerCase(),
+      );
+      if (existing) {
+        existing.kind = "whatsapp_cloud";
+        existing.type = "whatsapp_cloud";
+        existing.phone_number_id = phoneId;
+        existing.waba_id = row?.waba_id ?? existing.waba_id;
+        existing.verified_name = row?.verified_name || existing.verified_name;
+        existing.display_phone_number = rowPhone || existing.display_phone_number;
+        existing.quality_rating = row?.quality_rating || existing.quality_rating;
+        delete existing.evolution_instance_name;
+        delete existing.evolution_status;
+        listedOfficialIds.add(phoneId);
+        continue;
+      }
+
       arr.push({
-        id: row?.id || String(phoneId),
+        id: row?.id || phoneId,
         kind: "whatsapp_cloud",
         name: row?.name,
         verified_name: row?.verified_name,
         display_phone_number: row?.display_phone_number,
         phone_number: row?.phone_number,
-        phone_number_id: String(phoneId),
+        phone_number_id: phoneId,
         waba_id: row?.waba_id,
         quality_rating: row?.quality_rating,
         avatar_url: row?.avatar_url,
@@ -365,8 +395,9 @@ async function enrichChannelsWithMetaNumbers(listed: any, apiKey?: string) {
         primary: row?.primary,
         is_primary: row?.is_primary,
       });
-      listedOfficialIds.add(String(phoneId));
+      listedOfficialIds.add(phoneId);
     }
+
 
     if (!arr.length) return listed;
 
