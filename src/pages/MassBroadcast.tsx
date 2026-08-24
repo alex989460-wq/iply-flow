@@ -483,7 +483,11 @@ export default function MassBroadcast() {
   // Calculate estimated cost based on template category
   const estimatedCost = useMemo(() => {
     const count = getSelectedCustomersList.length;
-    const effectiveCount = Math.max(0, count - alreadySentCount);
+    const effectiveCount = audienceMode === 'all'
+      ? count
+      : audienceMode === 'already'
+        ? Math.min(count, alreadySentCount)
+        : Math.max(0, count - alreadySentCount);
     const isMarketing = selectedTemplateInfo?.category?.toUpperCase() === 'MARKETING';
     const costPerMessage = isMarketing ? COST_MARKETING : COST_UTILITY;
 
@@ -499,7 +503,8 @@ export default function MassBroadcast() {
       costPerMessage,
       alreadySent: alreadySentCount,
     };
-  }, [getSelectedCustomersList, batchSize, batchIntervalSeconds, selectedTemplateInfo, alreadySentCount]);
+  }, [getSelectedCustomersList, batchSize, batchIntervalSeconds, selectedTemplateInfo, alreadySentCount, audienceMode]);
+
 
   // Toggle customer selection
   const toggleCustomer = (customerId: string) => {
