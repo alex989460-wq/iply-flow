@@ -96,8 +96,20 @@ async function sendWhatsAppTemplate(
     );
 
     let response = await invokeTemplate(phoneNumberId);
-
     let result = await response.json().catch(() => ({}));
+
+    // Rate limit: aguarda o tempo indicado pela Meta e tenta novamente (até 3x)
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const errText = String(result?.send?.body?.error || result?.error || '');
+      const waitMs = (!response.ok || result?.success === false) ? parseRetryAfterMs(errText) : null;
+      if (waitMs == null) break;
+      const capped = Math.min(waitMs + 1500, 60000);
+      console.warn(`[CRM Oficial] Rate limit — aguardando ${capped}ms antes de reenviar (tentativa ${attempt + 1}/3)`);
+      await sleepMs(capped);
+      response = await invokeTemplate(phoneNumberId);
+      result = await response.json().catch(() => ({}));
+    }
+
     const initialError = String(result?.send?.body?.error || result?.error || '');
     if (
       phoneNumberId &&
@@ -112,6 +124,7 @@ async function sendWhatsAppTemplate(
       console.error(`[CRM Oficial] template error: ${response.status}`, result);
       return { success: false, error: (result?.send?.body?.error || result?.error || 'Falha ao enviar template') as string };
     }
+
 
     console.log(`[CRM Oficial] template "${templateName}" sent to ${formattedPhone}`);
     const messageId =
