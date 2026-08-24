@@ -130,6 +130,9 @@ export default function MassBroadcast() {
   const [overdueSegmentEnabled, setOverdueSegmentEnabled] = useState(false);
   const [overdueMin, setOverdueMin] = useState<string>('30');
   const [overdueMax, setOverdueMax] = useState<string>('300');
+  // 'new' = só quem nunca recebeu | 'all' = todos | 'already' = só quem já recebeu
+  const [audienceMode, setAudienceMode] = useState<'new' | 'all' | 'already'>('new');
+
 
 
   const initialResultsRef = useRef<BroadcastResult[]>([]);
@@ -480,7 +483,11 @@ export default function MassBroadcast() {
   // Calculate estimated cost based on template category
   const estimatedCost = useMemo(() => {
     const count = getSelectedCustomersList.length;
-    const effectiveCount = Math.max(0, count - alreadySentCount);
+    const effectiveCount = audienceMode === 'all'
+      ? count
+      : audienceMode === 'already'
+        ? Math.min(count, alreadySentCount)
+        : Math.max(0, count - alreadySentCount);
     const isMarketing = selectedTemplateInfo?.category?.toUpperCase() === 'MARKETING';
     const costPerMessage = isMarketing ? COST_MARKETING : COST_UTILITY;
 
@@ -496,7 +503,8 @@ export default function MassBroadcast() {
       costPerMessage,
       alreadySent: alreadySentCount,
     };
-  }, [getSelectedCustomersList, batchSize, batchIntervalSeconds, selectedTemplateInfo, alreadySentCount]);
+  }, [getSelectedCustomersList, batchSize, batchIntervalSeconds, selectedTemplateInfo, alreadySentCount, audienceMode]);
+
 
   // Toggle customer selection
   const toggleCustomer = (customerId: string) => {
@@ -619,7 +627,9 @@ export default function MassBroadcast() {
           action: 'start',
           customer_ids: allCustomerIds,
           template_name: templateName,
+          audience_mode: audienceMode,
         },
+
       });
 
       if (startResponse.error) throw new Error(startResponse.error.message);
@@ -1391,23 +1401,96 @@ export default function MassBroadcast() {
                     Nenhum número oficial encontrado. Cadastre um canal WhatsApp Cloud em Conexões.
                   </p>
                 ) : (
-                  <Select value={senderPhoneId} onValueChange={setSenderPhoneId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o número de envio" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {senderNumbers.map((n: any) => (
-                        <SelectItem key={n.id} value={n.id}>
-                          {n.label}{n.phone ? ` — ${n.phone}` : ''}{n.primary ? ' (principal)' : ''}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                    {senderNumbers.map((n: any) => {
+                      const active = senderPhoneId === n.id;
+                      return (
+                        <button
+                          key={n.id}
+                          type="button"
+                          onClick={() => setSenderPhoneId(n.id)}
+                          className={cn(
+                            'w-full text-left rounded-xl border p-3 transition-all',
+                            active
+                              ? 'border-primary bg-primary/10 shadow-sm'
+                              : 'border-border/60 bg-card hover:border-primary/40 hover:bg-accent/40',
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium text-sm truncate">{n.label}</span>
+                            {n.primary && (
+                              <Badge variant="secondary" className="text-[10px] shrink-0">Principal</Badge>
+                            )}
+                          </div>
+                          <div className="mt-1 flex items-center gap-2 text-xs">
+                            <Phone className="w-3 h-3 text-muted-foreground shrink-0" />
+                            <span className={cn('font-mono', n.phone ? 'text-foreground' : 'text-muted-foreground')}>
+                              {n.phone || 'Número não informado'}
+                            </span>
+                          </div>
+                          <p className="mt-0.5 text-[10px] text-muted-foreground font-mono truncate">ID {n.id}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+              </CardContent>
+            </Card>
+
+            {/* Público do disparo */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  Público do disparo
+                </CardTitle>
+                <CardDescription>
+                  Defina se quem já recebeu este template deve receber novamente
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {([
+                  { key: 'new', title: 'Somente novos', desc: 'Ignora quem já recebeu este template (padrão)' },
+                  { key: 'all', title: 'Todos (permitir reenvio)', desc: 'Envia também para quem já recebeu antes' },
+                  { key: 'already', title: 'Somente quem já recebeu', desc: 'Reengajamento de quem já foi impactado' },
+                ] as const).map((opt) => {
+                  const active = audienceMode === opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => setAudienceMode(opt.key)}
+                      className={cn(
+                        'w-full text-left rounded-xl border p-3 transition-all',
+                        active
+                          ? 'border-primary bg-primary/10 shadow-sm'
+                          : 'border-border/60 bg-card hover:border-primary/40 hover:bg-accent/40',
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={cn(
+                          'w-3.5 h-3.5 rounded-full border-2 shrink-0',
+                          active ? 'border-primary bg-primary' : 'border-muted-foreground/50',
+                        )} />
+                        <span className="text-sm font-medium">{opt.title}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1 pl-6">{opt.desc}</p>
+                    </button>
+                  );
+                })}
+                {selectedTemplate && (
+                  <p className="text-xs text-muted-foreground pt-1">
+                    {isCheckingAlreadySent
+                      ? 'Verificando histórico...'
+                      : `${alreadySentCount} da seleção já receberam "${selectedTemplate}".`}
+                  </p>
                 )}
               </CardContent>
             </Card>
 
             {/* Template Selection */}
+
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">

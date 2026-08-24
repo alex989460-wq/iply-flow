@@ -316,7 +316,72 @@ async function signupManagedCrmUser(userId: string, apiKey: string) {
   return res;
 }
 
+// Completa os canais oficiais com o número real (display_phone_number) direto da Meta.
+// O CRM às vezes devolve o canal sem o número ("Confirmando número...").
+async function enrichChannelsWithMetaNumbers(listed: any, apiKey?: string) {
+  try {
+    if (!listed?.ok) return listed;
+    const body = listed.body;
+    const arr: any[] = Array.isArray(body)
+      ? body
+      : Array.isArray(body?.channels)
+        ? body.channels
+        : Array.isArray(body?.whatsapp)
+          ? body.whatsapp
+          : Array.isArray(body?.data)
+            ? body.data
+            : [];
+    if (!arr.length) return listed;
+
+    const missing = arr.filter((c) => {
+      const kind = String(c?.kind || c?.type || "").toLowerCase();
+      if (kind.includes("evolution") || kind.includes("baileys")) return false;
+      const phone = c?.display_phone_number || c?.phone_number || c?.phone;
+      return !!c?.phone_number_id && !phone;
+    });
+    if (!missing.length) return listed;
+
+    const { accessToken } = await getCrmOwnerSession(apiKey);
+    const rows = await crmRest(
+      `channels?select=phone_number_id,system_user_token&kind=eq.whatsapp_cloud`,
+      accessToken,
+    ) as any[];
+    const tokenByPhoneId = new Map<string, string>();
+    for (const r of rows || []) {
+      if (r?.phone_number_id && r?.system_user_token) {
+        tokenByPhoneId.set(String(r.phone_number_id), String(r.system_user_token));
+      }
+    }
+    const fallbackToken = rows?.find((r: any) => r?.system_user_token)?.system_user_token;
+
+    await Promise.all(
+      missing.map(async (c) => {
+        const pid = String(c.phone_number_id);
+        const token = tokenByPhoneId.get(pid) || fallbackToken;
+        if (!token) return;
+        try {
+          const res = await fetch(
+            `https://graph.facebook.com/v21.0/${pid}?fields=display_phone_number,verified_name,quality_rating`,
+            { headers: { Authorization: `Bearer ${token}` } },
+          );
+          const meta = await res.json().catch(() => ({}));
+          if (!res.ok) return;
+          if (meta?.display_phone_number) c.display_phone_number = meta.display_phone_number;
+          if (meta?.verified_name && !c.verified_name) c.verified_name = meta.verified_name;
+          if (meta?.quality_rating && !c.quality_rating) c.quality_rating = meta.quality_rating;
+        } catch (_e) { /* ignora falha de enriquecimento */ }
+      }),
+    );
+
+    return listed;
+  } catch (e) {
+    console.error("[crm-oficial-sync] enrich channels:", e);
+    return listed;
+  }
+}
+
 async function directMetaMediaSend(args: {
+
   apiKey?: string;
   phone: string;
   name?: unknown;
@@ -1647,8 +1712,10 @@ Deno.serve(async (req) => {
     }
 
     if (action === "list-channels") {
-      results.channels = await crmFetch("/api/public/v1/channels", { method: "GET", apiKey });
+      const listed = await crmFetch("/api/public/v1/channels", { method: "GET", apiKey });
+      results.channels = await enrichChannelsWithMetaNumbers(listed, apiKey);
     }
+
 
     if (action === "create-channel") {
       const payload = (data?.channel as Record<string, unknown>) || {};

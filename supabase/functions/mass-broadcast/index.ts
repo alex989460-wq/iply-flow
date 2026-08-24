@@ -152,7 +152,10 @@ async function startBroadcastPlan(args: {
   supabaseServiceKey: string;
   customerIds: string[];
   templateName: string;
+  audienceMode?: 'new' | 'all' | 'already';
 }) {
+  const audienceMode = args.audienceMode || 'new';
+
   const supabase = createClient(args.supabaseUrl, args.supabaseServiceKey);
 
   // Fetch customers (chunked)
@@ -187,14 +190,21 @@ async function startBroadcastPlan(args: {
 
   for (const customer of customers as any[]) {
     const normalizedPhone = normalizePhone(customer.phone);
+    const received = alreadySentPhones.has(normalizedPhone);
 
-    if (alreadySentPhones.has(normalizedPhone)) {
+    // audienceMode:
+    //  - 'new'     => envia só para quem NUNCA recebeu este template (padrão)
+    //  - 'all'     => envia para todos, mesmo quem já recebeu
+    //  - 'already' => envia SOMENTE para quem já recebeu (reengajamento)
+    const shouldSend = audienceMode === 'all' ? true : audienceMode === 'already' ? received : !received;
+
+    if (!shouldSend) {
       alreadySentCustomers.push(customer);
     } else {
-      // Dedupe por telefone desativado: todo cliente selecionado é enviado.
       seenPhones.add(normalizedPhone);
       customersToSend.push(customer);
     }
+
   }
 
   console.log(
@@ -215,12 +225,14 @@ async function startBroadcastPlan(args: {
     if (error) console.error('Error inserting duplicate skip logs:', error);
   }
 
+  const skipReason = audienceMode === 'already' ? 'ainda não recebeu este template' : 'já enviado anteriormente';
+
   if (alreadySentCustomers.length > 0) {
     const { error } = await supabase.from('billing_logs').insert(
       alreadySentCustomers.map((customer) => ({
         customer_id: customer.id,
         billing_type: 'D0' as any,
-        message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName} - IGNORADO (já enviado anteriormente)`,
+        message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName} - IGNORADO (${skipReason})`,
         whatsapp_status: 'skipped',
       }))
     );
@@ -233,8 +245,9 @@ async function startBroadcastPlan(args: {
       customer: c.name,
       phone: c.phone,
       status: 'skipped' as const,
-      error: 'Já enviado anteriormente',
+      error: audienceMode === 'already' ? 'Ainda não recebeu este template' : 'Já enviado anteriormente',
     })),
+
     ...duplicateCustomers.map((c) => ({
       customer: c.name,
       phone: c.phone,
@@ -567,7 +580,9 @@ Deno.serve(async (req) => {
         supabaseServiceKey,
         customerIds: customer_ids,
         templateName: template_name,
+        audienceMode: ((body as any).audience_mode as 'new' | 'all' | 'already') || 'new',
       });
+
 
       return new Response(JSON.stringify(planned.body), {
         status: planned.status,
