@@ -1391,19 +1391,40 @@ export default function MassBroadcast() {
                     Nenhum número oficial encontrado. Cadastre um canal WhatsApp Cloud em Conexões.
                   </p>
                 ) : (
-                  <Select value={senderPhoneId} onValueChange={setSenderPhoneId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o número de envio" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {senderNumbers.map((n: any) => (
-                        <SelectItem key={n.id} value={n.id}>
-                          {n.label}{n.phone ? ` — ${n.phone}` : ''}{n.primary ? ' (principal)' : ''}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                    {senderNumbers.map((n: any) => {
+                      const active = senderPhoneId === n.id;
+                      return (
+                        <button
+                          key={n.id}
+                          type="button"
+                          onClick={() => setSenderPhoneId(n.id)}
+                          className={cn(
+                            'w-full text-left rounded-xl border p-3 transition-all',
+                            active
+                              ? 'border-primary bg-primary/10 shadow-sm'
+                              : 'border-border/60 bg-card hover:border-primary/40 hover:bg-accent/40',
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium text-sm truncate">{n.label}</span>
+                            {n.primary && (
+                              <Badge variant="secondary" className="text-[10px] shrink-0">Principal</Badge>
+                            )}
+                          </div>
+                          <div className="mt-1 flex items-center gap-2 text-xs">
+                            <Phone className="w-3 h-3 text-muted-foreground shrink-0" />
+                            <span className={cn('font-mono', n.phone ? 'text-foreground' : 'text-muted-foreground')}>
+                              {n.phone || 'Número não informado'}
+                            </span>
+                          </div>
+                          <p className="mt-0.5 text-[10px] text-muted-foreground font-mono truncate">ID {n.id}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
+
               </CardContent>
             </Card>
 
