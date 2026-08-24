@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-type BroadcastAction = 'start' | 'batch' | 'legacy';
+type BroadcastAction = 'start' | 'batch' | 'legacy' | 'finish';
 
 interface BroadcastRequestBase {
   action?: BroadcastAction;
