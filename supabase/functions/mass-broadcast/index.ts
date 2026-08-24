@@ -36,7 +36,15 @@ interface InitialResult {
 
 // Normalize phone number for comparison (remove non-digits)
 function normalizePhone(phone: string): string {
-  return phone.replace(/\D/g, '');
+  return normalizeWhatsAppPhone(phone);
+}
+
+function phoneAliases(phone: string): string[] {
+  const normalized = normalizePhone(phone);
+  if (!normalized) return [];
+  const aliases = new Set([normalized]);
+  if (normalized.startsWith('55') && normalized.length >= 12) aliases.add(normalized.slice(2));
+  return [...aliases];
 }
 
 function sleepMs(ms: number): Promise<void> {
@@ -175,10 +183,15 @@ async function fetchCustomersByIds(supabase: any, customerIds: string[]) {
   return { customers, error: null };
 }
 
-async function fetchAlreadySentPhones(supabase: any, templateName: string, phonesNormalized: string[]) {
+async function fetchAlreadySentPhones(
+  supabase: any,
+  templateName: string,
+  customers: Array<{ id: string; phone: string }>,
+) {
   const sentPhones = new Set<string>();
+  const aliases = [...new Set(customers.flatMap((customer) => phoneAliases(customer.phone)))];
 
-  for (const chunk of chunkArray(phonesNormalized, PHONE_CHUNK_SIZE)) {
+  for (const chunk of chunkArray(aliases, PHONE_CHUNK_SIZE)) {
     const { data, error } = await supabase
       .from('broadcast_logs')
       .select('phone_normalized')
@@ -189,7 +202,25 @@ async function fetchAlreadySentPhones(supabase: any, templateName: string, phone
     if (error) return { sentPhones: null as Set<string> | null, error };
 
     for (const row of data || []) {
-      sentPhones.add((row as any).phone_normalized);
+      for (const alias of phoneAliases((row as any).phone_normalized)) sentPhones.add(alias);
+    }
+  }
+
+  // Compatibilidade com disparos antigos, anteriores à criação de broadcast_logs.
+  // Esses envios eram registrados apenas em billing_logs.
+  for (const chunk of chunkArray(customers.map((customer) => customer.id), CUSTOMER_ID_CHUNK_SIZE)) {
+    const { data, error } = await supabase
+      .from('billing_logs')
+      .select('customer_id')
+      .in('customer_id', chunk)
+      .eq('whatsapp_status', 'sent')
+      .ilike('message', `%[BROADCAST]%Template: ${templateName}%`);
+
+    if (error) return { sentPhones: null as Set<string> | null, error };
+    const sentCustomerIds = new Set((data || []).map((row: any) => row.customer_id));
+    for (const customer of customers) {
+      if (!sentCustomerIds.has(customer.id)) continue;
+      for (const alias of phoneAliases(customer.phone)) sentPhones.add(alias);
     }
   }
 
@@ -219,14 +250,11 @@ async function startBroadcastPlan(args: {
     return { ok: false as const, status: 500, body: { error: 'Não foi possível processar o envio' } };
   }
 
-  // Get all normalized phones to check
-  const allNormalizedPhones = customers.map((c: any) => normalizePhone(c.phone));
-
   // Check broadcast_logs for already sent templates (chunked)
   const { sentPhones: alreadySentPhones, error: sentPhonesError } = await fetchAlreadySentPhones(
     supabase,
     args.templateName,
-    allNormalizedPhones
+    customers,
   );
 
   if (sentPhonesError || !alreadySentPhones) {
@@ -243,7 +271,7 @@ async function startBroadcastPlan(args: {
 
   for (const customer of customers as any[]) {
     const normalizedPhone = normalizePhone(customer.phone);
-    const received = alreadySentPhones.has(normalizedPhone);
+    const received = phoneAliases(customer.phone).some((alias) => alreadySentPhones.has(alias));
 
     // Um mesmo telefone pode existir em mais de um cadastro. Nunca coloque o
     // número duas vezes na fila do mesmo disparo.
@@ -368,6 +396,7 @@ async function processBroadcastBatch(args: {
   isAdmin?: boolean;
   phoneNumberId?: string | null;
   campaignId?: string | null;
+  audienceMode?: 'new' | 'all' | 'already';
 }) {
   const supabase = createClient(args.supabaseUrl, args.supabaseServiceKey);
 
@@ -445,14 +474,16 @@ async function processBroadcastBatch(args: {
 
     const { data: existing } = await supabase
       .from('broadcast_logs')
-      .select('id, last_status, updated_at')
-      .eq('phone_normalized', normalizedPhone)
+      .select('id, last_status, updated_at, campaign_id')
+      .in('phone_normalized', phoneAliases(customer.phone))
       .eq('template_name', args.templateName)
       .maybeSingle();
 
     const processingRecently = existing?.last_status === 'processing' &&
       Date.now() - new Date(existing.updated_at || 0).getTime() < 15 * 60 * 1000;
-    if (existing?.last_status === 'sent' || processingRecently) {
+    const sentInSameCampaign = existing?.last_status === 'sent' && existing?.campaign_id === args.campaignId;
+    const previouslySentInNewMode = existing?.last_status === 'sent' && (args.audienceMode || 'new') === 'new';
+    if (sentInSameCampaign || previouslySentInNewMode || processingRecently) {
       skippedCustomers.push(customer);
       continue;
     }
@@ -837,6 +868,7 @@ Deno.serve(async (req) => {
         isAdmin: isAdminUser,
         phoneNumberId: (body as any).phone_number_id || null,
         campaignId: (body as any).campaign_id || null,
+        audienceMode: ((body as any).audience_mode as 'new' | 'all' | 'already') || 'new',
       });
 
       return new Response(JSON.stringify(batched.body), {
@@ -863,12 +895,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const allNormalizedPhones = (customers as any[]).map((c) => normalizePhone(c.phone));
-
     const { sentPhones: alreadySentPhones, error: sentPhonesError } = await fetchAlreadySentPhones(
       supabase,
       template_name,
-      allNormalizedPhones
+      customers,
     );
 
     if (sentPhonesError || !alreadySentPhones) {
@@ -887,7 +917,7 @@ Deno.serve(async (req) => {
     for (const customer of customers as any[]) {
       const normalizedPhone = normalizePhone(customer.phone);
 
-      if (alreadySentPhones.has(normalizedPhone)) {
+      if (phoneAliases(customer.phone).some((alias) => alreadySentPhones.has(alias))) {
         alreadySentCustomers.push(customer);
       } else {
         // Dedupe por telefone desativado.
