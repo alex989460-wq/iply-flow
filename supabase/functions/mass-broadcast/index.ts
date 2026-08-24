@@ -394,11 +394,12 @@ async function processBroadcastBatch(args: {
   if (!args.userId) {
     return { ok: false as const, status: 400, body: { error: 'Usuário não identificado para o envio.' } };
   }
+  const userId = args.userId;
 
   const { data: crmSettings, error: crmErr } = await supabase
     .from('crm_oficial_settings')
     .select('enabled, api_key')
-    .eq('user_id', args.userId)
+    .eq('user_id', userId)
     .maybeSingle();
 
   if (crmErr) {
@@ -444,12 +445,14 @@ async function processBroadcastBatch(args: {
 
     const { data: existing } = await supabase
       .from('broadcast_logs')
-      .select('id, last_status')
+      .select('id, last_status, updated_at')
       .eq('phone_normalized', normalizedPhone)
       .eq('template_name', args.templateName)
       .maybeSingle();
 
-    if (existing?.last_status === 'sent' || existing?.last_status === 'processing') {
+    const processingRecently = existing?.last_status === 'processing' &&
+      Date.now() - new Date(existing.updated_at || 0).getTime() < 15 * 60 * 1000;
+    if (existing?.last_status === 'sent' || processingRecently) {
       skippedCustomers.push(customer);
       continue;
     }
@@ -507,7 +510,7 @@ async function processBroadcastBatch(args: {
         args.templateLanguage,
         '',
         '',
-        args.userId,
+        userId,
         args.phoneNumberId || null,
         customer.name,
       );
