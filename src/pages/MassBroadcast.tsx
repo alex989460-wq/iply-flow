@@ -117,8 +117,9 @@ export default function MassBroadcast() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sendingProgress, setSendingProgress] = useState(0);
   const [isSending, setIsSending] = useState(false);
-  const [batchSize, setBatchSize] = useState(8);
-  const [batchIntervalSeconds, setBatchIntervalSeconds] = useState(3);
+  const [batchSize, setBatchSize] = useState(30);
+  const [batchIntervalSeconds, setBatchIntervalSeconds] = useState(1);
+
   const [broadcastReport, setBroadcastReport] = useState<BroadcastReportData | null>(null);
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [broadcastResults, setBroadcastResults] = useState<BroadcastResult[]>([]);
