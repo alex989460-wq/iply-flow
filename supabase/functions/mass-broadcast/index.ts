@@ -420,28 +420,43 @@ async function processBroadcastBatch(args: {
 
   const nowIso = new Date().toISOString();
 
-  // Envio sequencial com espaçamento: evita rajadas que estouram o rate limit da Meta.
-  const SEND_GAP_MS = 400;
-  const results: Array<{ customer: any; normalizedPhone: string; sendResult: any }> = [];
-  for (let i = 0; i < (customers as any[]).length; i++) {
-    const customer = (customers as any[])[i];
-    if (i > 0) await sleepMs(SEND_GAP_MS);
-    const sendResult = await sendWhatsAppTemplate(
-      customer.phone,
-      args.templateName,
-      args.templateLanguage,
-      '',
-      '',
-      args.userId!,
-      args.phoneNumberId || null,
-      customer.name,
-    );
-    results.push({
-      customer,
-      normalizedPhone: normalizePhone(customer.phone),
-      sendResult,
-    });
-  }
+  // Envio com paralelismo controlado: rápido, mas sem rajadas que estouram o rate limit.
+  const SEND_CONCURRENCY = 6;
+  const SEND_GAP_MS = 80;
+  const list = customers as any[];
+  const results: Array<{ customer: any; normalizedPhone: string; sendResult: any }> = new Array(list.length);
+
+  let cursor = 0;
+  const worker = async (slot: number) => {
+    // pequeno escalonamento inicial para não disparar 6 requests no mesmo instante
+    if (slot > 0) await sleepMs(slot * SEND_GAP_MS);
+    while (true) {
+      const i = cursor++;
+      if (i >= list.length) break;
+      const customer = list[i];
+      const sendResult = await sendWhatsAppTemplate(
+        customer.phone,
+        args.templateName,
+        args.templateLanguage,
+        '',
+        '',
+        args.userId!,
+        args.phoneNumberId || null,
+        customer.name,
+      );
+      results[i] = {
+        customer,
+        normalizedPhone: normalizePhone(customer.phone),
+        sendResult,
+      };
+      await sleepMs(SEND_GAP_MS);
+    }
+  };
+
+  await Promise.all(
+    Array.from({ length: Math.min(SEND_CONCURRENCY, list.length) }, (_, slot) => worker(slot)),
+  );
+
 
 
   const billingRows = results.map(({ customer, sendResult }) => ({
