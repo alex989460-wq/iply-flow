@@ -1438,7 +1438,59 @@ export default function MassBroadcast() {
               </CardContent>
             </Card>
 
+            {/* Público do disparo */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  Público do disparo
+                </CardTitle>
+                <CardDescription>
+                  Defina se quem já recebeu este template deve receber novamente
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {([
+                  { key: 'new', title: 'Somente novos', desc: 'Ignora quem já recebeu este template (padrão)' },
+                  { key: 'all', title: 'Todos (permitir reenvio)', desc: 'Envia também para quem já recebeu antes' },
+                  { key: 'already', title: 'Somente quem já recebeu', desc: 'Reengajamento de quem já foi impactado' },
+                ] as const).map((opt) => {
+                  const active = audienceMode === opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => setAudienceMode(opt.key)}
+                      className={cn(
+                        'w-full text-left rounded-xl border p-3 transition-all',
+                        active
+                          ? 'border-primary bg-primary/10 shadow-sm'
+                          : 'border-border/60 bg-card hover:border-primary/40 hover:bg-accent/40',
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={cn(
+                          'w-3.5 h-3.5 rounded-full border-2 shrink-0',
+                          active ? 'border-primary bg-primary' : 'border-muted-foreground/50',
+                        )} />
+                        <span className="text-sm font-medium">{opt.title}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1 pl-5.5">{opt.desc}</p>
+                    </button>
+                  );
+                })}
+                {selectedTemplate && (
+                  <p className="text-xs text-muted-foreground pt-1">
+                    {isCheckingAlreadySent
+                      ? 'Verificando histórico...'
+                      : `${alreadySentCount} da seleção já receberam "${selectedTemplate}".`}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Template Selection */}
+
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
