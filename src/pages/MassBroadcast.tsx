@@ -130,6 +130,9 @@ export default function MassBroadcast() {
   const [overdueSegmentEnabled, setOverdueSegmentEnabled] = useState(false);
   const [overdueMin, setOverdueMin] = useState<string>('30');
   const [overdueMax, setOverdueMax] = useState<string>('300');
+  // 'new' = só quem nunca recebeu | 'all' = todos | 'already' = só quem já recebeu
+  const [audienceMode, setAudienceMode] = useState<'new' | 'all' | 'already'>('new');
+
 
 
   const initialResultsRef = useRef<BroadcastResult[]>([]);
