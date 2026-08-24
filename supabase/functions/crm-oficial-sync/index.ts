@@ -991,11 +991,12 @@ async function doSendWhatsapp(payload: {
     const resolvedLang = String(
       officialTemplate?.language || officialTemplate?.language_code || officialTemplate?.lang || requestedLang
     );
-    // O CRM às vezes devolve metadados de idioma errados (ex.: "en" para um
-    // template aprovado só em pt_BR), o que causava (#132001). Portanto o idioma
-    // PEDIDO tem prioridade; o idioma resolvido vira apenas o primeiro fallback.
+    // Respeita EXATAMENTE o idioma com que o template foi aprovado na Meta
+    // (a definição vem da Graph API). O idioma pedido só é usado quando não
+    // conseguimos resolver a definição real do template.
     const normLang = (l: string) => String(l || "").toLowerCase().replace(/-/g, "_");
-    const lang = normLang(resolvedLang) === normLang(requestedLang) ? resolvedLang : String(requestedLang);
+    const lang = officialTemplate ? resolvedLang : String(requestedLang);
+
 
     const paramNames = officialTemplate ? getTemplateBodyParamNames(officialTemplate) : [];
     const isNamed = String(officialTemplate?.parameter_format || "").toUpperCase() === "NAMED"
