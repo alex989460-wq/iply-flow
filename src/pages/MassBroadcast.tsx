@@ -484,48 +484,64 @@ export default function MassBroadcast() {
   }, [templates, selectedTemplate]);
 
   // Check how many selected customers already received the template
+  // (debounced + paralelo: antes disparava dezenas de queries sequenciais a cada clique)
+  const alreadySentRunRef = useRef(0);
+  const selectedPhonesKey = useMemo(
+    () => `${getSelectedCustomersList.length}:${getSelectedCustomersList[0]?.id || ''}:${getSelectedCustomersList[getSelectedCustomersList.length - 1]?.id || ''}`,
+    [getSelectedCustomersList],
+  );
   useEffect(() => {
-    const checkAlreadySent = async () => {
-      if (!selectedTemplate || getSelectedCustomersList.length === 0) {
-        setAlreadySentCount(0);
-        return;
-      }
+    const runId = ++alreadySentRunRef.current;
 
+    if (!selectedTemplate || getSelectedCustomersList.length === 0) {
+      setAlreadySentCount(0);
+      setIsCheckingAlreadySent(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
       setIsCheckingAlreadySent(true);
       try {
-        // Normalize all phone numbers from selected customers
-        const customerPhones = getSelectedCustomersList.map(c => c.phone.replace(/\D/g, ''));
-        
-        // Query broadcast_logs for phones that already received this template
-        const uniquePhones = [...new Set(customerPhones)];
-        const CHUNK_SIZE = 100;
-        let totalAlreadySent = 0;
-
+        const uniquePhones = [...new Set(getSelectedCustomersList.map(c => String(c.phone || '').replace(/\D/g, '')))].filter(Boolean);
+        const CHUNK_SIZE = 400;
+        const chunks: string[][] = [];
         for (let i = 0; i < uniquePhones.length; i += CHUNK_SIZE) {
-          const chunk = uniquePhones.slice(i, i + CHUNK_SIZE);
-          const { data, error } = await supabase
-            .from('broadcast_logs')
-            .select('phone_normalized')
-            .eq('template_name', selectedTemplate)
-            .eq('last_status', 'sent')
-            .in('phone_normalized', chunk);
+          chunks.push(uniquePhones.slice(i, i + CHUNK_SIZE));
+        }
 
-          if (!error && data) {
-            totalAlreadySent += data.length;
+        let totalAlreadySent = 0;
+        const CONCURRENCY = 5;
+        for (let i = 0; i < chunks.length; i += CONCURRENCY) {
+          if (alreadySentRunRef.current !== runId) return;
+          const results = await Promise.all(
+            chunks.slice(i, i + CONCURRENCY).map(chunk =>
+              supabase
+                .from('broadcast_logs')
+                .select('phone_normalized')
+                .eq('template_name', selectedTemplate)
+                .eq('last_status', 'sent')
+                .in('phone_normalized', chunk),
+            ),
+          );
+          for (const { data, error } of results) {
+            if (!error && data) totalAlreadySent += data.length;
           }
         }
 
+        if (alreadySentRunRef.current !== runId) return;
         setAlreadySentCount(totalAlreadySent);
       } catch (error) {
         console.error('Error checking already sent:', error);
-        setAlreadySentCount(0);
+        if (alreadySentRunRef.current === runId) setAlreadySentCount(0);
       } finally {
-        setIsCheckingAlreadySent(false);
+        if (alreadySentRunRef.current === runId) setIsCheckingAlreadySent(false);
       }
-    };
+    }, 600);
 
-    checkAlreadySent();
-  }, [selectedTemplate, getSelectedCustomersList]);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTemplate, selectedPhonesKey]);
+
 
   // Calculate estimated cost based on template category
   const estimatedCost = useMemo(() => {
