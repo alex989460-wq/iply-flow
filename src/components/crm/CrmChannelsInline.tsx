@@ -55,7 +55,8 @@ function normalize(body: any): WAChannel[] {
       );
       const phone = rawPhone && rawPhone.replace(/\D/g, '').length <= 15 ? rawPhone : '';
       const kind = String(c.kind || c.type || 'whatsapp_cloud').toLowerCase();
-      const official = !(kind.includes('evolution') || kind.includes('baileys') || !!c.evolution_instance_name || !!c.evolution_status);
+      // Ter Phone Number ID = canal oficial da Meta (nunca tratar como Evolution).
+      const official = !!phoneId || !(kind.includes('evolution') || kind.includes('baileys') || !!c.evolution_instance_name || !!c.evolution_status);
       return {
         official,
         instance_name: pick(c.evolution_instance_name, c.instance_name, c.instance),
@@ -123,17 +124,37 @@ export default function CrmChannelsInline() {
           .filter((c) => !c.official)
           .map((c) => (c.instance_name || c.name || '').toLowerCase()),
       );
+
+      // Um número que já existe como canal OFICIAL (Meta) nunca pode aparecer
+      // também como conexão não oficial (Evolution/QR).
+      const onlyDigits = (v?: string | null) => String(v || '').replace(/\D/g, '');
+      const officialPhones = new Set(
+        crmChannels
+          .filter((c) => c.official)
+          .map((c) => onlyDigits(c.display_phone_number || c.phone_number))
+          .filter((d) => d.length >= 10),
+      );
+      const isOfficialPhone = (v?: string | null) => {
+        const d = onlyDigits(v);
+        if (d.length < 10) return false;
+        return [...officialPhones].some((p) => p === d || p.endsWith(d.slice(-10)) || d.endsWith(p.slice(-10)));
+      };
+
       const merged = [
         // Mantém todos os canais do CRM (o CRM pode usar outro servidor Evolution).
         // Só descarta "fantasmas": não oficiais sem número e inexistentes no servidor local.
         ...crmChannels.filter((c) => {
           if (c.official) return true;
+          if (isOfficialPhone(c.phone_number || c.display_phone_number)) return false;
           const hasPhone = !!(c.phone_number || c.display_phone_number);
           if (hasPhone) return true;
           return liveNames.has((c.instance_name || c.name || '').toLowerCase());
         }),
-        ...localChannels.filter((c) => !seen.has((c.instance_name || '').toLowerCase())),
+        ...localChannels.filter(
+          (c) => !seen.has((c.instance_name || '').toLowerCase()) && !isOfficialPhone(c.phone_number),
+        ),
       ];
+
 
       setChannels(merged);
 

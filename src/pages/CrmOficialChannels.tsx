@@ -73,8 +73,10 @@ function normalizeChannelLists(body: any) {
         : [];
   const whatsapp = whats.map((c: any, index: number) => {
     const rawKind = String(c.kind || c.type || 'whatsapp_cloud').toLowerCase();
-    const isEvolution = rawKind.includes('evolution') || rawKind.includes('baileys') || !!c.instance_name || !!c.evolution_status;
     const phoneId = pickString(c.phone_number_id, c.phoneNumberId);
+    // Ter Phone Number ID = canal oficial da Meta, mesmo que venha com outros campos.
+    const isEvolution = !phoneId && (rawKind.includes('evolution') || rawKind.includes('baileys') || !!c.instance_name || !!c.evolution_status);
+
     const rawPhone = pickString(
       c.display_phone_number, c.displayPhoneNumber, c.phone_display,
       c.phone_number, c.phoneNumber, c.phone, c.number, c.msisdn, c.wa_id,
