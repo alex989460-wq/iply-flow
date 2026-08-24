@@ -84,7 +84,13 @@ async function sendWhatsAppTemplate(
     }
 
     console.log(`[CRM Oficial] template "${templateName}" sent to ${formattedPhone}`);
-    return { success: true };
+    const messageId =
+      result?.send?.body?.messages?.[0]?.id ||
+      result?.messages?.[0]?.id ||
+      result?.message_id ||
+      result?.wamid ||
+      null;
+    return { success: true, messageId };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(`Error sending template to ${phone}:`, error);
