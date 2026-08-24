@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-type BroadcastAction = 'start' | 'batch' | 'legacy';
+type BroadcastAction = 'start' | 'batch' | 'legacy' | 'finish';
 
 interface BroadcastRequestBase {
   action?: BroadcastAction;
@@ -47,7 +47,7 @@ async function sendWhatsAppTemplate(
   userIdOrDept: string,
   phoneNumberId?: string | null,
   customerName?: string | null,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; messageId?: string | null }> {
   try {
     let formattedPhone = phone.replace(/\D/g, '');
     formattedPhone = normalizeWhatsAppPhone(formattedPhone);
@@ -84,7 +84,13 @@ async function sendWhatsAppTemplate(
     }
 
     console.log(`[CRM Oficial] template "${templateName}" sent to ${formattedPhone}`);
-    return { success: true };
+    const messageId =
+      result?.send?.body?.messages?.[0]?.id ||
+      result?.messages?.[0]?.id ||
+      result?.message_id ||
+      result?.wamid ||
+      null;
+    return { success: true, messageId };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(`Error sending template to ${phone}:`, error);
@@ -153,6 +159,10 @@ async function startBroadcastPlan(args: {
   customerIds: string[];
   templateName: string;
   audienceMode?: 'new' | 'all' | 'already';
+  ownerId?: string | null;
+  campaignName?: string | null;
+  phoneNumberId?: string | null;
+  logSkips?: boolean;
 }) {
   const audienceMode = args.audienceMode || 'new';
 
@@ -211,50 +221,72 @@ async function startBroadcastPlan(args: {
     `Broadcast plan: total=${customers.length}, to_send=${customersToSend.length}, duplicates=${duplicateCustomers.length}, already_sent=${alreadySentCustomers.length}`
   );
 
-  // Log skips immediately (so UI receives realtime updates)
-  if (duplicateCustomers.length > 0) {
-    const { error } = await supabase.from('billing_logs').insert(
-      duplicateCustomers.map((customer) => ({
-        customer_id: customer.id,
-        billing_type: 'D0' as any,
-        message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName} - IGNORADO (telefone duplicado)`,
-        whatsapp_status: 'skipped',
-      }))
-    );
-
-    if (error) console.error('Error inserting duplicate skip logs:', error);
-  }
-
   const skipReason = audienceMode === 'already' ? 'ainda não recebeu este template' : 'já enviado anteriormente';
 
-  if (alreadySentCustomers.length > 0) {
-    const { error } = await supabase.from('billing_logs').insert(
-      alreadySentCustomers.map((customer) => ({
-        customer_id: customer.id,
-        billing_type: 'D0' as any,
-        message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName} - IGNORADO (${skipReason})`,
-        whatsapp_status: 'skipped',
-      }))
-    );
+  // Por padrão os ignorados NÃO viram log nem entram na barra de progresso:
+  // o disparo vai direto para quem ainda não recebeu.
+  if (args.logSkips) {
+    if (duplicateCustomers.length > 0) {
+      const { error } = await supabase.from('billing_logs').insert(
+        duplicateCustomers.map((customer) => ({
+          customer_id: customer.id,
+          billing_type: 'D0' as any,
+          message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName} - IGNORADO (telefone duplicado)`,
+          whatsapp_status: 'skipped',
+        }))
+      );
+      if (error) console.error('Error inserting duplicate skip logs:', error);
+    }
 
-    if (error) console.error('Error inserting already-sent skip logs:', error);
+    if (alreadySentCustomers.length > 0) {
+      const { error } = await supabase.from('billing_logs').insert(
+        alreadySentCustomers.map((customer) => ({
+          customer_id: customer.id,
+          billing_type: 'D0' as any,
+          message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName} - IGNORADO (${skipReason})`,
+          whatsapp_status: 'skipped',
+        }))
+      );
+      if (error) console.error('Error inserting already-sent skip logs:', error);
+    }
   }
 
-  const initialResults: InitialResult[] = [
-    ...alreadySentCustomers.map((c) => ({
-      customer: c.name,
-      phone: c.phone,
-      status: 'skipped' as const,
-      error: audienceMode === 'already' ? 'Ainda não recebeu este template' : 'Já enviado anteriormente',
-    })),
+  const initialResults: InitialResult[] = args.logSkips
+    ? [
+        ...alreadySentCustomers.map((c) => ({
+          customer: c.name,
+          phone: c.phone,
+          status: 'skipped' as const,
+          error: audienceMode === 'already' ? 'Ainda não recebeu este template' : 'Já enviado anteriormente',
+        })),
+        ...duplicateCustomers.map((c) => ({
+          customer: c.name,
+          phone: c.phone,
+          status: 'skipped' as const,
+          error: 'Telefone duplicado',
+        })),
+      ]
+    : [];
 
-    ...duplicateCustomers.map((c) => ({
-      customer: c.name,
-      phone: c.phone,
-      status: 'skipped' as const,
-      error: 'Telefone duplicado',
-    })),
-  ];
+  // Cria a campanha (histórico do disparo)
+  let campaignId: string | null = null;
+  if (args.ownerId) {
+    const { data: campaign, error: campaignError } = await supabase
+      .from('broadcast_campaigns')
+      .insert({
+        owner_id: args.ownerId,
+        name: (args.campaignName || '').trim() || `Disparo ${args.templateName}`,
+        template_name: args.templateName,
+        phone_number_id: args.phoneNumberId || null,
+        audience_mode: audienceMode,
+        total_targets: customersToSend.length,
+        skipped_count: alreadySentCustomers.length + duplicateCustomers.length,
+      })
+      .select('id')
+      .maybeSingle();
+    if (campaignError) console.error('Error creating broadcast campaign:', campaignError);
+    campaignId = campaign?.id ?? null;
+  }
 
   return {
     ok: true as const,
@@ -267,11 +299,13 @@ async function startBroadcastPlan(args: {
       already_sent: alreadySentCustomers.length,
       duplicates: duplicateCustomers.length,
       template: args.templateName,
+      campaign_id: campaignId,
       queue_customer_ids: customersToSend.map((c) => c.id),
       initial_results: initialResults,
     },
   };
 }
+
 
 async function processBroadcastBatch(args: {
   supabaseUrl: string;
@@ -282,6 +316,7 @@ async function processBroadcastBatch(args: {
   userId?: string | null;
   isAdmin?: boolean;
   phoneNumberId?: string | null;
+  campaignId?: string | null;
 }) {
   const supabase = createClient(args.supabaseUrl, args.supabaseServiceKey);
 
@@ -379,6 +414,8 @@ async function processBroadcastBatch(args: {
     last_error: sendResult.success ? null : sendResult.error || 'Unknown error',
     last_sent_at: sendResult.success ? nowIso : null,
     updated_at: nowIso,
+    ...(args.campaignId ? { campaign_id: args.campaignId } : {}),
+    ...(sendResult.messageId ? { wa_message_id: sendResult.messageId } : {}),
   }));
 
   const { error: broadcastError } = await supabase
@@ -389,7 +426,26 @@ async function processBroadcastBatch(args: {
   const sent = results.filter((r) => r.sendResult.success).length;
   const errors = results.length - sent;
 
+  // Atualiza os contadores da campanha (histórico de disparos)
+  if (args.campaignId) {
+    const { data: campaign } = await supabase
+      .from('broadcast_campaigns')
+      .select('sent_count, error_count')
+      .eq('id', args.campaignId)
+      .maybeSingle();
+    if (campaign) {
+      await supabase
+        .from('broadcast_campaigns')
+        .update({
+          sent_count: (campaign.sent_count || 0) + sent,
+          error_count: (campaign.error_count || 0) + errors,
+        })
+        .eq('id', args.campaignId);
+    }
+  }
+
   console.log(`Batch completed: sent=${sent}, errors=${errors}`);
+
 
   return {
     ok: true as const,
@@ -526,19 +582,22 @@ Deno.serve(async (req) => {
     const template_name = typeof body.template_name === 'string' ? body.template_name : '';
     const action: BroadcastAction = (body.action as BroadcastAction) || 'start';
 
-    if (!customer_ids || customer_ids.length === 0) {
-      return new Response(JSON.stringify({ error: 'No customers specified' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    if (action !== 'finish') {
+      if (!customer_ids || customer_ids.length === 0) {
+        return new Response(JSON.stringify({ error: 'No customers specified' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (!template_name) {
+        return new Response(JSON.stringify({ error: 'No template specified' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
     }
 
-    if (!template_name) {
-      return new Response(JSON.stringify({ error: 'No template specified' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -572,6 +631,20 @@ Deno.serve(async (req) => {
     // Get fallback zapToken from env
     const zapTokenEnv = Deno.env.get('ZAP_RESPONDER_TOKEN') || '';
 
+    if (action === 'finish') {
+      const campaignId = String((body as any).campaign_id || '');
+      if (campaignId) {
+        await supabase
+          .from('broadcast_campaigns')
+          .update({ finished_at: new Date().toISOString() })
+          .eq('id', campaignId)
+          .eq('owner_id', userId);
+      }
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     if (action === 'start') {
       console.log(`Starting broadcast plan: customers=${customer_ids.length}, template=${template_name}`);
 
@@ -581,6 +654,10 @@ Deno.serve(async (req) => {
         customerIds: customer_ids,
         templateName: template_name,
         audienceMode: ((body as any).audience_mode as 'new' | 'all' | 'already') || 'new',
+        ownerId: userId,
+        campaignName: (body as any).campaign_name || null,
+        phoneNumberId: (body as any).phone_number_id || null,
+        logSkips: (body as any).log_skips === true,
       });
 
 
@@ -602,6 +679,7 @@ Deno.serve(async (req) => {
         userId,
         isAdmin: isAdminUser,
         phoneNumberId: (body as any).phone_number_id || null,
+        campaignId: (body as any).campaign_id || null,
       });
 
       return new Response(JSON.stringify(batched.body), {
@@ -609,6 +687,7 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
 
     // Legacy mode (kept for compatibility)
     console.log(`Starting legacy mass broadcast: customers=${customer_ids.length}, template=${template_name}`);
