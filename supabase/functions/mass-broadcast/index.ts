@@ -159,6 +159,10 @@ async function startBroadcastPlan(args: {
   customerIds: string[];
   templateName: string;
   audienceMode?: 'new' | 'all' | 'already';
+  ownerId?: string | null;
+  campaignName?: string | null;
+  phoneNumberId?: string | null;
+  logSkips?: boolean;
 }) {
   const audienceMode = args.audienceMode || 'new';
 
