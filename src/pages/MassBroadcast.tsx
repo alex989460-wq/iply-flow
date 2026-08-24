@@ -83,6 +83,26 @@ interface ActiveBroadcast {
 const COST_MARKETING = 0.5895; // R$ 0,5895 por mensagem de marketing (Cloud API)
 const COST_UTILITY = 0.0642; // R$ 0,0642 por mensagem de utilidade (Cloud API)
 
+// Dias em atraso (positivo = vencido há X dias, negativo = ainda em dia)
+function daysOverdueOf(dueDate: string): number {
+  if (!dueDate) return -99999;
+  const due = new Date(dueDate);
+  if (Number.isNaN(due.getTime())) return -99999;
+  due.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.floor((today.getTime() - due.getTime()) / 86400000);
+}
+
+const OVERDUE_PRESETS: { label: string; min: number; max: number }[] = [
+  { label: '1 a 7 dias', min: 1, max: 7 },
+  { label: '8 a 30 dias', min: 8, max: 30 },
+  { label: '30 a 90 dias', min: 30, max: 90 },
+  { label: '90 a 180 dias', min: 90, max: 180 },
+  { label: '180 a 365 dias', min: 180, max: 365 },
+  { label: '365+ dias', min: 365, max: 9999 },
+];
+
 export default function MassBroadcast() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
