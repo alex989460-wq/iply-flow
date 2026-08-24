@@ -786,16 +786,22 @@ async function fetchOfficialTemplate(templateName: string, language: string, api
     return langHit;
   };
 
-  let matches: any[] = [];
-  try {
-    const result = await crmFetchWithKeyFallback("/api/public/v1/templates?limit=250", { method: "GET" }, apiKey);
-    const templates = normalizeListTemplatesBody(result.body);
-    matches = templates.filter((t: any) => String(t?.name || t?.template_name || "") === templateName);
-  } catch { /* segue para fallbacks */ }
+  // A Graph API da Meta é a fonte da verdade do idioma/estrutura do template.
+  // A listagem do CRM às vezes devolve metadados de idioma errados (ex.: "en"),
+  // por isso ela é apenas fallback.
+  let matches: any[] = await fetchTemplateFromGraph(templateName, apiKey);
 
-  if (!matches.length) matches = await fetchTemplateFromGraph(templateName, apiKey);
+  if (!matches.length) {
+    try {
+      const result = await crmFetchWithKeyFallback("/api/public/v1/templates?limit=250", { method: "GET" }, apiKey);
+      const templates = normalizeListTemplatesBody(result.body);
+      matches = templates.filter((t: any) => String(t?.name || t?.template_name || "") === templateName);
+    } catch { /* segue para fallbacks */ }
+  }
+
   if (!matches.length) return await readTemplateCache(templateName, language);
   return await pick(matches);
+
 }
 
 
