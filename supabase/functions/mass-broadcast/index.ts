@@ -39,6 +39,21 @@ function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '');
 }
 
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
+}
+
+// Extrai "Retry after 49020ms." / "retry after 30s" das mensagens de rate limit
+function parseRetryAfterMs(message: string): number | null {
+  const text = String(message || '');
+  if (!/rate limit|too many requests|429|#131056|#80007/i.test(text)) return null;
+  const ms = text.match(/retry\s*after\s*(\d+)\s*ms/i);
+  if (ms) return Number(ms[1]);
+  const s = text.match(/retry\s*after\s*(\d+)\s*s/i);
+  if (s) return Number(s[1]) * 1000;
+  return 15000;
+}
+
 // Send WhatsApp template message via CRM Oficial (crm-oficial-sync shim)
 async function sendWhatsAppTemplate(
   phone: string,
@@ -50,6 +65,7 @@ async function sendWhatsAppTemplate(
   phoneNumberId?: string | null,
   customerName?: string | null,
 ): Promise<{ success: boolean; error?: string; messageId?: string | null }> {
+
   try {
     let formattedPhone = phone.replace(/\D/g, '');
     formattedPhone = normalizeWhatsAppPhone(formattedPhone);
@@ -80,8 +96,20 @@ async function sendWhatsAppTemplate(
     );
 
     let response = await invokeTemplate(phoneNumberId);
-
     let result = await response.json().catch(() => ({}));
+
+    // Rate limit: aguarda o tempo indicado pela Meta e tenta novamente (até 3x)
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const errText = String(result?.send?.body?.error || result?.error || '');
+      const waitMs = (!response.ok || result?.success === false) ? parseRetryAfterMs(errText) : null;
+      if (waitMs == null) break;
+      const capped = Math.min(waitMs + 1500, 60000);
+      console.warn(`[CRM Oficial] Rate limit — aguardando ${capped}ms antes de reenviar (tentativa ${attempt + 1}/3)`);
+      await sleepMs(capped);
+      response = await invokeTemplate(phoneNumberId);
+      result = await response.json().catch(() => ({}));
+    }
+
     const initialError = String(result?.send?.body?.error || result?.error || '');
     if (
       phoneNumberId &&
@@ -96,6 +124,7 @@ async function sendWhatsAppTemplate(
       console.error(`[CRM Oficial] template error: ${response.status}`, result);
       return { success: false, error: (result?.send?.body?.error || result?.error || 'Falha ao enviar template') as string };
     }
+
 
     console.log(`[CRM Oficial] template "${templateName}" sent to ${formattedPhone}`);
     const messageId =
@@ -391,26 +420,29 @@ async function processBroadcastBatch(args: {
 
   const nowIso = new Date().toISOString();
 
-  const results = await Promise.all(
-    (customers as any[]).map(async (customer) => {
-      const sendResult = await sendWhatsAppTemplate(
-        customer.phone,
-        args.templateName,
-        args.templateLanguage,
-        '',
-        '',
-        args.userId!,
-        args.phoneNumberId || null,
-        customer.name,
-      );
-      return {
+  // Envio sequencial com espaçamento: evita rajadas que estouram o rate limit da Meta.
+  const SEND_GAP_MS = 400;
+  const results: Array<{ customer: any; normalizedPhone: string; sendResult: any }> = [];
+  for (let i = 0; i < (customers as any[]).length; i++) {
+    const customer = (customers as any[])[i];
+    if (i > 0) await sleepMs(SEND_GAP_MS);
+    const sendResult = await sendWhatsAppTemplate(
+      customer.phone,
+      args.templateName,
+      args.templateLanguage,
+      '',
+      '',
+      args.userId!,
+      args.phoneNumberId || null,
+      customer.name,
+    );
+    results.push({
+      customer,
+      normalizedPhone: normalizePhone(customer.phone),
+      sendResult,
+    });
+  }
 
-        customer,
-        normalizedPhone: normalizePhone(customer.phone),
-        sendResult,
-      };
-    })
-  );
 
   const billingRows = results.map(({ customer, sendResult }) => ({
     customer_id: customer.id,
