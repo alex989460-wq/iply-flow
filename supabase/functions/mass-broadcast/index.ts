@@ -190,14 +190,21 @@ async function startBroadcastPlan(args: {
 
   for (const customer of customers as any[]) {
     const normalizedPhone = normalizePhone(customer.phone);
+    const received = alreadySentPhones.has(normalizedPhone);
 
-    if (alreadySentPhones.has(normalizedPhone)) {
+    // audienceMode:
+    //  - 'new'     => envia só para quem NUNCA recebeu este template (padrão)
+    //  - 'all'     => envia para todos, mesmo quem já recebeu
+    //  - 'already' => envia SOMENTE para quem já recebeu (reengajamento)
+    const shouldSend = audienceMode === 'all' ? true : audienceMode === 'already' ? received : !received;
+
+    if (!shouldSend) {
       alreadySentCustomers.push(customer);
     } else {
-      // Dedupe por telefone desativado: todo cliente selecionado é enviado.
       seenPhones.add(normalizedPhone);
       customersToSend.push(customer);
     }
+
   }
 
   console.log(
