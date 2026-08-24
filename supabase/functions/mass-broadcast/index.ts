@@ -12,6 +12,7 @@ interface BroadcastRequestBase {
   action?: BroadcastAction;
   customer_ids: string[];
   template_name: string;
+  template_language?: string;
 }
 
 interface LegacyBroadcastRequest extends BroadcastRequestBase {
@@ -42,6 +43,7 @@ function normalizePhone(phone: string): string {
 async function sendWhatsAppTemplate(
   phone: string,
   templateName: string,
+  templateLanguage: string,
   _token: string,
   _apiBaseUrl: string,
   userIdOrDept: string,
@@ -66,7 +68,7 @@ async function sendWhatsAppTemplate(
           action: 'sendTemplate',
           number: formattedPhone,
           template_name: templateName,
-          language: 'pt_BR',
+          language: templateLanguage,
           user_id: userIdOrDept,
           // Nome real do cliente (evita cair no fallback "Cliente" nos templates/CRM)
           ...(customerName && String(customerName).trim()
@@ -313,6 +315,7 @@ async function processBroadcastBatch(args: {
   zapToken: string;
   customerIds: string[];
   templateName: string;
+  templateLanguage: string;
   userId?: string | null;
   isAdmin?: boolean;
   phoneNumberId?: string | null;
@@ -381,6 +384,7 @@ async function processBroadcastBatch(args: {
       const sendResult = await sendWhatsAppTemplate(
         customer.phone,
         args.templateName,
+        args.templateLanguage,
         '',
         '',
         args.userId!,
@@ -489,6 +493,8 @@ async function processBroadcastLegacy(args: {
   alreadySentCustomers: CustomerInfo[];
   duplicateCustomers: CustomerInfo[];
   templateName: string;
+  templateLanguage: string;
+  phoneNumberId?: string | null;
   delayMinSeconds: number;
   delayMaxSeconds: number;
   supabaseUrl: string;
@@ -536,10 +542,11 @@ async function processBroadcastLegacy(args: {
     const sendResult = await sendWhatsAppTemplate(
       customer.phone,
       args.templateName,
+      args.templateLanguage,
       args.zapToken,
       args.apiBaseUrl,
       args.departmentId,
-      null,
+      args.phoneNumberId || null,
       customer.name,
     );
 
@@ -587,6 +594,9 @@ Deno.serve(async (req) => {
 
     const customer_ids = Array.isArray(body.customer_ids) ? body.customer_ids : [];
     const template_name = typeof body.template_name === 'string' ? body.template_name : '';
+    const template_language = typeof body.template_language === 'string' && body.template_language.trim()
+      ? body.template_language.trim()
+      : 'pt_BR';
     const action: BroadcastAction = (body.action as BroadcastAction) || 'start';
 
     if (action !== 'finish') {
@@ -683,6 +693,7 @@ Deno.serve(async (req) => {
         zapToken: zapTokenEnv,
         customerIds: customer_ids,
         templateName: template_name,
+        templateLanguage: template_language,
         userId,
         isAdmin: isAdminUser,
         phoneNumberId: (body as any).phone_number_id || null,
@@ -774,6 +785,8 @@ Deno.serve(async (req) => {
         alreadySentCustomers,
         duplicateCustomers,
         templateName: template_name,
+        templateLanguage: template_language,
+        phoneNumberId: (body as any).phone_number_id || null,
         delayMinSeconds: delay_min_seconds,
         delayMaxSeconds: delay_max_seconds,
         supabaseUrl,
