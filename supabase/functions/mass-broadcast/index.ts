@@ -414,6 +414,8 @@ async function processBroadcastBatch(args: {
     last_error: sendResult.success ? null : sendResult.error || 'Unknown error',
     last_sent_at: sendResult.success ? nowIso : null,
     updated_at: nowIso,
+    ...(args.campaignId ? { campaign_id: args.campaignId } : {}),
+    ...(sendResult.messageId ? { wa_message_id: sendResult.messageId } : {}),
   }));
 
   const { error: broadcastError } = await supabase
@@ -424,7 +426,26 @@ async function processBroadcastBatch(args: {
   const sent = results.filter((r) => r.sendResult.success).length;
   const errors = results.length - sent;
 
+  // Atualiza os contadores da campanha (histórico de disparos)
+  if (args.campaignId) {
+    const { data: campaign } = await supabase
+      .from('broadcast_campaigns')
+      .select('sent_count, error_count')
+      .eq('id', args.campaignId)
+      .maybeSingle();
+    if (campaign) {
+      await supabase
+        .from('broadcast_campaigns')
+        .update({
+          sent_count: (campaign.sent_count || 0) + sent,
+          error_count: (campaign.error_count || 0) + errors,
+        })
+        .eq('id', args.campaignId);
+    }
+  }
+
   console.log(`Batch completed: sent=${sent}, errors=${errors}`);
+
 
   return {
     ok: true as const,
