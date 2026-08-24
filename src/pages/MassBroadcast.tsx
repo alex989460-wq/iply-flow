@@ -1359,7 +1359,8 @@ export default function MassBroadcast() {
                         Nenhum cliente encontrado
                       </p>
                     ) : (
-                      filteredCustomers.map(customer => (
+                      <>
+                        {visibleCustomers.map(customer => (
                         <div
                           key={customer.id}
                           className={cn(
@@ -1395,8 +1396,24 @@ export default function MassBroadcast() {
                             )}
                           </div>
                         </div>
-                      ))
+                        ))}
+                        {filteredCustomers.length > visibleCustomers.length && (
+                          <div className="flex flex-col items-center gap-2 py-3">
+                            <p className="text-xs text-muted-foreground">
+                              Exibindo {visibleCustomers.length} de {filteredCustomers.length} clientes
+                            </p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setVisibleCount((v) => v + 200)}
+                            >
+                              Carregar mais 200
+                            </Button>
+                          </div>
+                        )}
+                      </>
                     )}
+
                   </div>
                 ) : (
                   <div className="space-y-2">
