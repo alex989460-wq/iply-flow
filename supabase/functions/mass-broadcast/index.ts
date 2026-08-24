@@ -580,7 +580,9 @@ Deno.serve(async (req) => {
         supabaseServiceKey,
         customerIds: customer_ids,
         templateName: template_name,
+        audienceMode: ((body as any).audience_mode as 'new' | 'all' | 'already') || 'new',
       });
+
 
       return new Response(JSON.stringify(planned.body), {
         status: planned.status,
