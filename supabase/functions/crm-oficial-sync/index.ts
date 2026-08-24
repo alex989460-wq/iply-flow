@@ -1160,8 +1160,18 @@ async function doSendWhatsapp(payload: {
       return /132001/.test(s) || /does not exist in the translation/i.test(s);
     });
     if (has132001) {
+      // Cache com idioma errado é a causa mais comum: remove antes de retentar.
+      try {
+        const db = templateCacheClient();
+        if (db) await db.from("meta_template_cache").delete().eq("name", String(payload.template_name)).eq("language", String(lang));
+      } catch { /* best effort */ }
       const tried = new Set<string>([String(lang)]);
-      const fallbackLangs = ["pt_BR", "pt_PT", "pt", "en_US", "en", "es"].filter((l) => !tried.has(l));
+      const fallbackLangs = [resolvedLang, "pt_BR", "pt_PT", "pt", "en_US", "en", "es"].filter((l) => {
+        if (!l || tried.has(l)) return false;
+        tried.add(l);
+        return true;
+      });
+
       for (const altLang of fallbackLangs) {
         // 1) Retenta pelos endpoints do CRM (caminho que já funciona) com o locale alternativo.
         const altPayload = {
