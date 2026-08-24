@@ -582,19 +582,22 @@ Deno.serve(async (req) => {
     const template_name = typeof body.template_name === 'string' ? body.template_name : '';
     const action: BroadcastAction = (body.action as BroadcastAction) || 'start';
 
-    if (!customer_ids || customer_ids.length === 0) {
-      return new Response(JSON.stringify({ error: 'No customers specified' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    if (action !== 'finish') {
+      if (!customer_ids || customer_ids.length === 0) {
+        return new Response(JSON.stringify({ error: 'No customers specified' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (!template_name) {
+        return new Response(JSON.stringify({ error: 'No template specified' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
     }
 
-    if (!template_name) {
-      return new Response(JSON.stringify({ error: 'No template specified' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
