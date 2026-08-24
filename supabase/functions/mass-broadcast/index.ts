@@ -39,6 +39,21 @@ function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '');
 }
 
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
+}
+
+// Extrai "Retry after 49020ms." / "retry after 30s" das mensagens de rate limit
+function parseRetryAfterMs(message: string): number | null {
+  const text = String(message || '');
+  if (!/rate limit|too many requests|429|#131056|#80007/i.test(text)) return null;
+  const ms = text.match(/retry\s*after\s*(\d+)\s*ms/i);
+  if (ms) return Number(ms[1]);
+  const s = text.match(/retry\s*after\s*(\d+)\s*s/i);
+  if (s) return Number(s[1]) * 1000;
+  return 15000;
+}
+
 // Send WhatsApp template message via CRM Oficial (crm-oficial-sync shim)
 async function sendWhatsAppTemplate(
   phone: string,
@@ -50,6 +65,7 @@ async function sendWhatsAppTemplate(
   phoneNumberId?: string | null,
   customerName?: string | null,
 ): Promise<{ success: boolean; error?: string; messageId?: string | null }> {
+
   try {
     let formattedPhone = phone.replace(/\D/g, '');
     formattedPhone = normalizeWhatsAppPhone(formattedPhone);
