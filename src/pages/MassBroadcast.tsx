@@ -1475,7 +1475,7 @@ export default function MassBroadcast() {
                         )} />
                         <span className="text-sm font-medium">{opt.title}</span>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1 pl-5.5">{opt.desc}</p>
+                      <p className="text-xs text-muted-foreground mt-1 pl-6">{opt.desc}</p>
                     </button>
                   );
                 })}
