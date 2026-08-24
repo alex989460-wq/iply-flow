@@ -814,8 +814,18 @@ export default function MassBroadcast() {
           }
         }
 
+        let rateLimitWaitMs = 0;
         if (data) {
           applyBatchResults(data.results || []);
+          // Se a Meta devolveu rate limit, respeita o tempo pedido antes do próximo lote
+          for (const r of (data.results || []) as any[]) {
+            const msg = String(r?.error || '');
+            if (!/rate limit|too many requests|429/i.test(msg)) continue;
+            const ms = msg.match(/retry\s*after\s*(\d+)\s*ms/i);
+            const s = msg.match(/retry\s*after\s*(\d+)\s*s/i);
+            const wait = ms ? Number(ms[1]) : s ? Number(s[1]) * 1000 : 20000;
+            rateLimitWaitMs = Math.max(rateLimitWaitMs, Math.min(wait + 2000, 90000));
+          }
         } else {
           // Marca o lote como erro para a barra continuar avançando
           applyBatchResults(
@@ -824,9 +834,11 @@ export default function MassBroadcast() {
         }
 
         const isLast = offset + batchSize >= queueCustomerIds.length;
-        if (!isLast && batchIntervalSeconds > 0) {
-          await sleep(batchIntervalSeconds * 1000);
+        if (!isLast) {
+          const waitMs = Math.max(batchIntervalSeconds * 1000, rateLimitWaitMs);
+          if (waitMs > 0) await sleep(waitMs);
         }
+
       }
 
       completeRef.current = true;
