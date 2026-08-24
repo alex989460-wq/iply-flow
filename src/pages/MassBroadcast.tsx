@@ -1135,6 +1135,86 @@ export default function MassBroadcast() {
                     Bloqueados
                   </Button>
                 </div>
+
+                {/* Segmentação por dias vencidos */}
+                <div className={cn(
+                  "rounded-xl border p-3 space-y-3 transition-colors",
+                  overdueSegmentEnabled ? "border-primary/50 bg-primary/5" : "bg-muted/30"
+                )}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-medium flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-primary" />
+                        Segmentação por dias vencidos
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Envie somente para quem está vencido dentro de um intervalo de dias.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={overdueSegmentEnabled}
+                      onCheckedChange={(v) => { setOverdueSegmentEnabled(v); clearSelection(); }}
+                    />
+                  </div>
+
+                  {overdueSegmentEnabled && (
+                    <div className="space-y-3 animate-fade-in">
+                      <div className="flex flex-wrap gap-2">
+                        {OVERDUE_PRESETS.map(preset => {
+                          const active = overdueRange.min === preset.min && overdueRange.max === preset.max;
+                          return (
+                            <Button
+                              key={preset.label}
+                              size="sm"
+                              variant={active ? 'default' : 'outline'}
+                              className="h-7 rounded-full text-xs"
+                              onClick={() => {
+                                setOverdueMin(String(preset.min));
+                                setOverdueMax(String(preset.max));
+                                clearSelection();
+                              }}
+                            >
+                              {preset.label}
+                            </Button>
+                          );
+                        })}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Mínimo (dias)</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={9999}
+                            value={overdueMin}
+                            onChange={(e) => setOverdueMin(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Máximo (dias)</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={9999}
+                            value={overdueMax}
+                            onChange={(e) => setOverdueMax(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">
+                          Intervalo: <span className="font-medium text-foreground">{overdueRange.min} a {overdueRange.max} dias vencidos</span>
+                        </span>
+                        <Badge variant="secondary">
+                          {selectionMode === 'customers' ? filteredCustomers.length : getCustomersForServers.length} cliente(s)
+                        </Badge>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
               </CardContent>
             </Card>
 
