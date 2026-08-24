@@ -1423,8 +1423,8 @@ export default function MassBroadcast() {
                       </p>
                     ) : (
                       servers.map(server => {
-                        const serverCustomers = customers.filter(c => c.server_id === server.id);
-                        const filteredCount = serverCustomers.filter(matchesFilters).length;
+                        const filteredCount = serverCounts.get(server.id) || 0;
+
 
                         const filterLabel = overdueSegmentEnabled
                           ? ` (${overdueRange.min}-${overdueRange.max}d vencidos)`
