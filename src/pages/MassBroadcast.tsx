@@ -1523,11 +1523,89 @@ export default function MassBroadcast() {
                   <p className="text-xs text-muted-foreground pt-1">
                     {isCheckingAlreadySent
                       ? 'Verificando histórico...'
-                      : `${alreadySentCount} da seleção já receberam "${selectedTemplate}".`}
+                      : `${alreadySentCount} da seleção já receberam "${selectedTemplate}" e serão pulados automaticamente.`}
                   </p>
                 )}
+
+                <div className="pt-2 space-y-1.5">
+                  <Label htmlFor="campaign-name" className="text-xs">Nome do disparo (campanha)</Label>
+                  <Input
+                    id="campaign-name"
+                    value={campaignName}
+                    onChange={(e) => setCampaignName(e.target.value)}
+                    placeholder="Ex.: Recuperação vencidos 30-90 dias"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Usado no histórico para monitorar entregas, leituras e respostas.
+                  </p>
+                </div>
               </CardContent>
             </Card>
+
+            {/* Histórico de disparos */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Clock className="w-5 h-5" />
+                    Histórico de disparos
+                  </CardTitle>
+                  <Button variant="outline" size="sm" onClick={() => setShowHistory((v) => !v)}>
+                    {showHistory ? 'Ocultar' : 'Ver'}
+                  </Button>
+                </div>
+                <CardDescription>Enviados, entregues, lidos e respondidos por campanha</CardDescription>
+              </CardHeader>
+              {showHistory && (
+                <CardContent className="space-y-2">
+                  {isLoadingCampaigns ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
+                    </div>
+                  ) : campaigns.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nenhum disparo registrado ainda.</p>
+                  ) : (
+                    campaigns.map((c: any) => (
+                      <div key={c.id} className="rounded-xl border border-border/60 p-3 bg-card">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{c.name}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {c.template_name} · {new Date(c.created_at).toLocaleString('pt-BR')}
+                            </p>
+                          </div>
+                          <Badge variant={c.finished_at ? 'secondary' : 'default'} className="shrink-0">
+                            {c.finished_at ? 'Concluído' : 'Em andamento'}
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-3 text-center">
+                          {[
+                            { label: 'Alvos', value: c.total_targets || 0 },
+                            { label: 'Enviados', value: c.sent_count || 0 },
+                            { label: 'Entregues', value: c.delivered_count || 0 },
+                            { label: 'Lidos', value: c.read_count || 0 },
+                            { label: 'Respostas', value: c.replied_count || 0 },
+                          ].map((m) => (
+                            <div key={m.label} className="rounded-lg bg-muted/50 py-1.5">
+                              <p className="text-sm font-semibold">{m.value}</p>
+                              <p className="text-[10px] text-muted-foreground uppercase">{m.label}</p>
+                            </div>
+                          ))}
+                        </div>
+                        {(c.skipped_count > 0 || c.error_count > 0) && (
+                          <p className="text-[11px] text-muted-foreground mt-2">
+                            {c.skipped_count > 0 && `${c.skipped_count} ignorados`}
+                            {c.skipped_count > 0 && c.error_count > 0 && ' · '}
+                            {c.error_count > 0 && `${c.error_count} erros`}
+                          </p>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              )}
+            </Card>
+
 
             {/* Template Selection */}
 
