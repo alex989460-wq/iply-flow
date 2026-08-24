@@ -331,21 +331,36 @@ async function enrichChannelsWithMetaNumbers(listed: any, apiKey?: string) {
           : Array.isArray(body?.data)
             ? body.data
             : [];
-    if (!arr.length) return listed;
-
-    const missing = arr.filter((c) => {
-      const kind = String(c?.kind || c?.type || "").toLowerCase();
-      if (kind.includes("evolution") || kind.includes("baileys")) return false;
-      const phone = c?.display_phone_number || c?.phone_number || c?.phone;
-      return !!c?.phone_number_id && !phone;
-    });
-    if (!missing.length) return listed;
 
     const { accessToken } = await getCrmOwnerSession(apiKey);
     const rows = await crmRest(
-      `channels?select=phone_number_id,system_user_token&kind=eq.whatsapp_cloud`,
+      `channels?select=*&kind=eq.whatsapp_cloud`,
       accessToken,
     ) as any[];
+
+    // A rota pública do CRM pode omitir o canal Cloud e devolver apenas a
+    // instância QR ligada ao mesmo telefone. Recoloca os canais oficiais da
+    // fonte interna antes de o frontend classificar e remover duplicidades.
+    const listedOfficialIds = new Set(
+      arr
+        .map((c) => c?.phone_number_id || c?.phoneNumberId)
+        .filter(Boolean)
+        .map(String),
+    );
+    for (const row of rows || []) {
+      const phoneId = row?.phone_number_id || row?.phoneNumberId;
+      if (!phoneId || listedOfficialIds.has(String(phoneId))) continue;
+      const { system_user_token: _secretToken, ...safeRow } = row;
+      arr.push({ ...safeRow, kind: "whatsapp_cloud", phone_number_id: String(phoneId) });
+      listedOfficialIds.add(String(phoneId));
+    }
+
+    if (!arr.length) return listed;
+
+    const official = arr.filter((c) => {
+      const kind = String(c?.kind || c?.type || "").toLowerCase();
+      return !!(c?.phone_number_id || c?.phoneNumberId) && !kind.includes("evolution") && !kind.includes("baileys");
+    });
     const tokenByPhoneId = new Map<string, string>();
     for (const r of rows || []) {
       if (r?.phone_number_id && r?.system_user_token) {
@@ -355,8 +370,8 @@ async function enrichChannelsWithMetaNumbers(listed: any, apiKey?: string) {
     const fallbackToken = rows?.find((r: any) => r?.system_user_token)?.system_user_token;
 
     await Promise.all(
-      missing.map(async (c) => {
-        const pid = String(c.phone_number_id);
+      official.map(async (c) => {
+        const pid = String(c.phone_number_id || c.phoneNumberId);
         const token = tokenByPhoneId.get(pid) || fallbackToken;
         if (!token) return;
         try {
