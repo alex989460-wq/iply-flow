@@ -12,6 +12,38 @@ function jidToPhone(jid: string) {
   return raw.replace(/\D/g, '');
 }
 
+// Marca resposta de campanha (histórico de disparo em massa)
+async function markBroadcastReply(admin: any, phone: string) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length < 8) return;
+  const suffix = digits.slice(-8);
+  const since = new Date(Date.now() - 7 * 86400000).toISOString();
+
+  const { data: rows } = await admin
+    .from('broadcast_logs')
+    .select('id, campaign_id, replied_at, phone_normalized, last_sent_at')
+    .not('campaign_id', 'is', null)
+    .is('replied_at', null)
+    .gte('last_sent_at', since)
+    .like('phone_normalized', `%${suffix}`)
+    .limit(5);
+
+  for (const row of rows || []) {
+    await admin.from('broadcast_logs').update({ replied_at: new Date().toISOString() }).eq('id', row.id);
+    const { data: campaign } = await admin
+      .from('broadcast_campaigns')
+      .select('replied_count')
+      .eq('id', row.campaign_id)
+      .maybeSingle();
+    if (campaign) {
+      await admin
+        .from('broadcast_campaigns')
+        .update({ replied_count: (campaign.replied_count || 0) + 1 })
+        .eq('id', row.campaign_id);
+    }
+  }
+}
+
 function unwrapMessage(message: any): any {
   return message?.ephemeralMessage?.message
     || message?.viewOnceMessage?.message
