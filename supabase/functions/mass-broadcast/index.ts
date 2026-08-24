@@ -221,50 +221,72 @@ async function startBroadcastPlan(args: {
     `Broadcast plan: total=${customers.length}, to_send=${customersToSend.length}, duplicates=${duplicateCustomers.length}, already_sent=${alreadySentCustomers.length}`
   );
 
-  // Log skips immediately (so UI receives realtime updates)
-  if (duplicateCustomers.length > 0) {
-    const { error } = await supabase.from('billing_logs').insert(
-      duplicateCustomers.map((customer) => ({
-        customer_id: customer.id,
-        billing_type: 'D0' as any,
-        message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName} - IGNORADO (telefone duplicado)`,
-        whatsapp_status: 'skipped',
-      }))
-    );
-
-    if (error) console.error('Error inserting duplicate skip logs:', error);
-  }
-
   const skipReason = audienceMode === 'already' ? 'ainda não recebeu este template' : 'já enviado anteriormente';
 
-  if (alreadySentCustomers.length > 0) {
-    const { error } = await supabase.from('billing_logs').insert(
-      alreadySentCustomers.map((customer) => ({
-        customer_id: customer.id,
-        billing_type: 'D0' as any,
-        message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName} - IGNORADO (${skipReason})`,
-        whatsapp_status: 'skipped',
-      }))
-    );
+  // Por padrão os ignorados NÃO viram log nem entram na barra de progresso:
+  // o disparo vai direto para quem ainda não recebeu.
+  if (args.logSkips) {
+    if (duplicateCustomers.length > 0) {
+      const { error } = await supabase.from('billing_logs').insert(
+        duplicateCustomers.map((customer) => ({
+          customer_id: customer.id,
+          billing_type: 'D0' as any,
+          message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName} - IGNORADO (telefone duplicado)`,
+          whatsapp_status: 'skipped',
+        }))
+      );
+      if (error) console.error('Error inserting duplicate skip logs:', error);
+    }
 
-    if (error) console.error('Error inserting already-sent skip logs:', error);
+    if (alreadySentCustomers.length > 0) {
+      const { error } = await supabase.from('billing_logs').insert(
+        alreadySentCustomers.map((customer) => ({
+          customer_id: customer.id,
+          billing_type: 'D0' as any,
+          message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName} - IGNORADO (${skipReason})`,
+          whatsapp_status: 'skipped',
+        }))
+      );
+      if (error) console.error('Error inserting already-sent skip logs:', error);
+    }
   }
 
-  const initialResults: InitialResult[] = [
-    ...alreadySentCustomers.map((c) => ({
-      customer: c.name,
-      phone: c.phone,
-      status: 'skipped' as const,
-      error: audienceMode === 'already' ? 'Ainda não recebeu este template' : 'Já enviado anteriormente',
-    })),
+  const initialResults: InitialResult[] = args.logSkips
+    ? [
+        ...alreadySentCustomers.map((c) => ({
+          customer: c.name,
+          phone: c.phone,
+          status: 'skipped' as const,
+          error: audienceMode === 'already' ? 'Ainda não recebeu este template' : 'Já enviado anteriormente',
+        })),
+        ...duplicateCustomers.map((c) => ({
+          customer: c.name,
+          phone: c.phone,
+          status: 'skipped' as const,
+          error: 'Telefone duplicado',
+        })),
+      ]
+    : [];
 
-    ...duplicateCustomers.map((c) => ({
-      customer: c.name,
-      phone: c.phone,
-      status: 'skipped' as const,
-      error: 'Telefone duplicado',
-    })),
-  ];
+  // Cria a campanha (histórico do disparo)
+  let campaignId: string | null = null;
+  if (args.ownerId) {
+    const { data: campaign, error: campaignError } = await supabase
+      .from('broadcast_campaigns')
+      .insert({
+        owner_id: args.ownerId,
+        name: (args.campaignName || '').trim() || `Disparo ${args.templateName}`,
+        template_name: args.templateName,
+        phone_number_id: args.phoneNumberId || null,
+        audience_mode: audienceMode,
+        total_targets: customersToSend.length,
+        skipped_count: alreadySentCustomers.length + duplicateCustomers.length,
+      })
+      .select('id')
+      .maybeSingle();
+    if (campaignError) console.error('Error creating broadcast campaign:', campaignError);
+    campaignId = campaign?.id ?? null;
+  }
 
   return {
     ok: true as const,
@@ -277,11 +299,13 @@ async function startBroadcastPlan(args: {
       already_sent: alreadySentCustomers.length,
       duplicates: duplicateCustomers.length,
       template: args.templateName,
+      campaign_id: campaignId,
       queue_customer_ids: customersToSend.map((c) => c.id),
       initial_results: initialResults,
     },
   };
 }
+
 
 async function processBroadcastBatch(args: {
   supabaseUrl: string;
