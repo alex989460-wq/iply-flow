@@ -719,6 +719,10 @@ Deno.serve(async (req) => {
       if (!fromMe && !isStatus && phone && phone.length <= 14 && type === 'text' && content) {
         fireAutoReply(settings.user_id, phone, content);
       }
+      if (!fromMe && !isStatus && phone) {
+        markBroadcastReply(admin, phone).catch(() => null);
+      }
+
     }
 
     return new Response(JSON.stringify({ ok: true }), {
