@@ -47,7 +47,7 @@ async function sendWhatsAppTemplate(
   userIdOrDept: string,
   phoneNumberId?: string | null,
   customerName?: string | null,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; messageId?: string | null }> {
   try {
     let formattedPhone = phone.replace(/\D/g, '');
     formattedPhone = normalizeWhatsAppPhone(formattedPhone);
