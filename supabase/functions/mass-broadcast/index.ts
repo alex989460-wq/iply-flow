@@ -420,26 +420,29 @@ async function processBroadcastBatch(args: {
 
   const nowIso = new Date().toISOString();
 
-  const results = await Promise.all(
-    (customers as any[]).map(async (customer) => {
-      const sendResult = await sendWhatsAppTemplate(
-        customer.phone,
-        args.templateName,
-        args.templateLanguage,
-        '',
-        '',
-        args.userId!,
-        args.phoneNumberId || null,
-        customer.name,
-      );
-      return {
+  // Envio sequencial com espaçamento: evita rajadas que estouram o rate limit da Meta.
+  const SEND_GAP_MS = 400;
+  const results: Array<{ customer: any; normalizedPhone: string; sendResult: any }> = [];
+  for (let i = 0; i < (customers as any[]).length; i++) {
+    const customer = (customers as any[])[i];
+    if (i > 0) await sleepMs(SEND_GAP_MS);
+    const sendResult = await sendWhatsAppTemplate(
+      customer.phone,
+      args.templateName,
+      args.templateLanguage,
+      '',
+      '',
+      args.userId!,
+      args.phoneNumberId || null,
+      customer.name,
+    );
+    results.push({
+      customer,
+      normalizedPhone: normalizePhone(customer.phone),
+      sendResult,
+    });
+  }
 
-        customer,
-        normalizedPhone: normalizePhone(customer.phone),
-        sendResult,
-      };
-    })
-  );
 
   const billingRows = results.map(({ customer, sendResult }) => ({
     customer_id: customer.id,
