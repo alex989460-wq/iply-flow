@@ -152,7 +152,10 @@ async function startBroadcastPlan(args: {
   supabaseServiceKey: string;
   customerIds: string[];
   templateName: string;
+  audienceMode?: 'new' | 'all' | 'already';
 }) {
+  const audienceMode = args.audienceMode || 'new';
+
   const supabase = createClient(args.supabaseUrl, args.supabaseServiceKey);
 
   // Fetch customers (chunked)
