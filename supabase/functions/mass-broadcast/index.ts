@@ -245,6 +245,13 @@ async function startBroadcastPlan(args: {
     const normalizedPhone = normalizePhone(customer.phone);
     const received = alreadySentPhones.has(normalizedPhone);
 
+    // Um mesmo telefone pode existir em mais de um cadastro. Nunca coloque o
+    // número duas vezes na fila do mesmo disparo.
+    if (!normalizedPhone || seenPhones.has(normalizedPhone)) {
+      duplicateCustomers.push(customer);
+      continue;
+    }
+
     // audienceMode:
     //  - 'new'     => envia só para quem NUNCA recebeu este template (padrão)
     //  - 'all'     => envia para todos, mesmo quem já recebeu
@@ -387,11 +394,12 @@ async function processBroadcastBatch(args: {
   if (!args.userId) {
     return { ok: false as const, status: 400, body: { error: 'Usuário não identificado para o envio.' } };
   }
+  const userId = args.userId;
 
   const { data: crmSettings, error: crmErr } = await supabase
     .from('crm_oficial_settings')
     .select('enabled, api_key')
-    .eq('user_id', args.userId)
+    .eq('user_id', userId)
     .maybeSingle();
 
   if (crmErr) {
@@ -420,10 +428,72 @@ async function processBroadcastBatch(args: {
 
   const nowIso = new Date().toISOString();
 
+  // Reserva cada telefone antes do envio. Esta segunda trava é obrigatória:
+  // dois navegadores podem iniciar campanhas ao mesmo tempo ou o frontend pode
+  // repetir um lote após perder a resposta, mesmo que a Meta já tenha recebido.
+  const claimedCustomers: any[] = [];
+  const skippedCustomers: any[] = [];
+  const seenBatchPhones = new Set<string>();
+
+  for (const customer of customers as any[]) {
+    const normalizedPhone = normalizePhone(customer.phone || '');
+    if (!normalizedPhone || seenBatchPhones.has(normalizedPhone)) {
+      skippedCustomers.push(customer);
+      continue;
+    }
+    seenBatchPhones.add(normalizedPhone);
+
+    const { data: existing } = await supabase
+      .from('broadcast_logs')
+      .select('id, last_status, updated_at')
+      .eq('phone_normalized', normalizedPhone)
+      .eq('template_name', args.templateName)
+      .maybeSingle();
+
+    const processingRecently = existing?.last_status === 'processing' &&
+      Date.now() - new Date(existing.updated_at || 0).getTime() < 15 * 60 * 1000;
+    if (existing?.last_status === 'sent' || processingRecently) {
+      skippedCustomers.push(customer);
+      continue;
+    }
+
+    if (existing?.id) {
+      const { data: claimed } = await supabase
+        .from('broadcast_logs')
+        .update({ last_status: 'processing', last_error: null, updated_at: nowIso })
+        .eq('id', existing.id)
+        .eq('last_status', existing.last_status)
+        .select('id')
+        .maybeSingle();
+      if (!claimed) {
+        skippedCustomers.push(customer);
+        continue;
+      }
+    } else {
+      const { error: claimError } = await supabase.from('broadcast_logs').insert({
+        customer_id: customer.id,
+        phone_normalized: normalizedPhone,
+        template_name: args.templateName,
+        last_status: 'processing',
+        last_error: null,
+        updated_at: nowIso,
+        ...(args.campaignId ? { campaign_id: args.campaignId } : {}),
+      });
+      if (claimError) {
+        // Conflito único significa que outra aba reservou o mesmo envio primeiro.
+        if (claimError.code !== '23505') console.error('Error claiming broadcast recipient:', claimError);
+        skippedCustomers.push(customer);
+        continue;
+      }
+    }
+
+    claimedCustomers.push(customer);
+  }
+
   // Envio com paralelismo controlado: rápido, mas sem rajadas que estouram o rate limit.
   const SEND_CONCURRENCY = 6;
   const SEND_GAP_MS = 80;
-  const list = customers as any[];
+  const list = claimedCustomers;
   const results: Array<{ customer: any; normalizedPhone: string; sendResult: any }> = new Array(list.length);
 
   let cursor = 0;
@@ -440,7 +510,7 @@ async function processBroadcastBatch(args: {
         args.templateLanguage,
         '',
         '',
-        args.userId!,
+        userId,
         args.phoneNumberId || null,
         customer.name,
       );
@@ -514,7 +584,7 @@ async function processBroadcastBatch(args: {
     }
   }
 
-  console.log(`Batch completed: sent=${sent}, errors=${errors}`);
+  console.log(`Batch completed: sent=${sent}, errors=${errors}, skipped=${skippedCustomers.length}`);
 
 
   return {
@@ -522,16 +592,26 @@ async function processBroadcastBatch(args: {
     status: 200,
     body: {
       success: true,
-      batch_total: results.length,
+      batch_total: results.length + skippedCustomers.length,
       sent,
       errors,
-      results: results.map(({ customer, sendResult }) => ({
-        customer_id: customer.id,
-        customer: customer.name,
-        phone: customer.phone,
-        status: sendResult.success ? 'sent' : 'error',
-        error: sendResult.success ? undefined : sendResult.error || 'Erro desconhecido',
-      })),
+      skipped: skippedCustomers.length,
+      results: [
+        ...results.map(({ customer, sendResult }) => ({
+          customer_id: customer.id,
+          customer: customer.name,
+          phone: customer.phone,
+          status: sendResult.success ? 'sent' : 'error',
+          error: sendResult.success ? undefined : sendResult.error || 'Erro desconhecido',
+        })),
+        ...skippedCustomers.map((customer) => ({
+          customer_id: customer.id,
+          customer: customer.name,
+          phone: customer.phone,
+          status: 'skipped',
+          error: 'Já enviado ou em processamento',
+        })),
+      ],
     },
   };
 }

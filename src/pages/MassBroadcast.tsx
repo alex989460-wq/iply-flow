@@ -773,7 +773,7 @@ export default function MassBroadcast() {
           realtimeResultsRef.current.set(row.customer_id, {
             customer: info.name,
             phone: info.phone,
-            status: row.status === 'sent' ? 'sent' : 'error',
+            status: row.status === 'sent' ? 'sent' : row.status === 'skipped' ? 'skipped' : 'error',
             error: row.status === 'sent' ? undefined : row.error || 'Erro desconhecido',
           });
         }
