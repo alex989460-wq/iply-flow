@@ -980,41 +980,123 @@ export type Database = {
         }
         Relationships: []
       }
+      broadcast_campaigns: {
+        Row: {
+          audience_mode: string
+          created_at: string
+          delivered_count: number
+          error_count: number
+          finished_at: string | null
+          id: string
+          name: string
+          owner_id: string
+          phone_number_id: string | null
+          read_count: number
+          replied_count: number
+          sent_count: number
+          skipped_count: number
+          started_at: string
+          template_name: string
+          total_targets: number
+          updated_at: string
+        }
+        Insert: {
+          audience_mode?: string
+          created_at?: string
+          delivered_count?: number
+          error_count?: number
+          finished_at?: string | null
+          id?: string
+          name: string
+          owner_id: string
+          phone_number_id?: string | null
+          read_count?: number
+          replied_count?: number
+          sent_count?: number
+          skipped_count?: number
+          started_at?: string
+          template_name: string
+          total_targets?: number
+          updated_at?: string
+        }
+        Update: {
+          audience_mode?: string
+          created_at?: string
+          delivered_count?: number
+          error_count?: number
+          finished_at?: string | null
+          id?: string
+          name?: string
+          owner_id?: string
+          phone_number_id?: string | null
+          read_count?: number
+          replied_count?: number
+          sent_count?: number
+          skipped_count?: number
+          started_at?: string
+          template_name?: string
+          total_targets?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       broadcast_logs: {
         Row: {
+          campaign_id: string | null
           created_at: string
           customer_id: string
+          delivered_at: string | null
           id: string
           last_error: string | null
           last_sent_at: string | null
           last_status: string
           phone_normalized: string
+          read_at: string | null
+          replied_at: string | null
           template_name: string
           updated_at: string
+          wa_message_id: string | null
         }
         Insert: {
+          campaign_id?: string | null
           created_at?: string
           customer_id: string
+          delivered_at?: string | null
           id?: string
           last_error?: string | null
           last_sent_at?: string | null
           last_status?: string
           phone_normalized: string
+          read_at?: string | null
+          replied_at?: string | null
           template_name: string
           updated_at?: string
+          wa_message_id?: string | null
         }
         Update: {
+          campaign_id?: string | null
           created_at?: string
           customer_id?: string
+          delivered_at?: string | null
           id?: string
           last_error?: string | null
           last_sent_at?: string | null
           last_status?: string
           phone_normalized?: string
+          read_at?: string | null
+          replied_at?: string | null
           template_name?: string
           updated_at?: string
+          wa_message_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "broadcast_logs_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "broadcast_campaigns"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "broadcast_logs_customer_id_fkey"
             columns: ["customer_id"]
