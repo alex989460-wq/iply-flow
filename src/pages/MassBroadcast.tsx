@@ -336,83 +336,63 @@ export default function MassBroadcast() {
   }, [crmEnabled, templatesLoaded]);
 
 
-  // Filter customers based on status and search
-  const filteredCustomers = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    // First day of current month
-    const firstDayCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  // Segmentação por dias vencidos
+  const overdueRange = useMemo(() => {
+    const minNum = Number(overdueMin);
+    const maxNum = Number(overdueMax);
+    const min = Number.isFinite(minNum) ? Math.max(0, Math.round(minNum)) : 0;
+    const max = Number.isFinite(maxNum) ? Math.max(min, Math.round(maxNum)) : 9999;
+    return { min, max };
+  }, [overdueMin, overdueMax]);
 
-    return customers.filter(customer => {
-      // Search filter
-      if (searchTerm) {
-        const search = searchTerm.toLowerCase();
-        if (!customer.name.toLowerCase().includes(search) && 
-            !customer.phone.includes(search)) {
-          return false;
-        }
-      }
-
-      // Status filter
-      if (statusFilter === 'ativa') return customer.status === 'ativa';
-      if (statusFilter === 'inativa') return customer.status === 'inativa';
-      if (statusFilter === 'vencidos') {
-        const dueDate = new Date(customer.due_date);
-        dueDate.setHours(0, 0, 0, 0);
-        return dueDate < today;
-      }
-      if (statusFilter === 'vencidos_mes_anterior') {
-        const dueDate = new Date(customer.due_date);
-        dueDate.setHours(0, 0, 0, 0);
-        // Vencidos até o mês anterior (antes do primeiro dia do mês atual)
-        return dueDate < firstDayCurrentMonth;
-      }
-      if (statusFilter === 'ativos') {
-        const dueDate = new Date(customer.due_date);
-        dueDate.setHours(0, 0, 0, 0);
-        return dueDate >= today;
-      }
-      
-      return true;
-    });
-  }, [customers, statusFilter, searchTerm]);
-
-  // Get customers for servers with status filter applied
-  const getCustomersForServers = useMemo(() => {
+  // Matcher único de status + segmentação (usado em clientes, servidores e contagens)
+  const matchesFilters = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const firstDayCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
-    return customers.filter(customer => {
-      // Must belong to a selected server
-      if (!customer.server_id || !selectedServers.has(customer.server_id)) {
-        return false;
+    return (customer: Customer) => {
+      if (overdueSegmentEnabled) {
+        const d = daysOverdueOf(customer.due_date);
+        if (d < overdueRange.min || d > overdueRange.max) return false;
       }
 
-      // Apply status filter
       if (statusFilter === 'ativa') return customer.status === 'ativa';
       if (statusFilter === 'inativa') return customer.status === 'inativa';
       if (statusFilter === 'suspensa') return customer.status === 'suspensa';
       if (statusFilter === 'bloqueado') return customer.status === 'bloqueado';
-      if (statusFilter === 'vencidos') {
-        const dueDate = new Date(customer.due_date);
-        dueDate.setHours(0, 0, 0, 0);
-        return dueDate < today;
-      }
-      if (statusFilter === 'vencidos_mes_anterior') {
-        const dueDate = new Date(customer.due_date);
-        dueDate.setHours(0, 0, 0, 0);
-        return dueDate < firstDayCurrentMonth;
-      }
-      if (statusFilter === 'ativos') {
-        const dueDate = new Date(customer.due_date);
-        dueDate.setHours(0, 0, 0, 0);
-        return dueDate >= today;
-      }
-      
+
+      const dueDate = new Date(customer.due_date);
+      dueDate.setHours(0, 0, 0, 0);
+      if (statusFilter === 'vencidos') return dueDate < today;
+      if (statusFilter === 'vencidos_mes_anterior') return dueDate < firstDayCurrentMonth;
+      if (statusFilter === 'ativos') return dueDate >= today;
+
       return true;
+    };
+  }, [statusFilter, overdueSegmentEnabled, overdueRange]);
+
+  // Filter customers based on status and search
+  const filteredCustomers = useMemo(() => {
+    return customers.filter(customer => {
+      if (searchTerm) {
+        const search = searchTerm.toLowerCase();
+        if (!customer.name.toLowerCase().includes(search) &&
+            !customer.phone.includes(search)) {
+          return false;
+        }
+      }
+      return matchesFilters(customer);
     });
+  }, [customers, matchesFilters, searchTerm]);
+
+  // Get customers for servers with status filter applied
+  const getCustomersForServers = useMemo(() => {
+    return customers.filter(customer => {
+      if (!customer.server_id || !selectedServers.has(customer.server_id)) return false;
+      return matchesFilters(customer);
+    });
+
   }, [customers, selectedServers, statusFilter]);
 
   // Telefones que possuem pelo menos um cliente ATIVO (status ativa e vencimento em dia)
