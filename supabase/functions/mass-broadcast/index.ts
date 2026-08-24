@@ -316,6 +316,7 @@ async function processBroadcastBatch(args: {
   userId?: string | null;
   isAdmin?: boolean;
   phoneNumberId?: string | null;
+  campaignId?: string | null;
 }) {
   const supabase = createClient(args.supabaseUrl, args.supabaseServiceKey);
 
