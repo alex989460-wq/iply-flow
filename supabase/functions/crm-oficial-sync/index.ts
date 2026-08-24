@@ -779,23 +779,31 @@ async function fetchOfficialTemplate(templateName: string, language: string, api
   const pick = async (matches: any[]) => {
     if (!matches.length) return null;
     for (const m of matches) await writeTemplateCache(templateName, m);
-    const langHit = matches.find((t: any) => {
-      const lang = String(t?.language || t?.language_code || t?.lang || "");
-      return !language || lang === language;
-    }) || matches.find((t: any) => String(t?.status || "").toUpperCase() === "APPROVED") || matches[0];
-    return langHit;
+    const norm = (l: unknown) => String(l || "").toLowerCase().replace(/-/g, "_");
+    const langOf = (t: any) => norm(t?.language || t?.language_code || t?.lang);
+    const approved = matches.filter((t: any) => String(t?.status || "").toUpperCase() === "APPROVED");
+    const pool = approved.length ? approved : matches;
+    const exact = language ? pool.find((t: any) => langOf(t) === norm(language)) : null;
+    return exact || pool[0];
   };
 
-  let matches: any[] = [];
-  try {
-    const result = await crmFetchWithKeyFallback("/api/public/v1/templates?limit=250", { method: "GET" }, apiKey);
-    const templates = normalizeListTemplatesBody(result.body);
-    matches = templates.filter((t: any) => String(t?.name || t?.template_name || "") === templateName);
-  } catch { /* segue para fallbacks */ }
 
-  if (!matches.length) matches = await fetchTemplateFromGraph(templateName, apiKey);
+  // A Graph API da Meta é a fonte da verdade do idioma/estrutura do template.
+  // A listagem do CRM às vezes devolve metadados de idioma errados (ex.: "en"),
+  // por isso ela é apenas fallback.
+  let matches: any[] = await fetchTemplateFromGraph(templateName, apiKey);
+
+  if (!matches.length) {
+    try {
+      const result = await crmFetchWithKeyFallback("/api/public/v1/templates?limit=250", { method: "GET" }, apiKey);
+      const templates = normalizeListTemplatesBody(result.body);
+      matches = templates.filter((t: any) => String(t?.name || t?.template_name || "") === templateName);
+    } catch { /* segue para fallbacks */ }
+  }
+
   if (!matches.length) return await readTemplateCache(templateName, language);
   return await pick(matches);
+
 }
 
 
@@ -983,11 +991,12 @@ async function doSendWhatsapp(payload: {
     const resolvedLang = String(
       officialTemplate?.language || officialTemplate?.language_code || officialTemplate?.lang || requestedLang
     );
-    // O CRM às vezes devolve metadados de idioma errados (ex.: "en" para um
-    // template aprovado só em pt_BR), o que causava (#132001). Portanto o idioma
-    // PEDIDO tem prioridade; o idioma resolvido vira apenas o primeiro fallback.
+    // Respeita EXATAMENTE o idioma com que o template foi aprovado na Meta
+    // (a definição vem da Graph API). O idioma pedido só é usado quando não
+    // conseguimos resolver a definição real do template.
     const normLang = (l: string) => String(l || "").toLowerCase().replace(/-/g, "_");
-    const lang = normLang(resolvedLang) === normLang(requestedLang) ? resolvedLang : String(requestedLang);
+    const lang = officialTemplate ? resolvedLang : String(requestedLang);
+
 
     const paramNames = officialTemplate ? getTemplateBodyParamNames(officialTemplate) : [];
     const isNamed = String(officialTemplate?.parameter_format || "").toUpperCase() === "NAMED"
@@ -1165,10 +1174,11 @@ async function doSendWhatsapp(payload: {
         const db = templateCacheClient();
         if (db) await db.from("meta_template_cache").delete().eq("name", String(payload.template_name)).eq("language", String(lang));
       } catch { /* best effort */ }
-      const tried = new Set<string>([String(lang)]);
-      const fallbackLangs = [resolvedLang, "pt_BR", "pt_PT", "pt", "en_US", "en", "es"].filter((l) => {
-        if (!l || tried.has(l)) return false;
-        tried.add(l);
+      const tried = new Set<string>([normLang(lang)]);
+      const fallbackLangs = [resolvedLang, String(requestedLang), "pt_BR", "pt_PT", "pt", "en_US", "en", "es"].filter((l) => {
+        if (!l || tried.has(normLang(l))) return false;
+        tried.add(normLang(l));
+
         return true;
       });
 
@@ -1216,14 +1226,25 @@ async function doSendWhatsapp(payload: {
     }
 
 
+    // Mostra o motivo REAL devolvido pela Meta/CRM (rate limit, template pausado,
+    // idioma inexistente, canal sem token...) em vez da mensagem genérica.
+    const rawAttempts = JSON.stringify(attemptsSummary || []);
+    const realReason =
+      /80007|80008|rate limit/i.test(rawAttempts) ? "Limite de envio da Meta atingido (rate limit). Reduza a cadência do disparo." :
+      /132001|does not exist in the translation/i.test(rawAttempts) ? `Template "${payload.template_name}" não existe no idioma ${lang} na Meta.` :
+      /132015|PAUSED|paused/i.test(rawAttempts) ? `Template "${payload.template_name}" está pausado/reprovado na Meta.` :
+      /não configurado no CRM|phone_number_id|channel/i.test(rawAttempts) ? "Canal WhatsApp Oficial sem phone_number_id/token válido no CRM." :
+      "Nenhum endpoint de template do CRM Oficial respondeu com sucesso.";
+
     return {
       ok: false,
       status: templateResult.status || 502,
       body: {
-        error: "Nenhum endpoint de template do CRM Oficial respondeu com sucesso. Peça ao dev do CRM para confirmar /api/public/v1/whatsapp-template-send (envio de template Meta com header/imagem/botões).",
+        error: `${realReason} (template: ${payload.template_name} · idioma: ${lang})`,
         attempts: attemptsSummary,
       },
     };
+
 
   }
 

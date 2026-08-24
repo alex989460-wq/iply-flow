@@ -393,11 +393,18 @@ export default function MassBroadcast() {
     };
   }, [statusFilter, overdueSegmentEnabled, overdueRange]);
 
+  // Busca com debounce: evita refiltrar milhares de clientes a cada tecla
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm), 250);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
   // Filter customers based on status and search
   const filteredCustomers = useMemo(() => {
+    const search = debouncedSearch.trim().toLowerCase();
     return customers.filter(customer => {
-      if (searchTerm) {
-        const search = searchTerm.toLowerCase();
+      if (search) {
         if (!customer.name.toLowerCase().includes(search) &&
             !customer.phone.includes(search)) {
           return false;
@@ -405,7 +412,28 @@ export default function MassBroadcast() {
       }
       return matchesFilters(customer);
     });
-  }, [customers, matchesFilters, searchTerm]);
+  }, [customers, matchesFilters, debouncedSearch]);
+
+  // Renderização incremental: listas com milhares de itens travavam a página
+  const [visibleCount, setVisibleCount] = useState(100);
+  useEffect(() => {
+    setVisibleCount(100);
+  }, [debouncedSearch, statusFilter, overdueSegmentEnabled, overdueMin, overdueMax, selectionMode]);
+  const visibleCustomers = useMemo(
+    () => filteredCustomers.slice(0, visibleCount),
+    [filteredCustomers, visibleCount],
+  );
+
+  // Contagem por servidor em uma única passada (antes era O(servidores x clientes) por render)
+  const serverCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of customers) {
+      if (!c.server_id) continue;
+      if (!matchesFilters(c)) continue;
+      map.set(c.server_id, (map.get(c.server_id) || 0) + 1);
+    }
+    return map;
+  }, [customers, matchesFilters]);
 
   // Get customers for servers with status filter applied
   const getCustomersForServers = useMemo(() => {
@@ -414,6 +442,7 @@ export default function MassBroadcast() {
       return matchesFilters(customer);
     });
   }, [customers, selectedServers, matchesFilters]);
+
 
 
   // Telefones que possuem pelo menos um cliente ATIVO (status ativa e vencimento em dia)
@@ -455,48 +484,64 @@ export default function MassBroadcast() {
   }, [templates, selectedTemplate]);
 
   // Check how many selected customers already received the template
+  // (debounced + paralelo: antes disparava dezenas de queries sequenciais a cada clique)
+  const alreadySentRunRef = useRef(0);
+  const selectedPhonesKey = useMemo(
+    () => `${getSelectedCustomersList.length}:${getSelectedCustomersList[0]?.id || ''}:${getSelectedCustomersList[getSelectedCustomersList.length - 1]?.id || ''}`,
+    [getSelectedCustomersList],
+  );
   useEffect(() => {
-    const checkAlreadySent = async () => {
-      if (!selectedTemplate || getSelectedCustomersList.length === 0) {
-        setAlreadySentCount(0);
-        return;
-      }
+    const runId = ++alreadySentRunRef.current;
 
+    if (!selectedTemplate || getSelectedCustomersList.length === 0) {
+      setAlreadySentCount(0);
+      setIsCheckingAlreadySent(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
       setIsCheckingAlreadySent(true);
       try {
-        // Normalize all phone numbers from selected customers
-        const customerPhones = getSelectedCustomersList.map(c => c.phone.replace(/\D/g, ''));
-        
-        // Query broadcast_logs for phones that already received this template
-        const uniquePhones = [...new Set(customerPhones)];
-        const CHUNK_SIZE = 100;
-        let totalAlreadySent = 0;
-
+        const uniquePhones = [...new Set(getSelectedCustomersList.map(c => String(c.phone || '').replace(/\D/g, '')))].filter(Boolean);
+        const CHUNK_SIZE = 400;
+        const chunks: string[][] = [];
         for (let i = 0; i < uniquePhones.length; i += CHUNK_SIZE) {
-          const chunk = uniquePhones.slice(i, i + CHUNK_SIZE);
-          const { data, error } = await supabase
-            .from('broadcast_logs')
-            .select('phone_normalized')
-            .eq('template_name', selectedTemplate)
-            .eq('last_status', 'sent')
-            .in('phone_normalized', chunk);
+          chunks.push(uniquePhones.slice(i, i + CHUNK_SIZE));
+        }
 
-          if (!error && data) {
-            totalAlreadySent += data.length;
+        let totalAlreadySent = 0;
+        const CONCURRENCY = 5;
+        for (let i = 0; i < chunks.length; i += CONCURRENCY) {
+          if (alreadySentRunRef.current !== runId) return;
+          const results = await Promise.all(
+            chunks.slice(i, i + CONCURRENCY).map(chunk =>
+              supabase
+                .from('broadcast_logs')
+                .select('phone_normalized')
+                .eq('template_name', selectedTemplate)
+                .eq('last_status', 'sent')
+                .in('phone_normalized', chunk),
+            ),
+          );
+          for (const { data, error } of results) {
+            if (!error && data) totalAlreadySent += data.length;
           }
         }
 
+        if (alreadySentRunRef.current !== runId) return;
         setAlreadySentCount(totalAlreadySent);
       } catch (error) {
         console.error('Error checking already sent:', error);
-        setAlreadySentCount(0);
+        if (alreadySentRunRef.current === runId) setAlreadySentCount(0);
       } finally {
-        setIsCheckingAlreadySent(false);
+        if (alreadySentRunRef.current === runId) setIsCheckingAlreadySent(false);
       }
-    };
+    }, 600);
 
-    checkAlreadySent();
-  }, [selectedTemplate, getSelectedCustomersList]);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTemplate, selectedPhonesKey]);
+
 
   // Calculate estimated cost based on template category
   const estimatedCost = useMemo(() => {
@@ -1314,7 +1359,8 @@ export default function MassBroadcast() {
                         Nenhum cliente encontrado
                       </p>
                     ) : (
-                      filteredCustomers.map(customer => (
+                      <>
+                        {visibleCustomers.map(customer => (
                         <div
                           key={customer.id}
                           className={cn(
@@ -1350,8 +1396,24 @@ export default function MassBroadcast() {
                             )}
                           </div>
                         </div>
-                      ))
+                        ))}
+                        {filteredCustomers.length > visibleCustomers.length && (
+                          <div className="flex flex-col items-center gap-2 py-3">
+                            <p className="text-xs text-muted-foreground">
+                              Exibindo {visibleCustomers.length} de {filteredCustomers.length} clientes
+                            </p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setVisibleCount((v) => v + 200)}
+                            >
+                              Carregar mais 200
+                            </Button>
+                          </div>
+                        )}
+                      </>
                     )}
+
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -1361,8 +1423,8 @@ export default function MassBroadcast() {
                       </p>
                     ) : (
                       servers.map(server => {
-                        const serverCustomers = customers.filter(c => c.server_id === server.id);
-                        const filteredCount = serverCustomers.filter(matchesFilters).length;
+                        const filteredCount = serverCounts.get(server.id) || 0;
+
 
                         const filterLabel = overdueSegmentEnabled
                           ? ` (${overdueRange.min}-${overdueRange.max}d vencidos)`
