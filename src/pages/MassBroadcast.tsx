@@ -83,6 +83,26 @@ interface ActiveBroadcast {
 const COST_MARKETING = 0.5895; // R$ 0,5895 por mensagem de marketing (Cloud API)
 const COST_UTILITY = 0.0642; // R$ 0,0642 por mensagem de utilidade (Cloud API)
 
+// Dias em atraso (positivo = vencido há X dias, negativo = ainda em dia)
+function daysOverdueOf(dueDate: string): number {
+  if (!dueDate) return -99999;
+  const due = new Date(dueDate);
+  if (Number.isNaN(due.getTime())) return -99999;
+  due.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.floor((today.getTime() - due.getTime()) / 86400000);
+}
+
+const OVERDUE_PRESETS: { label: string; min: number; max: number }[] = [
+  { label: '1 a 7 dias', min: 1, max: 7 },
+  { label: '8 a 30 dias', min: 8, max: 30 },
+  { label: '30 a 90 dias', min: 30, max: 90 },
+  { label: '90 a 180 dias', min: 90, max: 180 },
+  { label: '180 a 365 dias', min: 180, max: 365 },
+  { label: '365+ dias', min: 365, max: 9999 },
+];
+
 export default function MassBroadcast() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -107,6 +127,10 @@ export default function MassBroadcast() {
   const [senderPhoneId, setSenderPhoneId] = useState<string>('');
   const [isCheckingAlreadySent, setIsCheckingAlreadySent] = useState(false);
   const [excludeActivePhones, setExcludeActivePhones] = useState(false);
+  const [overdueSegmentEnabled, setOverdueSegmentEnabled] = useState(false);
+  const [overdueMin, setOverdueMin] = useState<string>('30');
+  const [overdueMax, setOverdueMax] = useState<string>('300');
+
 
   const initialResultsRef = useRef<BroadcastResult[]>([]);
   const realtimeResultsRef = useRef<Map<string, BroadcastResult>>(new Map());
@@ -312,84 +336,64 @@ export default function MassBroadcast() {
   }, [crmEnabled, templatesLoaded]);
 
 
-  // Filter customers based on status and search
-  const filteredCustomers = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    // First day of current month
-    const firstDayCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  // Segmentação por dias vencidos
+  const overdueRange = useMemo(() => {
+    const minNum = Number(overdueMin);
+    const maxNum = Number(overdueMax);
+    const min = Number.isFinite(minNum) ? Math.max(0, Math.round(minNum)) : 0;
+    const max = Number.isFinite(maxNum) ? Math.max(min, Math.round(maxNum)) : 9999;
+    return { min, max };
+  }, [overdueMin, overdueMax]);
 
-    return customers.filter(customer => {
-      // Search filter
-      if (searchTerm) {
-        const search = searchTerm.toLowerCase();
-        if (!customer.name.toLowerCase().includes(search) && 
-            !customer.phone.includes(search)) {
-          return false;
-        }
-      }
-
-      // Status filter
-      if (statusFilter === 'ativa') return customer.status === 'ativa';
-      if (statusFilter === 'inativa') return customer.status === 'inativa';
-      if (statusFilter === 'vencidos') {
-        const dueDate = new Date(customer.due_date);
-        dueDate.setHours(0, 0, 0, 0);
-        return dueDate < today;
-      }
-      if (statusFilter === 'vencidos_mes_anterior') {
-        const dueDate = new Date(customer.due_date);
-        dueDate.setHours(0, 0, 0, 0);
-        // Vencidos até o mês anterior (antes do primeiro dia do mês atual)
-        return dueDate < firstDayCurrentMonth;
-      }
-      if (statusFilter === 'ativos') {
-        const dueDate = new Date(customer.due_date);
-        dueDate.setHours(0, 0, 0, 0);
-        return dueDate >= today;
-      }
-      
-      return true;
-    });
-  }, [customers, statusFilter, searchTerm]);
-
-  // Get customers for servers with status filter applied
-  const getCustomersForServers = useMemo(() => {
+  // Matcher único de status + segmentação (usado em clientes, servidores e contagens)
+  const matchesFilters = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const firstDayCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
-    return customers.filter(customer => {
-      // Must belong to a selected server
-      if (!customer.server_id || !selectedServers.has(customer.server_id)) {
-        return false;
+    return (customer: Customer) => {
+      if (overdueSegmentEnabled) {
+        const d = daysOverdueOf(customer.due_date);
+        if (d < overdueRange.min || d > overdueRange.max) return false;
       }
 
-      // Apply status filter
       if (statusFilter === 'ativa') return customer.status === 'ativa';
       if (statusFilter === 'inativa') return customer.status === 'inativa';
       if (statusFilter === 'suspensa') return customer.status === 'suspensa';
       if (statusFilter === 'bloqueado') return customer.status === 'bloqueado';
-      if (statusFilter === 'vencidos') {
-        const dueDate = new Date(customer.due_date);
-        dueDate.setHours(0, 0, 0, 0);
-        return dueDate < today;
-      }
-      if (statusFilter === 'vencidos_mes_anterior') {
-        const dueDate = new Date(customer.due_date);
-        dueDate.setHours(0, 0, 0, 0);
-        return dueDate < firstDayCurrentMonth;
-      }
-      if (statusFilter === 'ativos') {
-        const dueDate = new Date(customer.due_date);
-        dueDate.setHours(0, 0, 0, 0);
-        return dueDate >= today;
-      }
-      
+
+      const dueDate = new Date(customer.due_date);
+      dueDate.setHours(0, 0, 0, 0);
+      if (statusFilter === 'vencidos') return dueDate < today;
+      if (statusFilter === 'vencidos_mes_anterior') return dueDate < firstDayCurrentMonth;
+      if (statusFilter === 'ativos') return dueDate >= today;
+
       return true;
+    };
+  }, [statusFilter, overdueSegmentEnabled, overdueRange]);
+
+  // Filter customers based on status and search
+  const filteredCustomers = useMemo(() => {
+    return customers.filter(customer => {
+      if (searchTerm) {
+        const search = searchTerm.toLowerCase();
+        if (!customer.name.toLowerCase().includes(search) &&
+            !customer.phone.includes(search)) {
+          return false;
+        }
+      }
+      return matchesFilters(customer);
     });
-  }, [customers, selectedServers, statusFilter]);
+  }, [customers, matchesFilters, searchTerm]);
+
+  // Get customers for servers with status filter applied
+  const getCustomersForServers = useMemo(() => {
+    return customers.filter(customer => {
+      if (!customer.server_id || !selectedServers.has(customer.server_id)) return false;
+      return matchesFilters(customer);
+    });
+  }, [customers, selectedServers, matchesFilters]);
+
 
   // Telefones que possuem pelo menos um cliente ATIVO (status ativa e vencimento em dia)
   const activePhones = useMemo(() => {
@@ -1131,6 +1135,86 @@ export default function MassBroadcast() {
                     Bloqueados
                   </Button>
                 </div>
+
+                {/* Segmentação por dias vencidos */}
+                <div className={cn(
+                  "rounded-xl border p-3 space-y-3 transition-colors",
+                  overdueSegmentEnabled ? "border-primary/50 bg-primary/5" : "bg-muted/30"
+                )}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-medium flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-primary" />
+                        Segmentação por dias vencidos
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Envie somente para quem está vencido dentro de um intervalo de dias.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={overdueSegmentEnabled}
+                      onCheckedChange={(v) => { setOverdueSegmentEnabled(v); clearSelection(); }}
+                    />
+                  </div>
+
+                  {overdueSegmentEnabled && (
+                    <div className="space-y-3 animate-fade-in">
+                      <div className="flex flex-wrap gap-2">
+                        {OVERDUE_PRESETS.map(preset => {
+                          const active = overdueRange.min === preset.min && overdueRange.max === preset.max;
+                          return (
+                            <Button
+                              key={preset.label}
+                              size="sm"
+                              variant={active ? 'default' : 'outline'}
+                              className="h-7 rounded-full text-xs"
+                              onClick={() => {
+                                setOverdueMin(String(preset.min));
+                                setOverdueMax(String(preset.max));
+                                clearSelection();
+                              }}
+                            >
+                              {preset.label}
+                            </Button>
+                          );
+                        })}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Mínimo (dias)</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={9999}
+                            value={overdueMin}
+                            onChange={(e) => setOverdueMin(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Máximo (dias)</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={9999}
+                            value={overdueMax}
+                            onChange={(e) => setOverdueMax(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">
+                          Intervalo: <span className="font-medium text-foreground">{overdueRange.min} a {overdueRange.max} dias vencidos</span>
+                        </span>
+                        <Badge variant="secondary">
+                          {selectionMode === 'customers' ? filteredCustomers.length : getCustomersForServers.length} cliente(s)
+                        </Badge>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
               </CardContent>
             </Card>
 
@@ -1197,8 +1281,16 @@ export default function MassBroadcast() {
                           />
                           <div className="flex-1 min-w-0">
                             <p className="font-medium truncate">{customer.name}</p>
-                            <p className="text-sm text-muted-foreground">{customer.phone}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {customer.phone}
+                              {daysOverdueOf(customer.due_date) > 0 && (
+                                <span className="ml-2 text-destructive">
+                                  · {daysOverdueOf(customer.due_date)}d vencido
+                                </span>
+                              )}
+                            </p>
                           </div>
+
                           <div className="text-right">
                             {getStatusBadge(customer)}
                             {customer.servers && (
@@ -1220,38 +1312,17 @@ export default function MassBroadcast() {
                     ) : (
                       servers.map(server => {
                         const serverCustomers = customers.filter(c => c.server_id === server.id);
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
-                        const firstDayCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-                        
-                        // Count based on current filter
-                        const filteredCount = serverCustomers.filter(customer => {
-                          if (statusFilter === 'ativa') return customer.status === 'ativa';
-                          if (statusFilter === 'inativa') return customer.status === 'inativa';
-                          if (statusFilter === 'vencidos') {
-                            const dueDate = new Date(customer.due_date);
-                            dueDate.setHours(0, 0, 0, 0);
-                            return dueDate < today;
-                          }
-                          if (statusFilter === 'vencidos_mes_anterior') {
-                            const dueDate = new Date(customer.due_date);
-                            dueDate.setHours(0, 0, 0, 0);
-                            return dueDate < firstDayCurrentMonth;
-                          }
-                          if (statusFilter === 'ativos') {
-                            const dueDate = new Date(customer.due_date);
-                            dueDate.setHours(0, 0, 0, 0);
-                            return dueDate >= today;
-                          }
-                          return true;
-                        }).length;
+                        const filteredCount = serverCustomers.filter(matchesFilters).length;
 
-                        const filterLabel = statusFilter === 'all' ? '' : 
+                        const filterLabel = overdueSegmentEnabled
+                          ? ` (${overdueRange.min}-${overdueRange.max}d vencidos)`
+                          : statusFilter === 'all' ? '' :
                           statusFilter === 'ativa' ? ' ativos' :
                           statusFilter === 'inativa' ? ' inativos' :
                           statusFilter === 'vencidos' ? ' vencidos' :
                           statusFilter === 'vencidos_mes_anterior' ? ' vencidos mês ant.' :
                           statusFilter === 'ativos' ? ' em dia' : '';
+
 
                         return (
                           <div
