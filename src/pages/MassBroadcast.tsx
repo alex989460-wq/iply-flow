@@ -393,11 +393,18 @@ export default function MassBroadcast() {
     };
   }, [statusFilter, overdueSegmentEnabled, overdueRange]);
 
+  // Busca com debounce: evita refiltrar milhares de clientes a cada tecla
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm), 250);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
   // Filter customers based on status and search
   const filteredCustomers = useMemo(() => {
+    const search = debouncedSearch.trim().toLowerCase();
     return customers.filter(customer => {
-      if (searchTerm) {
-        const search = searchTerm.toLowerCase();
+      if (search) {
         if (!customer.name.toLowerCase().includes(search) &&
             !customer.phone.includes(search)) {
           return false;
@@ -405,7 +412,28 @@ export default function MassBroadcast() {
       }
       return matchesFilters(customer);
     });
-  }, [customers, matchesFilters, searchTerm]);
+  }, [customers, matchesFilters, debouncedSearch]);
+
+  // Renderização incremental: listas com milhares de itens travavam a página
+  const [visibleCount, setVisibleCount] = useState(100);
+  useEffect(() => {
+    setVisibleCount(100);
+  }, [debouncedSearch, statusFilter, overdueSegmentEnabled, overdueMin, overdueMax, selectionMode]);
+  const visibleCustomers = useMemo(
+    () => filteredCustomers.slice(0, visibleCount),
+    [filteredCustomers, visibleCount],
+  );
+
+  // Contagem por servidor em uma única passada (antes era O(servidores x clientes) por render)
+  const serverCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of customers) {
+      if (!c.server_id) continue;
+      if (!matchesFilters(c)) continue;
+      map.set(c.server_id, (map.get(c.server_id) || 0) + 1);
+    }
+    return map;
+  }, [customers, matchesFilters]);
 
   // Get customers for servers with status filter applied
   const getCustomersForServers = useMemo(() => {
@@ -414,6 +442,7 @@ export default function MassBroadcast() {
       return matchesFilters(customer);
     });
   }, [customers, selectedServers, matchesFilters]);
+
 
 
   // Telefones que possuem pelo menos um cliente ATIVO (status ativa e vencimento em dia)
