@@ -754,7 +754,7 @@ async function processBroadcastBatch(args: {
   // Customers
   const { data: customers, error: customersError } = await supabase
     .from('customers')
-    .select('id, name, phone, status, due_date')
+    .select('id, name, phone, status, due_date, server_id')
     .in('id', args.customerIds);
 
   if (customersError || !customers) {
@@ -800,6 +800,11 @@ async function processBroadcastBatch(args: {
       continue;
     }
     seenBatchPhones.add(normalizedPhone);
+
+    if (campaignForRules && !matchesStoredCampaignFilters(customer, getCampaignFilterConfig(campaignForRules))) {
+      skippedCustomers.push({ ...customer, skipReason: 'Fora dos filtros da campanha' });
+      continue;
+    }
 
     if (shouldExcludeActivePhones && (isActiveCurrentCustomer(customer) || hasActiveCurrentPhone(customer, activePhones))) {
       skippedCustomers.push({ ...customer, skipReason: 'Cliente ativo/em dia' });
@@ -939,7 +944,7 @@ async function processBroadcastBatch(args: {
   if (args.campaignId) {
     const { data: campaign } = await supabase
       .from('broadcast_campaigns')
-      .select('sent_count, error_count, pending_customer_ids')
+        .select('sent_count, error_count, skipped_count, pending_customer_ids')
       .eq('id', args.campaignId)
       .maybeSingle();
     if (campaign) {
@@ -952,6 +957,7 @@ async function processBroadcastBatch(args: {
         .update({
           sent_count: (campaign.sent_count || 0) + sent,
           error_count: (campaign.error_count || 0) + errors,
+          skipped_count: (campaign.skipped_count || 0) + skippedCustomers.length,
           pending_customer_ids: pending,
         })
         .eq('id', args.campaignId);
