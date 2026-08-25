@@ -576,6 +576,7 @@ async function processBroadcastBatch(args: {
   phoneNumberId?: string | null;
   campaignId?: string | null;
   audienceMode?: 'new' | 'all' | 'already';
+  excludeActivePhones?: boolean;
 }) {
   const supabase = createClient(args.supabaseUrl, args.supabaseServiceKey);
 
@@ -642,7 +643,7 @@ async function processBroadcastBatch(args: {
   const claimedCustomers: any[] = [];
   const skippedCustomers: any[] = [];
   const seenBatchPhones = new Set<string>();
-  const shouldExcludeActivePhones = isRecoveryBroadcast(args.templateName);
+  const shouldExcludeActivePhones = args.excludeActivePhones === true || isRecoveryBroadcast(args.templateName);
   const { activePhones, error: activePhonesError } = shouldExcludeActivePhones
     ? await fetchActiveCurrentPhonesForOwner(supabase, userId)
     : { activePhones: new Set<string>(), error: null };
@@ -1191,6 +1192,7 @@ Deno.serve(async (req) => {
         campaignName: (body as any).campaign_name || null,
         phoneNumberId: (body as any).phone_number_id || null,
         logSkips: (body as any).log_skips === true,
+        excludeActivePhones: (body as any).exclude_active_phones === true,
       } as any);
 
 
@@ -1215,6 +1217,7 @@ Deno.serve(async (req) => {
         phoneNumberId: (body as any).phone_number_id || null,
         campaignId: (body as any).campaign_id || null,
         audienceMode: ((body as any).audience_mode as 'new' | 'all' | 'already') || 'new',
+        excludeActivePhones: (body as any).exclude_active_phones === true,
       });
 
       return new Response(JSON.stringify(batched.body), {
