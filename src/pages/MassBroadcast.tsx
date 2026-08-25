@@ -138,13 +138,17 @@ export default function MassBroadcast() {
   // 'new' = só quem nunca recebeu | 'all' = todos | 'already' = só quem já recebeu
   const [audienceMode, setAudienceMode] = useState<'new' | 'all' | 'already'>('new');
   const [campaignName, setCampaignName] = useState('');
-  const [showHistory, setShowHistory] = useState(false);
-
-
+  const [showHistory, setShowHistory] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
+  const [resumingCampaignId, setResumingCampaignId] = useState<string | null>(null);
+  const [expandedCampaignId, setExpandedCampaignId] = useState<string | null>(null);
+  const [campaignSearch, setCampaignSearch] = useState('');
+  const [syncingCampaignId, setSyncingCampaignId] = useState<string | null>(null);
 
   const initialResultsRef = useRef<BroadcastResult[]>([]);
   const realtimeResultsRef = useRef<Map<string, BroadcastResult>>(new Map());
   const cancelSendRef = useRef(false);
+  const pauseRef = useRef(false);
   const completeRef = useRef(false);
   const campaignIdRef = useRef<string | null>(null);
 
