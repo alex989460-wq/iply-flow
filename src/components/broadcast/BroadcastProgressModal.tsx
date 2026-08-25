@@ -259,7 +259,13 @@ export function BroadcastProgressModal({
           </div>
 
           {/* Ações */}
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {isSending && onPause && (
+              <Button variant="secondary" onClick={onPause} disabled={isPaused} className="flex-1">
+                <PauseCircle className="w-4 h-4 mr-2" />
+                {isPaused ? 'Pausando...' : 'Pausar'}
+              </Button>
+            )}
             {isSending && onCancel && (
               <Button variant="destructive" onClick={onCancel} className="flex-1">
                 <StopCircle className="w-4 h-4 mr-2" />
