@@ -27,6 +27,7 @@ interface CustomerInfo {
   phone: string;
   status?: string | null;
   due_date?: string | null;
+  server_id?: string | null;
 }
 
 interface InitialResult {
@@ -67,6 +68,66 @@ function isActiveCurrentCustomer(customer: { status?: string | null; due_date?: 
 function isRecoveryBroadcast(templateName?: string | null, campaignName?: string | null): boolean {
   const text = `${templateName || ''} ${campaignName || ''}`.toLowerCase();
   return /inadimpl|cobran|recupera|vencid|atrasad/.test(text);
+}
+
+function getCampaignFilterConfig(campaign?: any): Record<string, any> {
+  const config = campaign?.filter_config;
+  return config && typeof config === 'object' && !Array.isArray(config) ? config : {};
+}
+
+function campaignShouldExcludeActive(campaign?: any, templateName?: string | null, campaignName?: string | null): boolean {
+  const config = getCampaignFilterConfig(campaign);
+  return campaign?.exclude_active_phones === true ||
+    config.exclude_active_phones === true ||
+    isRecoveryBroadcast(templateName || campaign?.template_name, campaignName || campaign?.name);
+}
+
+function firstDayCurrentMonthSaoPaulo(): string {
+  const today = saoPauloTodayDate();
+  return `${today.slice(0, 8)}01`;
+}
+
+function daysOverdueFromDate(dueDateValue?: string | null): number {
+  const dueDate = String(dueDateValue || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return -99999;
+  const today = saoPauloTodayDate();
+  const dueMs = Date.UTC(Number(dueDate.slice(0, 4)), Number(dueDate.slice(5, 7)) - 1, Number(dueDate.slice(8, 10)));
+  const todayMs = Date.UTC(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 1, Number(today.slice(8, 10)));
+  return Math.floor((todayMs - dueMs) / 86400000);
+}
+
+function matchesStoredCampaignFilters(customer: any, filterConfig: Record<string, any>): boolean {
+  const selectedCustomerIds = Array.isArray(filterConfig.selected_customer_ids)
+    ? new Set(filterConfig.selected_customer_ids.map((id: unknown) => String(id)))
+    : null;
+  if (filterConfig.selection_mode === 'customers' && selectedCustomerIds?.size && !selectedCustomerIds.has(String(customer.id))) {
+    return false;
+  }
+
+  const selectedServerIds = Array.isArray(filterConfig.selected_server_ids)
+    ? new Set(filterConfig.selected_server_ids.map((id: unknown) => String(id)))
+    : null;
+  if (filterConfig.selection_mode === 'servers' && selectedServerIds?.size && !selectedServerIds.has(String(customer.server_id || ''))) {
+    return false;
+  }
+
+  if (filterConfig.overdue_segment_enabled === true) {
+    const min = Number.isFinite(Number(filterConfig.overdue_min)) ? Math.max(0, Math.round(Number(filterConfig.overdue_min))) : 0;
+    const max = Number.isFinite(Number(filterConfig.overdue_max)) ? Math.max(min, Math.round(Number(filterConfig.overdue_max))) : 9999;
+    const overdueDays = daysOverdueFromDate(customer.due_date);
+    if (overdueDays < min || overdueDays > max) return false;
+  }
+
+  const statusFilter = String(filterConfig.status_filter || 'all');
+  if (statusFilter === 'all') return true;
+  if (['ativa', 'inativa', 'suspensa', 'bloqueado'].includes(statusFilter)) return String(customer.status || '') === statusFilter;
+
+  const dueDate = String(customer.due_date || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return false;
+  if (statusFilter === 'vencidos') return dueDate < saoPauloTodayDate();
+  if (statusFilter === 'vencidos_mes_anterior') return dueDate < firstDayCurrentMonthSaoPaulo();
+  if (statusFilter === 'ativos') return dueDate >= saoPauloTodayDate();
+  return true;
 }
 
 function sleepMs(ms: number): Promise<void> {
