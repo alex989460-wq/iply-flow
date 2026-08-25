@@ -168,6 +168,41 @@ export default function MassBroadcast() {
     },
   });
 
+  // Detalhe por número da campanha expandida
+  const { data: campaignLogs = [], isLoading: isLoadingCampaignLogs } = useQuery({
+    queryKey: ['broadcast-campaign-logs', expandedCampaignId],
+    enabled: !!expandedCampaignId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('broadcast_logs' as any)
+        .select('*')
+        .eq('campaign_id', expandedCampaignId)
+        .order('created_at', { ascending: false })
+        .limit(1000);
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+  });
+
+  const syncCampaignCounts = async (campaignId: string) => {
+    setSyncingCampaignId(campaignId);
+    try {
+      const { error } = await supabase.functions.invoke('mass-broadcast', {
+        body: { action: 'sync-counts', campaign_id: campaignId },
+      });
+      if (error) throw new Error(error.message);
+      queryClient.invalidateQueries({ queryKey: ['broadcast-campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['broadcast-campaign-logs', campaignId] });
+      toast({ title: 'Métricas atualizadas' });
+    } catch (e: any) {
+      toast({ title: 'Erro ao sincronizar', description: e.message, variant: 'destructive' });
+    } finally {
+      setSyncingCampaignId(null);
+    }
+  };
+
+
+
 
   // Templates from API
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
