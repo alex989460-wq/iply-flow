@@ -175,26 +175,53 @@ export default function MassBroadcast() {
     },
   });
 
+  const fetchCustomersLiteByIds = async (ids: string[]) => {
+    const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+    const rows: Array<{ id: string; name: string; phone: string }> = [];
+    const pageSize = 500;
+
+    for (let i = 0; i < uniqueIds.length; i += pageSize) {
+      const chunk = uniqueIds.slice(i, i + pageSize);
+      const { data, error } = await supabase
+        .from('customers')
+        .select('id, name, phone')
+        .in('id', chunk);
+      if (error) throw error;
+      if (data?.length) rows.push(...data);
+    }
+
+    return rows;
+  };
+
   // Detalhe por número da campanha expandida
   const { data: campaignLogs = [], isLoading: isLoadingCampaignLogs } = useQuery({
     queryKey: ['broadcast-campaign-logs', expandedCampaignId],
     enabled: !!expandedCampaignId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('broadcast_logs' as any)
-        .select('*')
-        .eq('campaign_id', expandedCampaignId)
-        .order('created_at', { ascending: false })
-        .limit(1000);
-      if (error) throw error;
-      const rows = (data || []) as any[];
+      const rows: any[] = [];
+      const pageSize = 1000;
+      let page = 0;
+
+      while (expandedCampaignId) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+        const { data, error } = await supabase
+          .from('broadcast_logs' as any)
+          .select('*')
+          .eq('campaign_id', expandedCampaignId)
+          .order('created_at', { ascending: false })
+          .range(from, to);
+        if (error) throw error;
+        if (!data?.length) break;
+        rows.push(...data);
+        if (data.length < pageSize) break;
+        page += 1;
+      }
+
       const ids = Array.from(new Set(rows.map((r) => r.customer_id).filter(Boolean)));
       let names: Record<string, string> = {};
       if (ids.length) {
-        const { data: custs } = await supabase
-          .from('customers')
-          .select('id, name')
-          .in('id', ids.slice(0, 1000));
+        const custs = await fetchCustomersLiteByIds(ids);
         names = Object.fromEntries((custs || []).map((c: any) => [c.id, c.name]));
       }
       return rows.map((r) => ({ ...r, customer_name: names[r.customer_id] || null }));
@@ -833,15 +860,16 @@ export default function MassBroadcast() {
         return;
       }
 
-      const { data: pendingCustomers, error: custError } = await supabase
-        .from('customers')
-        .select('id, name, phone')
-        .in('id', pending.slice(0, 1000));
-      if (custError) throw custError;
-
       const customerById: Record<string, { name: string; phone: string }> = Object.fromEntries(
-        (pendingCustomers || []).map((c: any) => [c.id, { name: c.name, phone: c.phone }]),
+        customers
+          .filter((c) => pending.includes(c.id))
+          .map((c) => [c.id, { name: c.name, phone: c.phone }]),
       );
+      const missingIds = pending.filter((id) => !customerById[id]);
+      if (missingIds.length) {
+        const pendingCustomers = await fetchCustomersLiteByIds(missingIds);
+        for (const c of pendingCustomers) customerById[c.id] = { name: c.name, phone: c.phone };
+      }
 
       const startedAt = new Date();
       const startedAtIso = new Date(startedAt.getTime() - 15_000).toISOString();
@@ -1078,17 +1106,26 @@ export default function MassBroadcast() {
     // Load existing logs first (in case some were already inserted)
     const loadInitialLogs = async () => {
       try {
-        const { data, error } = await supabase
-          .from('billing_logs')
-          .select('customer_id, whatsapp_status, message, sent_at')
-          .ilike('message', `%Template: ${activeBroadcast.templateName}%`)
-          .gte('sent_at', activeBroadcast.startedAtIso)
-          .order('sent_at', { ascending: true })
-          .limit(1000);
+        const rows: any[] = [];
+        const pageSize = 1000;
+        for (let page = 0; ; page++) {
+          const from = page * pageSize;
+          const to = from + pageSize - 1;
+          const { data, error } = await supabase
+            .from('billing_logs')
+            .select('customer_id, whatsapp_status, message, sent_at')
+            .ilike('message', `%Template: ${activeBroadcast.templateName}%`)
+            .gte('sent_at', activeBroadcast.startedAtIso)
+            .order('sent_at', { ascending: true })
+            .range(from, to);
 
-        if (error) throw error;
+          if (error) throw error;
+          if (!data?.length) break;
+          rows.push(...data);
+          if (data.length < pageSize) break;
+        }
 
-        for (const row of data || []) {
+        for (const row of rows) {
           const info = activeBroadcast.customerById[row.customer_id];
           if (!info) continue;
 
@@ -1843,8 +1880,10 @@ export default function MassBroadcast() {
                   ) : (
                     campaigns.map((c: any) => {
                       const pendingCount = Array.isArray(c.pending_customer_ids) ? c.pending_customer_ids.length : 0;
-                      const isPausedCampaign = c.status === 'paused' || (!c.finished_at && pendingCount > 0 && !isSending);
                       const processed = (c.sent_count || 0) + (c.error_count || 0);
+                      const remainingByCounts = Math.max(0, (c.total_targets || 0) - processed);
+                      const canResumeCampaign = !isSending && (pendingCount > 0 || remainingByCounts > 0);
+                      const isPausedCampaign = c.status === 'paused' || canResumeCampaign;
                       const pct = c.total_targets ? Math.min(100, (processed / c.total_targets) * 100) : 0;
                       const isOpen = expandedCampaignId === c.id;
                       const logs = isOpen
@@ -1887,8 +1926,8 @@ export default function MassBroadcast() {
                               </p>
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
-                              <Badge variant={c.finished_at ? 'secondary' : isPausedCampaign ? 'outline' : 'default'}>
-                                {c.finished_at ? 'Concluído' : isPausedCampaign ? 'Pausado' : 'Em andamento'}
+                              <Badge variant={!canResumeCampaign && c.finished_at ? 'secondary' : isPausedCampaign ? 'outline' : 'default'}>
+                                {!canResumeCampaign && c.finished_at ? 'Concluído' : isPausedCampaign ? 'Pausado' : 'Em andamento'}
                               </Badge>
                               <ChevronDown
                                 className={cn('w-4 h-4 text-muted-foreground transition-transform', isOpen && 'rotate-180')}
@@ -1901,7 +1940,7 @@ export default function MassBroadcast() {
                             <div
                               className={cn(
                                 'h-full rounded-full transition-[width] duration-500',
-                                c.finished_at ? 'bg-emerald-500' : 'bg-primary',
+                                !canResumeCampaign && c.finished_at ? 'bg-emerald-500' : 'bg-primary',
                               )}
                               style={{ width: `${pct}%` }}
                             />
@@ -1928,12 +1967,12 @@ export default function MassBroadcast() {
                               {c.skipped_count > 0 && `${c.skipped_count} ignorados`}
                               {c.skipped_count > 0 && c.error_count > 0 && ' · '}
                               {c.error_count > 0 && `${c.error_count} erros`}
-                              {pendingCount > 0 && ` · ${pendingCount} pendentes`}
+                              {(pendingCount > 0 || remainingByCounts > 0) && ` · ${Math.max(pendingCount, remainingByCounts)} pendentes`}
                             </p>
                           )}
 
                           <div className="flex flex-wrap items-center gap-2 mt-3" onClick={(e) => e.stopPropagation()}>
-                            {pendingCount > 0 && !isSending && (
+                            {canResumeCampaign && (
                               <Button size="sm" onClick={() => resumeCampaign(c)} disabled={resumingCampaignId === c.id}>
                                 {resumingCampaignId === c.id ? (
                                   <Loader2 className="w-4 h-4 mr-1 animate-spin" />

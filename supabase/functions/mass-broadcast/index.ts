@@ -183,6 +183,100 @@ async function fetchCustomersByIds(supabase: any, customerIds: string[]) {
   return { customers, error: null };
 }
 
+async function fetchAllRows(
+  supabase: any,
+  table: string,
+  columns: string,
+  applyFilters: (query: any) => any,
+) {
+  const rows: any[] = [];
+  const pageSize = 1000;
+
+  for (let page = 0; ; page++) {
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
+    const query = applyFilters(supabase.from(table).select(columns));
+    const { data, error } = await query.range(from, to);
+    if (error) return { rows: null as any[] | null, error };
+    if (!data?.length) break;
+    rows.push(...data);
+    if (data.length < pageSize) break;
+  }
+
+  return { rows, error: null };
+}
+
+async function fetchCustomersForOwner(supabase: any, ownerId: string) {
+  return fetchAllRows(
+    supabase,
+    'customers',
+    'id, name, phone',
+    (query) => query.eq('created_by', ownerId).order('name', { ascending: true }),
+  );
+}
+
+async function rebuildPendingCustomerIds(args: {
+  supabase: any;
+  campaign: any;
+  sentCount: number;
+  errorCount: number;
+}) {
+  const remainingSlots = Math.max(0, Number(args.campaign.total_targets || 0) - args.sentCount - args.errorCount);
+  if (remainingSlots <= 0) return [];
+
+  const { rows: customers, error: customersError } = await fetchCustomersForOwner(args.supabase, args.campaign.owner_id);
+  if (customersError || !customers) {
+    console.error('Error rebuilding pending campaign customers:', customersError);
+    return [];
+  }
+
+  const { sentPhones, error: sentPhonesError } = await fetchAlreadySentPhones(
+    args.supabase,
+    args.campaign.template_name,
+    customers.map((customer: any) => ({ id: customer.id, phone: customer.phone || '' })),
+  );
+  if (sentPhonesError || !sentPhones) {
+    console.error('Error rebuilding pending campaign sent phones:', sentPhonesError);
+    return [];
+  }
+
+  const { rows: campaignLogs, error: logsError } = await fetchAllRows(
+    args.supabase,
+    'broadcast_logs',
+    'customer_id, last_status',
+    (query) => query.eq('campaign_id', args.campaign.id),
+  );
+  if (logsError || !campaignLogs) {
+    console.error('Error rebuilding pending campaign logs:', logsError);
+    return [];
+  }
+
+  const processedIds = new Set(
+    campaignLogs
+      .filter((row: any) => ['sent', 'error'].includes(String(row.last_status || '')))
+      .map((row: any) => String(row.customer_id)),
+  );
+  const seenPhones = new Set<string>();
+  const pending: string[] = [];
+  const audienceMode = String(args.campaign.audience_mode || 'new');
+
+  for (const customer of customers) {
+    const id = String(customer.id || '');
+    const normalizedPhone = normalizePhone(customer.phone || '');
+    if (!id || !normalizedPhone || processedIds.has(id) || seenPhones.has(normalizedPhone)) continue;
+
+    const received = phoneAliases(customer.phone || '').some((alias) => sentPhones.has(alias));
+    const shouldSend = audienceMode === 'all' ? true : audienceMode === 'already' ? received : !received;
+    if (!shouldSend) continue;
+
+    seenPhones.add(normalizedPhone);
+    pending.push(id);
+    if (pending.length >= remainingSlots) break;
+  }
+
+  return pending;
+}
+
 async function fetchAlreadySentPhones(
   supabase: any,
   templateName: string,
@@ -829,9 +923,33 @@ Deno.serve(async (req) => {
     if (action === 'finish') {
       const campaignId = String((body as any).campaign_id || '');
       if (campaignId) {
+        const { rows: campaignLogs } = await fetchAllRows(
+          supabase,
+          'broadcast_logs',
+          'customer_id, last_status',
+          (query) => query.eq('campaign_id', campaignId),
+        );
+        const sentCount = (campaignLogs || []).filter((r: any) => r.last_status === 'sent').length;
+        const errorCount = (campaignLogs || []).filter((r: any) => r.last_status === 'error').length;
+        const { data: campaign } = await supabase
+          .from('broadcast_campaigns')
+          .select('*')
+          .eq('id', campaignId)
+          .eq('owner_id', userId)
+          .maybeSingle();
+        const pending = Array.isArray((campaign as any)?.pending_customer_ids)
+          ? ((campaign as any).pending_customer_ids as string[])
+          : [];
+        const completed = pending.length === 0;
         await supabase
           .from('broadcast_campaigns')
-          .update({ finished_at: new Date().toISOString(), status: 'completed', pending_customer_ids: [] })
+          .update({
+            finished_at: completed ? new Date().toISOString() : null,
+            status: completed ? 'completed' : 'paused',
+            pending_customer_ids: pending,
+            sent_count: sentCount,
+            error_count: errorCount,
+          })
           .eq('id', campaignId)
           .eq('owner_id', userId);
       }
@@ -874,12 +992,26 @@ Deno.serve(async (req) => {
         ? ((campaign as any).pending_customer_ids as string[])
         : [];
 
+      let pendingCustomerIds = pending;
+      if (pendingCustomerIds.length === 0) {
+        const { rows: logs } = await fetchAllRows(
+          supabase,
+          'broadcast_logs',
+          'last_status',
+          (query) => query.eq('campaign_id', campaignId),
+        );
+        const rows = logs || [];
+        const sentCount = rows.filter((r: any) => r.last_status === 'sent').length;
+        const errorCount = rows.filter((r: any) => r.last_status === 'error').length;
+        pendingCustomerIds = await rebuildPendingCustomerIds({ supabase, campaign, sentCount, errorCount });
+      }
+
       await supabase
         .from('broadcast_campaigns')
-        .update({ status: 'running', paused_at: null, finished_at: null })
+        .update({ status: 'running', paused_at: null, finished_at: null, pending_customer_ids: pendingCustomerIds })
         .eq('id', campaignId);
 
-      return new Response(JSON.stringify({ success: true, campaign, pending_customer_ids: pending }), {
+      return new Response(JSON.stringify({ success: true, campaign, pending_customer_ids: pendingCustomerIds }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -887,10 +1019,34 @@ Deno.serve(async (req) => {
     // Recalcula entregues/lidos/respondidos a partir dos logs por número
     if (action === 'sync-counts') {
       const campaignId = String((body as any).campaign_id || '');
-      const { data: logs } = await supabase
-        .from('broadcast_logs')
-        .select('last_status, delivered_at, read_at, replied_at')
-        .eq('campaign_id', campaignId);
+      const { data: campaign, error: campaignError } = await supabase
+        .from('broadcast_campaigns')
+        .select('*')
+        .eq('id', campaignId)
+        .eq('owner_id', userId)
+        .maybeSingle();
+
+      if (campaignError || !campaign) {
+        return new Response(JSON.stringify({ success: false, error: 'Campanha não encontrada' }), {
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { rows: logs, error: logsError } = await fetchAllRows(
+        supabase,
+        'broadcast_logs',
+        'customer_id, last_status, delivered_at, read_at, replied_at',
+        (query) => query.eq('campaign_id', campaignId),
+      );
+
+      if (logsError || !logs) {
+        console.error('Error syncing broadcast campaign counts:', logsError);
+        return new Response(JSON.stringify({ success: false, error: 'Não foi possível sincronizar as métricas' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
 
       const rows = logs || [];
       const counts = {
@@ -900,14 +1056,27 @@ Deno.serve(async (req) => {
         read_count: rows.filter((r: any) => !!r.read_at).length,
         replied_count: rows.filter((r: any) => !!r.replied_at).length,
       };
+      const pending = await rebuildPendingCustomerIds({
+        supabase,
+        campaign,
+        sentCount: counts.sent_count,
+        errorCount: counts.error_count,
+      });
+      const completed = pending.length === 0;
 
       await supabase
         .from('broadcast_campaigns')
-        .update(counts)
+        .update({
+          ...counts,
+          pending_customer_ids: pending,
+          status: completed ? 'completed' : 'paused',
+          finished_at: completed ? (campaign.finished_at || new Date().toISOString()) : null,
+          paused_at: completed ? null : (campaign.paused_at || new Date().toISOString()),
+        })
         .eq('id', campaignId)
         .eq('owner_id', userId);
 
-      return new Response(JSON.stringify({ success: true, ...counts }), {
+      return new Response(JSON.stringify({ success: true, ...counts, pending_count: pending.length }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
