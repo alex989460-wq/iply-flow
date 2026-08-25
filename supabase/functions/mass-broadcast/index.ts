@@ -334,6 +334,63 @@ async function rebuildPendingCustomerIds(args: {
   return pending;
 }
 
+async function sanitizeExistingPendingCustomerIds(args: {
+  supabase: any;
+  campaign: any;
+  pendingCustomerIds: string[];
+}) {
+  const uniquePendingIds = [...new Set(args.pendingCustomerIds.map((id) => String(id)).filter(Boolean))];
+  if (uniquePendingIds.length === 0) return { pending: [] as string[], removed: 0 };
+
+  const { customers, error: customersError } = await fetchCustomersByIds(args.supabase, uniquePendingIds);
+  if (customersError || !customers) {
+    console.error('Error sanitizing pending campaign customers:', customersError);
+    return { pending: uniquePendingIds, removed: 0 };
+  }
+
+  const { rows: campaignLogs, error: logsError } = await fetchAllRows(
+    args.supabase,
+    'broadcast_logs',
+    'customer_id, last_status',
+    (query) => query.eq('campaign_id', args.campaign.id),
+  );
+  if (logsError || !campaignLogs) {
+    console.error('Error sanitizing pending campaign logs:', logsError);
+    return { pending: uniquePendingIds, removed: 0 };
+  }
+
+  const processedIds = new Set(
+    campaignLogs
+      .filter((row: any) => ['sent', 'error'].includes(String(row.last_status || '')))
+      .map((row: any) => String(row.customer_id)),
+  );
+  const shouldExcludeActivePhones = isRecoveryBroadcast(args.campaign.template_name, args.campaign.name);
+  const { activePhones, error: activePhonesError } = shouldExcludeActivePhones
+    ? await fetchActiveCurrentPhonesForOwner(args.supabase, args.campaign.owner_id)
+    : { activePhones: new Set<string>(), error: null };
+
+  if (activePhonesError || !activePhones) {
+    console.error('Error sanitizing pending campaign active phones:', activePhonesError);
+    return { pending: uniquePendingIds, removed: 0 };
+  }
+
+  const customerById = new Map((customers || []).map((customer: any) => [String(customer.id), customer]));
+  const seenPhones = new Set<string>();
+  const pending: string[] = [];
+
+  for (const id of uniquePendingIds) {
+    const customer = customerById.get(id);
+    if (!customer || processedIds.has(id)) continue;
+    const normalizedPhone = normalizePhone(customer.phone || '');
+    if (!normalizedPhone || seenPhones.has(normalizedPhone)) continue;
+    if (shouldExcludeActivePhones && (isActiveCurrentCustomer(customer) || hasActiveCurrentPhone(customer, activePhones))) continue;
+    seenPhones.add(normalizedPhone);
+    pending.push(id);
+  }
+
+  return { pending, removed: Math.max(0, uniquePendingIds.length - pending.length) };
+}
+
 async function fetchAlreadySentPhones(
   supabase: any,
   templateName: string,
