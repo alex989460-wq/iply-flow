@@ -623,7 +623,214 @@ export default function MassBroadcast() {
     setSelectedServers(new Set());
   };
 
+  // Loop de envio em lotes reutilizável (usado no disparo novo e ao continuar um pausado)
+  const runQueueLoop = async (
+    queueCustomerIds: string[],
+    ctx: {
+      templateName: string;
+      templateLanguage: string;
+      phoneNumberId?: string;
+      campaignId: string | null;
+      customerById: Record<string, { name: string; phone: string }>;
+    },
+  ) => {
+    const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+    const applyBatchResults = (rows: any[]) => {
+      for (const row of rows || []) {
+        const info = ctx.customerById[row.customer_id];
+        if (!info) continue;
+        realtimeResultsRef.current.set(row.customer_id, {
+          customer: info.name,
+          phone: info.phone,
+          status: row.status === 'sent' ? 'sent' : row.status === 'skipped' ? 'skipped' : 'error',
+          error: row.status === 'sent' ? undefined : row.error || 'Erro desconhecido',
+        });
+      }
+      recomputeRef.current?.();
+    };
+
+    const runBatch = async (batch: string[]) => {
+      const res = await supabase.functions.invoke('mass-broadcast', {
+        body: {
+          action: 'batch',
+          customer_ids: batch,
+          template_name: ctx.templateName,
+          template_language: ctx.templateLanguage,
+          phone_number_id: ctx.phoneNumberId || undefined,
+          campaign_id: ctx.campaignId || undefined,
+          audience_mode: audienceMode,
+        },
+      });
+      if (res.error) throw new Error(res.error.message);
+      if (!res.data?.success) throw new Error(res.data?.error || 'Erro ao enviar lote');
+      return res.data;
+    };
+
+    let lastError: string | null = null;
+    let pausedByUser = false;
+
+    for (let offset = 0; offset < queueCustomerIds.length; offset += batchSize) {
+      if (cancelSendRef.current) break;
+      if (pauseRef.current) {
+        pausedByUser = true;
+        break;
+      }
+
+      const batch = queueCustomerIds.slice(offset, offset + batchSize);
+      let data: any = null;
+
+      for (let attempt = 1; attempt <= 2 && !cancelSendRef.current; attempt++) {
+        try {
+          data = await runBatch(batch);
+          break;
+        } catch (err: any) {
+          lastError = err?.message || 'Falha ao enviar lote';
+          console.error(`Lote ${offset / batchSize + 1} falhou (tentativa ${attempt}):`, err);
+          if (attempt === 1) await sleep(2500);
+        }
+      }
+
+      let rateLimitWaitMs = 0;
+      if (data) {
+        applyBatchResults(data.results || []);
+        for (const r of (data.results || []) as any[]) {
+          const msg = String(r?.error || '');
+          if (!/rate limit|too many requests|429/i.test(msg)) continue;
+          const ms = msg.match(/retry\s*after\s*(\d+)\s*ms/i);
+          const s = msg.match(/retry\s*after\s*(\d+)\s*s/i);
+          const wait = ms ? Number(ms[1]) : s ? Number(s[1]) * 1000 : 20000;
+          rateLimitWaitMs = Math.max(rateLimitWaitMs, Math.min(wait + 2000, 90000));
+        }
+      } else {
+        applyBatchResults(
+          batch.map((id) => ({ customer_id: id, status: 'error', error: lastError || 'Falha no lote' })),
+        );
+      }
+
+      const isLast = offset + batchSize >= queueCustomerIds.length;
+      if (!isLast) {
+        const waitMs = Math.max(batchIntervalSeconds * 1000, rateLimitWaitMs);
+        if (waitMs > 0) await sleep(waitMs);
+      }
+    }
+
+    queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
+
+    if (pausedByUser) {
+      if (ctx.campaignId) {
+        await supabase.functions
+          .invoke('mass-broadcast', { body: { action: 'pause', campaign_id: ctx.campaignId } })
+          .catch(() => null);
+      }
+      queryClient.invalidateQueries({ queryKey: ['broadcast-campaigns'] });
+      toast({
+        title: 'Disparo pausado',
+        description: 'Você pode continuar depois pelo histórico de disparos.',
+      });
+      return { paused: true, lastError };
+    }
+
+    completeRef.current = true;
+    setIsBroadcastComplete(true);
+    setBroadcastReport((prev) => (prev ? { ...prev, completedAt: new Date() } : prev));
+
+    if (ctx.campaignId) {
+      await supabase.functions
+        .invoke('mass-broadcast', { body: { action: 'finish', campaign_id: ctx.campaignId } })
+        .catch(() => null);
+      await supabase.functions
+        .invoke('mass-broadcast', { body: { action: 'sync-counts', campaign_id: ctx.campaignId } })
+        .catch(() => null);
+      queryClient.invalidateQueries({ queryKey: ['broadcast-campaigns'] });
+    }
+
+    if (lastError) {
+      toast({
+        title: 'Disparo finalizado com falhas',
+        description: `Alguns lotes falharam: ${lastError}`,
+        variant: 'destructive',
+      });
+    }
+
+    return { paused: false, lastError };
+  };
+
+  // Continuar um disparo pausado a partir do histórico
+  const resumeCampaign = async (campaign: any) => {
+    if (isSending) {
+      toast({ title: 'Já existe um disparo em andamento', variant: 'destructive' });
+      return;
+    }
+    setResumingCampaignId(campaign.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('mass-broadcast', {
+        body: { action: 'resume', campaign_id: campaign.id },
+      });
+      if (error) throw new Error(error.message);
+      if (!data?.success) throw new Error(data?.error || 'Falha ao retomar disparo');
+
+      const pending: string[] = data.pending_customer_ids || [];
+      if (pending.length === 0) {
+        toast({ title: 'Nada pendente', description: 'Todos os números desta campanha já foram processados.' });
+        queryClient.invalidateQueries({ queryKey: ['broadcast-campaigns'] });
+        return;
+      }
+
+      const { data: pendingCustomers, error: custError } = await supabase
+        .from('customers')
+        .select('id, name, phone')
+        .in('id', pending.slice(0, 1000));
+      if (custError) throw custError;
+
+      const customerById: Record<string, { name: string; phone: string }> = Object.fromEntries(
+        (pendingCustomers || []).map((c: any) => [c.id, { name: c.name, phone: c.phone }]),
+      );
+
+      const startedAt = new Date();
+      const startedAtIso = new Date(startedAt.getTime() - 15_000).toISOString();
+      const templateName = campaign.template_name;
+
+      campaignIdRef.current = campaign.id;
+      cancelSendRef.current = false;
+      pauseRef.current = false;
+      setIsPaused(false);
+      completeRef.current = false;
+      setIsBroadcastComplete(false);
+      initialResultsRef.current = [];
+      realtimeResultsRef.current = new Map();
+      setBroadcastResults([]);
+      setBroadcastStats({ sent: 0, errors: 0, skipped: 0 });
+      setActiveBroadcast({ templateName, startedAtIso, customerById, total: pending.length });
+      setBroadcastReport({
+        total: pending.length,
+        sent: 0,
+        errors: 0,
+        skipped: 0,
+        details: [],
+        templateName,
+        startedAt,
+      });
+      setShowProgressModal(true);
+      setIsSending(true);
+
+      await runQueueLoop(pending, {
+        templateName,
+        templateLanguage: campaign.template_language || 'pt_BR',
+        phoneNumberId: campaign.phone_number_id || undefined,
+        campaignId: campaign.id,
+        customerById,
+      });
+    } catch (e: any) {
+      toast({ title: 'Erro ao continuar disparo', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsSending(false);
+      setResumingCampaignId(null);
+    }
+  };
+
   // Send broadcast
+
   const sendBroadcast = async () => {
     if (isSending) return;
 
