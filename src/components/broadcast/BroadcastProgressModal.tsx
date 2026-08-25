@@ -60,6 +60,8 @@ export function BroadcastProgressModal({
   skipped,
   isSending,
   startedAt,
+  isPaused,
+  onPause,
   onCancel,
 }: BroadcastProgressModalProps) {
   const [now, setNow] = useState(() => Date.now());
