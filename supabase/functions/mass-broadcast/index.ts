@@ -441,10 +441,12 @@ async function sanitizeExistingPendingCustomerIds(args: {
   const customerById = new Map((customers || []).map((customer: any) => [String(customer.id), customer]));
   const seenPhones = new Set<string>();
   const pending: string[] = [];
+  const filterConfig = getCampaignFilterConfig(args.campaign);
 
   for (const id of uniquePendingIds) {
     const customer = customerById.get(id);
     if (!customer || processedIds.has(id)) continue;
+    if (!matchesStoredCampaignFilters(customer, filterConfig)) continue;
     const normalizedPhone = normalizePhone(customer.phone || '');
     if (!normalizedPhone || seenPhones.has(normalizedPhone)) continue;
     if (shouldExcludeActivePhones && (isActiveCurrentCustomer(customer) || hasActiveCurrentPhone(customer, activePhones))) continue;
