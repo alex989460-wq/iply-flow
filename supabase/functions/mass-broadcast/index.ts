@@ -604,15 +604,20 @@ async function processBroadcastBatch(args: {
   if (args.campaignId) {
     const { data: campaign } = await supabase
       .from('broadcast_campaigns')
-      .select('sent_count, error_count')
+      .select('sent_count, error_count, pending_customer_ids')
       .eq('id', args.campaignId)
       .maybeSingle();
     if (campaign) {
+      const processedIds = new Set(args.customerIds.map((id: string) => String(id)));
+      const pending = Array.isArray((campaign as any).pending_customer_ids)
+        ? ((campaign as any).pending_customer_ids as string[]).filter((id) => !processedIds.has(String(id)))
+        : [];
       await supabase
         .from('broadcast_campaigns')
         .update({
           sent_count: (campaign.sent_count || 0) + sent,
           error_count: (campaign.error_count || 0) + errors,
+          pending_customer_ids: pending,
         })
         .eq('id', args.campaignId);
     }
