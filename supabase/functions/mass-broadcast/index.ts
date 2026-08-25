@@ -183,6 +183,100 @@ async function fetchCustomersByIds(supabase: any, customerIds: string[]) {
   return { customers, error: null };
 }
 
+async function fetchAllRows(
+  supabase: any,
+  table: string,
+  columns: string,
+  applyFilters: (query: any) => any,
+) {
+  const rows: any[] = [];
+  const pageSize = 1000;
+
+  for (let page = 0; ; page++) {
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
+    const query = applyFilters(supabase.from(table).select(columns).range(from, to));
+    const { data, error } = await query;
+    if (error) return { rows: null as any[] | null, error };
+    if (!data?.length) break;
+    rows.push(...data);
+    if (data.length < pageSize) break;
+  }
+
+  return { rows, error: null };
+}
+
+async function fetchCustomersForOwner(supabase: any, ownerId: string) {
+  return fetchAllRows(
+    supabase,
+    'customers',
+    'id, name, phone',
+    (query) => query.eq('created_by', ownerId).order('name', { ascending: true }),
+  );
+}
+
+async function rebuildPendingCustomerIds(args: {
+  supabase: any;
+  campaign: any;
+  sentCount: number;
+  errorCount: number;
+}) {
+  const remainingSlots = Math.max(0, Number(args.campaign.total_targets || 0) - args.sentCount - args.errorCount);
+  if (remainingSlots <= 0) return [];
+
+  const { rows: customers, error: customersError } = await fetchCustomersForOwner(args.supabase, args.campaign.owner_id);
+  if (customersError || !customers) {
+    console.error('Error rebuilding pending campaign customers:', customersError);
+    return [];
+  }
+
+  const { sentPhones, error: sentPhonesError } = await fetchAlreadySentPhones(
+    args.supabase,
+    args.campaign.template_name,
+    customers.map((customer: any) => ({ id: customer.id, phone: customer.phone || '' })),
+  );
+  if (sentPhonesError || !sentPhones) {
+    console.error('Error rebuilding pending campaign sent phones:', sentPhonesError);
+    return [];
+  }
+
+  const { rows: campaignLogs, error: logsError } = await fetchAllRows(
+    args.supabase,
+    'broadcast_logs',
+    'customer_id, last_status',
+    (query) => query.eq('campaign_id', args.campaign.id),
+  );
+  if (logsError || !campaignLogs) {
+    console.error('Error rebuilding pending campaign logs:', logsError);
+    return [];
+  }
+
+  const processedIds = new Set(
+    campaignLogs
+      .filter((row: any) => ['sent', 'error'].includes(String(row.last_status || '')))
+      .map((row: any) => String(row.customer_id)),
+  );
+  const seenPhones = new Set<string>();
+  const pending: string[] = [];
+  const audienceMode = String(args.campaign.audience_mode || 'new');
+
+  for (const customer of customers) {
+    const id = String(customer.id || '');
+    const normalizedPhone = normalizePhone(customer.phone || '');
+    if (!id || !normalizedPhone || processedIds.has(id) || seenPhones.has(normalizedPhone)) continue;
+
+    const received = phoneAliases(customer.phone || '').some((alias) => sentPhones.has(alias));
+    const shouldSend = audienceMode === 'all' ? true : audienceMode === 'already' ? received : !received;
+    if (!shouldSend) continue;
+
+    seenPhones.add(normalizedPhone);
+    pending.push(id);
+    if (pending.length >= remainingSlots) break;
+  }
+
+  return pending;
+}
+
 async function fetchAlreadySentPhones(
   supabase: any,
   templateName: string,
