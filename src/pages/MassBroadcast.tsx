@@ -1932,7 +1932,7 @@ export default function MassBroadcast() {
                             </p>
                           )}
 
-                          <div className="flex flex-wrap items-center gap-2 mt-3">
+                          <div className="flex flex-wrap items-center gap-2 mt-3" onClick={(e) => e.stopPropagation()}>
                             {pendingCount > 0 && !isSending && (
                               <Button size="sm" onClick={() => resumeCampaign(c)} disabled={resumingCampaignId === c.id}>
                                 {resumingCampaignId === c.id ? (
@@ -1970,7 +1970,11 @@ export default function MassBroadcast() {
                           </div>
 
                           {isOpen && (
-                            <div className="mt-3 rounded-xl border border-border/40 bg-background/50 p-3">
+                            <div
+                              className="mt-3 rounded-xl border border-border/40 bg-background/50 p-3"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+
                               <div className="relative mb-2">
                                 <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
                                 <Input
