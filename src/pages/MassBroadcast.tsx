@@ -28,7 +28,14 @@ import {
   RefreshCw,
   FileText,
   Phone,
-  Ban
+  Ban,
+  Play,
+  Pause,
+  ChevronDown,
+  CheckCheck,
+  Eye,
+  Reply
+
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { normalizeWhatsAppPhone } from '@/lib/phone';
