@@ -2351,6 +2351,12 @@ export default function MassBroadcast() {
         skipped={broadcastStats.skipped}
         isSending={isSending}
         startedAt={broadcastReport?.startedAt || null}
+        isPaused={isPaused}
+        onPause={() => {
+          pauseRef.current = true;
+          setIsPaused(true);
+          toast({ title: 'Pausando...', description: 'O disparo para após o lote atual e fica salvo no histórico.' });
+        }}
         onCancel={() => {
           cancelSendRef.current = true;
           toast({ title: 'Disparo cancelado', description: 'O envio será interrompido após o lote atual.' });
