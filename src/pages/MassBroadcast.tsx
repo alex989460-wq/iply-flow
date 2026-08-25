@@ -187,7 +187,17 @@ export default function MassBroadcast() {
         .order('created_at', { ascending: false })
         .limit(1000);
       if (error) throw error;
-      return (data || []) as any[];
+      const rows = (data || []) as any[];
+      const ids = Array.from(new Set(rows.map((r) => r.customer_id).filter(Boolean)));
+      let names: Record<string, string> = {};
+      if (ids.length) {
+        const { data: custs } = await supabase
+          .from('customers')
+          .select('id, name')
+          .in('id', ids.slice(0, 1000));
+        names = Object.fromEntries((custs || []).map((c: any) => [c.id, c.name]));
+      }
+      return rows.map((r) => ({ ...r, customer_name: names[r.customer_id] || null }));
     },
   });
 
