@@ -774,7 +774,16 @@ async function processBroadcastBatch(args: {
   const claimedCustomers: any[] = [];
   const skippedCustomers: any[] = [];
   const seenBatchPhones = new Set<string>();
-  const shouldExcludeActivePhones = args.excludeActivePhones === true || isRecoveryBroadcast(args.templateName);
+  let campaignForRules: any = null;
+  if (args.campaignId) {
+    const { data } = await supabase
+      .from('broadcast_campaigns')
+      .select('exclude_active_phones, filter_config, template_name, name')
+      .eq('id', args.campaignId)
+      .maybeSingle();
+    campaignForRules = data;
+  }
+  const shouldExcludeActivePhones = args.excludeActivePhones === true || campaignShouldExcludeActive(campaignForRules, args.templateName);
   const { activePhones, error: activePhonesError } = shouldExcludeActivePhones
     ? await fetchActiveCurrentPhonesForOwner(supabase, userId)
     : { activePhones: new Set<string>(), error: null };
