@@ -1106,17 +1106,26 @@ export default function MassBroadcast() {
     // Load existing logs first (in case some were already inserted)
     const loadInitialLogs = async () => {
       try {
-        const { data, error } = await supabase
-          .from('billing_logs')
-          .select('customer_id, whatsapp_status, message, sent_at')
-          .ilike('message', `%Template: ${activeBroadcast.templateName}%`)
-          .gte('sent_at', activeBroadcast.startedAtIso)
-          .order('sent_at', { ascending: true })
-          .limit(1000);
+        const rows: any[] = [];
+        const pageSize = 1000;
+        for (let page = 0; ; page++) {
+          const from = page * pageSize;
+          const to = from + pageSize - 1;
+          const { data, error } = await supabase
+            .from('billing_logs')
+            .select('customer_id, whatsapp_status, message, sent_at')
+            .ilike('message', `%Template: ${activeBroadcast.templateName}%`)
+            .gte('sent_at', activeBroadcast.startedAtIso)
+            .order('sent_at', { ascending: true })
+            .range(from, to);
 
-        if (error) throw error;
+          if (error) throw error;
+          if (!data?.length) break;
+          rows.push(...data);
+          if (data.length < pageSize) break;
+        }
 
-        for (const row of data || []) {
+        for (const row of rows) {
           const info = activeBroadcast.customerById[row.customer_id];
           if (!info) continue;
 
