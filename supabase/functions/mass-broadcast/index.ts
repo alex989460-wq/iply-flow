@@ -937,8 +937,8 @@ Deno.serve(async (req) => {
           .eq('id', campaignId)
           .eq('owner_id', userId)
           .maybeSingle();
-        const pending = campaign
-          ? await rebuildPendingCustomerIds({ supabase, campaign, sentCount, errorCount })
+        const pending = Array.isArray((campaign as any)?.pending_customer_ids)
+          ? ((campaign as any).pending_customer_ids as string[])
           : [];
         const completed = pending.length === 0;
         await supabase
