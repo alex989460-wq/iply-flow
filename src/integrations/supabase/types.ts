@@ -986,6 +986,8 @@ export type Database = {
           created_at: string
           delivered_count: number
           error_count: number
+          exclude_active_phones: boolean
+          filter_config: Json
           finished_at: string | null
           id: string
           name: string
@@ -1009,6 +1011,8 @@ export type Database = {
           created_at?: string
           delivered_count?: number
           error_count?: number
+          exclude_active_phones?: boolean
+          filter_config?: Json
           finished_at?: string | null
           id?: string
           name: string
@@ -1032,6 +1036,8 @@ export type Database = {
           created_at?: string
           delivered_count?: number
           error_count?: number
+          exclude_active_phones?: boolean
+          filter_config?: Json
           finished_at?: string | null
           id?: string
           name?: string
