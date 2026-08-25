@@ -172,12 +172,15 @@ serve(async (req) => {
 
     const mac = normalizeMac(macRaw);
 
-    // 1) info — evita duplicar crédito se MAC já estiver ativo com validade futura
+    // 1) info — evita duplicar crédito apenas se o MAC tiver validade LONGA.
+    // Se faltar pouco tempo (<= 45 dias), a ativação segue e estende o prazo.
+    const RENEW_WINDOW_DAYS = 45;
     const info = await doAuthed("/admin/devices/info", { mac_address: mac });
     const dev = info.j?.device;
-    if (dev?.expire_date) {
+    if (dev?.expire_date && !body.force) {
       const expDate = new Date(String(dev.expire_date).replace(" ", "T") + "Z");
-      if (!isNaN(expDate.getTime()) && expDate.getTime() > Date.now()) {
+      const daysLeft = (expDate.getTime() - Date.now()) / 86_400_000;
+      if (!isNaN(expDate.getTime()) && daysLeft > RENEW_WINDOW_DAYS) {
         return new Response(JSON.stringify({
           success: false,
           already_active: true,
@@ -187,6 +190,7 @@ serve(async (req) => {
         }), { status: 409, headers: jh });
       }
     }
+
 
     // 2) activate
     const act = await doAuthed("/admin/devices/activate", {
