@@ -512,9 +512,15 @@ async function startBroadcastPlan(args: {
   phoneNumberId?: string | null;
   logSkips?: boolean;
   excludeActivePhones?: boolean;
+  filterConfig?: Record<string, any>;
 }) {
   const audienceMode = args.audienceMode || 'new';
   const shouldExcludeActivePhones = args.excludeActivePhones === true || isRecoveryBroadcast(args.templateName, args.campaignName);
+  const filterConfig = {
+    ...(args.filterConfig || {}),
+    audience_mode: audienceMode,
+    exclude_active_phones: shouldExcludeActivePhones,
+  };
 
   const supabase = createClient(args.supabaseUrl, args.supabaseServiceKey);
 
@@ -656,6 +662,8 @@ async function startBroadcastPlan(args: {
         template_language: (args as any).templateLanguage || null,
         phone_number_id: args.phoneNumberId || null,
         audience_mode: audienceMode,
+        exclude_active_phones: shouldExcludeActivePhones,
+        filter_config: filterConfig,
         total_targets: customersToSend.length,
         skipped_count: alreadySentCustomers.length + duplicateCustomers.length + activeCurrentCustomers.length,
         status: 'running',
