@@ -1147,6 +1147,23 @@ Deno.serve(async (req) => {
         : [];
 
       let pendingCustomerIds = pending;
+      if (pendingCustomerIds.length > 0) {
+        const sanitized = await sanitizeExistingPendingCustomerIds({ supabase, campaign, pendingCustomerIds });
+        pendingCustomerIds = sanitized.pending;
+        if (sanitized.removed > 0) {
+          await supabase
+            .from('broadcast_campaigns')
+            .update({
+              pending_customer_ids: pendingCustomerIds,
+              skipped_count: Number(campaign.skipped_count || 0) + sanitized.removed,
+              total_targets: Number(campaign.sent_count || 0) + Number(campaign.error_count || 0) + pendingCustomerIds.length,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', campaignId)
+            .eq('owner_id', userId);
+        }
+      }
+
       if (pendingCustomerIds.length === 0) {
         const { rows: logs } = await fetchAllRows(
           supabase,
