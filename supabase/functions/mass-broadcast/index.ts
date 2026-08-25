@@ -338,10 +338,13 @@ async function rebuildPendingCustomerIds(args: {
     return [];
   }
 
+  const filterConfig = getCampaignFilterConfig(args.campaign);
+  const eligibleCustomers = (customers || []).filter((customer: any) => matchesStoredCampaignFilters(customer, filterConfig));
+
   const { sentPhones, error: sentPhonesError } = await fetchAlreadySentPhones(
     args.supabase,
     args.campaign.template_name,
-    customers.map((customer: any) => ({ id: customer.id, phone: customer.phone || '' })),
+    eligibleCustomers.map((customer: any) => ({ id: customer.id, phone: customer.phone || '' })),
   );
   if (sentPhonesError || !sentPhones) {
     console.error('Error rebuilding pending campaign sent phones:', sentPhonesError);
@@ -367,7 +370,7 @@ async function rebuildPendingCustomerIds(args: {
   const seenPhones = new Set<string>();
   const pending: string[] = [];
   const audienceMode = String(args.campaign.audience_mode || 'new');
-  const shouldExcludeActivePhones = isRecoveryBroadcast(args.campaign.template_name, args.campaign.name);
+  const shouldExcludeActivePhones = campaignShouldExcludeActive(args.campaign);
   const { activePhones, error: activePhonesError } = shouldExcludeActivePhones
     ? await fetchActiveCurrentPhonesForOwner(args.supabase, args.campaign.owner_id)
     : { activePhones: new Set<string>(), error: null };
@@ -377,7 +380,7 @@ async function rebuildPendingCustomerIds(args: {
     return [];
   }
 
-  for (const customer of customers) {
+  for (const customer of eligibleCustomers) {
     const id = String(customer.id || '');
     const normalizedPhone = normalizePhone(customer.phone || '');
     if (!id || !normalizedPhone || processedIds.has(id) || seenPhones.has(normalizedPhone)) continue;
