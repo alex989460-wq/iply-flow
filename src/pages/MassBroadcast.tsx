@@ -743,6 +743,7 @@ export default function MassBroadcast() {
           phone_number_id: ctx.phoneNumberId || undefined,
           campaign_id: ctx.campaignId || undefined,
           audience_mode: audienceMode,
+          exclude_active_phones: excludeActivePhones,
         },
       });
       if (res.error) throw new Error(res.error.message);
@@ -1001,6 +1002,7 @@ export default function MassBroadcast() {
           audience_mode: audienceMode,
           campaign_name: campaignName || `Disparo ${templateName}`,
           phone_number_id: senderPhoneId || selectedTemplateInfo?.phone_number_id || undefined,
+          exclude_active_phones: excludeActivePhones,
         },
 
       });
