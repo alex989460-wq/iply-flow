@@ -195,8 +195,8 @@ async function fetchAllRows(
   for (let page = 0; ; page++) {
     const from = page * pageSize;
     const to = from + pageSize - 1;
-    const query = applyFilters(supabase.from(table).select(columns).range(from, to));
-    const { data, error } = await query;
+    const query = applyFilters(supabase.from(table).select(columns));
+    const { data, error } = await query.range(from, to);
     if (error) return { rows: null as any[] | null, error };
     if (!data?.length) break;
     rows.push(...data);
