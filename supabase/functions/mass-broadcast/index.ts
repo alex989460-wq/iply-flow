@@ -27,6 +27,7 @@ interface CustomerInfo {
   phone: string;
   status?: string | null;
   due_date?: string | null;
+  server_id?: string | null;
 }
 
 interface InitialResult {
@@ -67,6 +68,66 @@ function isActiveCurrentCustomer(customer: { status?: string | null; due_date?: 
 function isRecoveryBroadcast(templateName?: string | null, campaignName?: string | null): boolean {
   const text = `${templateName || ''} ${campaignName || ''}`.toLowerCase();
   return /inadimpl|cobran|recupera|vencid|atrasad/.test(text);
+}
+
+function getCampaignFilterConfig(campaign?: any): Record<string, any> {
+  const config = campaign?.filter_config;
+  return config && typeof config === 'object' && !Array.isArray(config) ? config : {};
+}
+
+function campaignShouldExcludeActive(campaign?: any, templateName?: string | null, campaignName?: string | null): boolean {
+  const config = getCampaignFilterConfig(campaign);
+  return campaign?.exclude_active_phones === true ||
+    config.exclude_active_phones === true ||
+    isRecoveryBroadcast(templateName || campaign?.template_name, campaignName || campaign?.name);
+}
+
+function firstDayCurrentMonthSaoPaulo(): string {
+  const today = saoPauloTodayDate();
+  return `${today.slice(0, 8)}01`;
+}
+
+function daysOverdueFromDate(dueDateValue?: string | null): number {
+  const dueDate = String(dueDateValue || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return -99999;
+  const today = saoPauloTodayDate();
+  const dueMs = Date.UTC(Number(dueDate.slice(0, 4)), Number(dueDate.slice(5, 7)) - 1, Number(dueDate.slice(8, 10)));
+  const todayMs = Date.UTC(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 1, Number(today.slice(8, 10)));
+  return Math.floor((todayMs - dueMs) / 86400000);
+}
+
+function matchesStoredCampaignFilters(customer: any, filterConfig: Record<string, any>): boolean {
+  const selectedCustomerIds = Array.isArray(filterConfig.selected_customer_ids)
+    ? new Set(filterConfig.selected_customer_ids.map((id: unknown) => String(id)))
+    : null;
+  if (filterConfig.selection_mode === 'customers' && selectedCustomerIds?.size && !selectedCustomerIds.has(String(customer.id))) {
+    return false;
+  }
+
+  const selectedServerIds = Array.isArray(filterConfig.selected_server_ids)
+    ? new Set(filterConfig.selected_server_ids.map((id: unknown) => String(id)))
+    : null;
+  if (filterConfig.selection_mode === 'servers' && selectedServerIds?.size && !selectedServerIds.has(String(customer.server_id || ''))) {
+    return false;
+  }
+
+  if (filterConfig.overdue_segment_enabled === true) {
+    const min = Number.isFinite(Number(filterConfig.overdue_min)) ? Math.max(0, Math.round(Number(filterConfig.overdue_min))) : 0;
+    const max = Number.isFinite(Number(filterConfig.overdue_max)) ? Math.max(min, Math.round(Number(filterConfig.overdue_max))) : 9999;
+    const overdueDays = daysOverdueFromDate(customer.due_date);
+    if (overdueDays < min || overdueDays > max) return false;
+  }
+
+  const statusFilter = String(filterConfig.status_filter || 'all');
+  if (statusFilter === 'all') return true;
+  if (['ativa', 'inativa', 'suspensa', 'bloqueado'].includes(statusFilter)) return String(customer.status || '') === statusFilter;
+
+  const dueDate = String(customer.due_date || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return false;
+  if (statusFilter === 'vencidos') return dueDate < saoPauloTodayDate();
+  if (statusFilter === 'vencidos_mes_anterior') return dueDate < firstDayCurrentMonthSaoPaulo();
+  if (statusFilter === 'ativos') return dueDate >= saoPauloTodayDate();
+  return true;
 }
 
 function sleepMs(ms: number): Promise<void> {
@@ -197,7 +258,7 @@ async function fetchCustomersByIds(supabase: any, customerIds: string[]) {
   const customers: any[] = [];
 
   for (const chunk of chunkArray(customerIds, CUSTOMER_ID_CHUNK_SIZE)) {
-    const { data, error } = await supabase.from('customers').select('id, name, phone, status, due_date').in('id', chunk);
+    const { data, error } = await supabase.from('customers').select('id, name, phone, status, due_date, server_id').in('id', chunk);
     if (error) return { customers: null as any[] | null, error };
     if (data?.length) customers.push(...data);
   }
@@ -232,7 +293,7 @@ async function fetchCustomersForOwner(supabase: any, ownerId: string) {
   return fetchAllRows(
     supabase,
     'customers',
-    'id, name, phone, status, due_date',
+    'id, name, phone, status, due_date, server_id',
     (query) => query.eq('created_by', ownerId).order('name', { ascending: true }),
   );
 }
@@ -277,10 +338,13 @@ async function rebuildPendingCustomerIds(args: {
     return [];
   }
 
+  const filterConfig = getCampaignFilterConfig(args.campaign);
+  const eligibleCustomers = (customers || []).filter((customer: any) => matchesStoredCampaignFilters(customer, filterConfig));
+
   const { sentPhones, error: sentPhonesError } = await fetchAlreadySentPhones(
     args.supabase,
     args.campaign.template_name,
-    customers.map((customer: any) => ({ id: customer.id, phone: customer.phone || '' })),
+    eligibleCustomers.map((customer: any) => ({ id: customer.id, phone: customer.phone || '' })),
   );
   if (sentPhonesError || !sentPhones) {
     console.error('Error rebuilding pending campaign sent phones:', sentPhonesError);
@@ -306,7 +370,7 @@ async function rebuildPendingCustomerIds(args: {
   const seenPhones = new Set<string>();
   const pending: string[] = [];
   const audienceMode = String(args.campaign.audience_mode || 'new');
-  const shouldExcludeActivePhones = isRecoveryBroadcast(args.campaign.template_name, args.campaign.name);
+  const shouldExcludeActivePhones = campaignShouldExcludeActive(args.campaign);
   const { activePhones, error: activePhonesError } = shouldExcludeActivePhones
     ? await fetchActiveCurrentPhonesForOwner(args.supabase, args.campaign.owner_id)
     : { activePhones: new Set<string>(), error: null };
@@ -316,7 +380,7 @@ async function rebuildPendingCustomerIds(args: {
     return [];
   }
 
-  for (const customer of customers) {
+  for (const customer of eligibleCustomers) {
     const id = String(customer.id || '');
     const normalizedPhone = normalizePhone(customer.phone || '');
     if (!id || !normalizedPhone || processedIds.has(id) || seenPhones.has(normalizedPhone)) continue;
@@ -377,10 +441,12 @@ async function sanitizeExistingPendingCustomerIds(args: {
   const customerById = new Map((customers || []).map((customer: any) => [String(customer.id), customer]));
   const seenPhones = new Set<string>();
   const pending: string[] = [];
+  const filterConfig = getCampaignFilterConfig(args.campaign);
 
   for (const id of uniquePendingIds) {
     const customer = customerById.get(id);
     if (!customer || processedIds.has(id)) continue;
+    if (!matchesStoredCampaignFilters(customer, filterConfig)) continue;
     const normalizedPhone = normalizePhone(customer.phone || '');
     if (!normalizedPhone || seenPhones.has(normalizedPhone)) continue;
     if (shouldExcludeActivePhones && (isActiveCurrentCustomer(customer) || hasActiveCurrentPhone(customer, activePhones))) continue;
@@ -446,9 +512,15 @@ async function startBroadcastPlan(args: {
   phoneNumberId?: string | null;
   logSkips?: boolean;
   excludeActivePhones?: boolean;
+  filterConfig?: Record<string, any>;
 }) {
   const audienceMode = args.audienceMode || 'new';
   const shouldExcludeActivePhones = args.excludeActivePhones === true || isRecoveryBroadcast(args.templateName, args.campaignName);
+  const filterConfig = {
+    ...(args.filterConfig || {}),
+    audience_mode: audienceMode,
+    exclude_active_phones: shouldExcludeActivePhones,
+  };
 
   const supabase = createClient(args.supabaseUrl, args.supabaseServiceKey);
 
@@ -590,6 +662,8 @@ async function startBroadcastPlan(args: {
         template_language: (args as any).templateLanguage || null,
         phone_number_id: args.phoneNumberId || null,
         audience_mode: audienceMode,
+        exclude_active_phones: shouldExcludeActivePhones,
+        filter_config: filterConfig,
         total_targets: customersToSend.length,
         skipped_count: alreadySentCustomers.length + duplicateCustomers.length + activeCurrentCustomers.length,
         status: 'running',
@@ -680,7 +754,7 @@ async function processBroadcastBatch(args: {
   // Customers
   const { data: customers, error: customersError } = await supabase
     .from('customers')
-    .select('id, name, phone, status, due_date')
+    .select('id, name, phone, status, due_date, server_id')
     .in('id', args.customerIds);
 
   if (customersError || !customers) {
@@ -700,7 +774,16 @@ async function processBroadcastBatch(args: {
   const claimedCustomers: any[] = [];
   const skippedCustomers: any[] = [];
   const seenBatchPhones = new Set<string>();
-  const shouldExcludeActivePhones = args.excludeActivePhones === true || isRecoveryBroadcast(args.templateName);
+  let campaignForRules: any = null;
+  if (args.campaignId) {
+    const { data } = await supabase
+      .from('broadcast_campaigns')
+      .select('exclude_active_phones, filter_config, template_name, name')
+      .eq('id', args.campaignId)
+      .maybeSingle();
+    campaignForRules = data;
+  }
+  const shouldExcludeActivePhones = args.excludeActivePhones === true || campaignShouldExcludeActive(campaignForRules, args.templateName);
   const { activePhones, error: activePhonesError } = shouldExcludeActivePhones
     ? await fetchActiveCurrentPhonesForOwner(supabase, userId)
     : { activePhones: new Set<string>(), error: null };
@@ -717,6 +800,11 @@ async function processBroadcastBatch(args: {
       continue;
     }
     seenBatchPhones.add(normalizedPhone);
+
+    if (campaignForRules && !matchesStoredCampaignFilters(customer, getCampaignFilterConfig(campaignForRules))) {
+      skippedCustomers.push({ ...customer, skipReason: 'Fora dos filtros da campanha' });
+      continue;
+    }
 
     if (shouldExcludeActivePhones && (isActiveCurrentCustomer(customer) || hasActiveCurrentPhone(customer, activePhones))) {
       skippedCustomers.push({ ...customer, skipReason: 'Cliente ativo/em dia' });
@@ -856,7 +944,7 @@ async function processBroadcastBatch(args: {
   if (args.campaignId) {
     const { data: campaign } = await supabase
       .from('broadcast_campaigns')
-      .select('sent_count, error_count, pending_customer_ids')
+        .select('sent_count, error_count, skipped_count, pending_customer_ids')
       .eq('id', args.campaignId)
       .maybeSingle();
     if (campaign) {
@@ -869,6 +957,7 @@ async function processBroadcastBatch(args: {
         .update({
           sent_count: (campaign.sent_count || 0) + sent,
           error_count: (campaign.error_count || 0) + errors,
+          skipped_count: (campaign.skipped_count || 0) + skippedCustomers.length,
           pending_customer_ids: pending,
         })
         .eq('id', args.campaignId);
