@@ -9,7 +9,7 @@ import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, XCircle, Loader2, Phone, Send, AlertCircle, Gauge, Timer, StopCircle } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, Phone, Send, AlertCircle, Gauge, Timer, StopCircle, PauseCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface BroadcastResult {
@@ -31,6 +31,8 @@ interface BroadcastProgressModalProps {
   skipped: number;
   isSending?: boolean;
   startedAt?: Date | null;
+  isPaused?: boolean;
+  onPause?: () => void;
   onCancel?: () => void;
 }
 
@@ -58,6 +60,8 @@ export function BroadcastProgressModal({
   skipped,
   isSending,
   startedAt,
+  isPaused,
+  onPause,
   onCancel,
 }: BroadcastProgressModalProps) {
   const [now, setNow] = useState(() => Date.now());
@@ -255,7 +259,13 @@ export function BroadcastProgressModal({
           </div>
 
           {/* Ações */}
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {isSending && onPause && (
+              <Button variant="secondary" onClick={onPause} disabled={isPaused} className="flex-1">
+                <PauseCircle className="w-4 h-4 mr-2" />
+                {isPaused ? 'Pausando...' : 'Pausar'}
+              </Button>
+            )}
             {isSending && onCancel && (
               <Button variant="destructive" onClick={onCancel} className="flex-1">
                 <StopCircle className="w-4 h-4 mr-2" />

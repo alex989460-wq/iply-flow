@@ -124,3 +124,6 @@ verify_jwt = false
 
 [functions.sigma-bridge-receiver]
 verify_jwt = false
+
+[functions.meta-status-webhook]
+verify_jwt = false

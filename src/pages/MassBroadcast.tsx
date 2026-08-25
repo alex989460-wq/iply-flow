@@ -28,7 +28,14 @@ import {
   RefreshCw,
   FileText,
   Phone,
-  Ban
+  Ban,
+  Play,
+  Pause,
+  ChevronDown,
+  CheckCheck,
+  Eye,
+  Reply
+
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { normalizeWhatsAppPhone } from '@/lib/phone';
@@ -138,13 +145,17 @@ export default function MassBroadcast() {
   // 'new' = só quem nunca recebeu | 'all' = todos | 'already' = só quem já recebeu
   const [audienceMode, setAudienceMode] = useState<'new' | 'all' | 'already'>('new');
   const [campaignName, setCampaignName] = useState('');
-  const [showHistory, setShowHistory] = useState(false);
-
-
+  const [showHistory, setShowHistory] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
+  const [resumingCampaignId, setResumingCampaignId] = useState<string | null>(null);
+  const [expandedCampaignId, setExpandedCampaignId] = useState<string | null>(null);
+  const [campaignSearch, setCampaignSearch] = useState('');
+  const [syncingCampaignId, setSyncingCampaignId] = useState<string | null>(null);
 
   const initialResultsRef = useRef<BroadcastResult[]>([]);
   const realtimeResultsRef = useRef<Map<string, BroadcastResult>>(new Map());
   const cancelSendRef = useRef(false);
+  const pauseRef = useRef(false);
   const completeRef = useRef(false);
   const campaignIdRef = useRef<string | null>(null);
 
@@ -163,6 +174,51 @@ export default function MassBroadcast() {
       return (data || []) as any[];
     },
   });
+
+  // Detalhe por número da campanha expandida
+  const { data: campaignLogs = [], isLoading: isLoadingCampaignLogs } = useQuery({
+    queryKey: ['broadcast-campaign-logs', expandedCampaignId],
+    enabled: !!expandedCampaignId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('broadcast_logs' as any)
+        .select('*')
+        .eq('campaign_id', expandedCampaignId)
+        .order('created_at', { ascending: false })
+        .limit(1000);
+      if (error) throw error;
+      const rows = (data || []) as any[];
+      const ids = Array.from(new Set(rows.map((r) => r.customer_id).filter(Boolean)));
+      let names: Record<string, string> = {};
+      if (ids.length) {
+        const { data: custs } = await supabase
+          .from('customers')
+          .select('id, name')
+          .in('id', ids.slice(0, 1000));
+        names = Object.fromEntries((custs || []).map((c: any) => [c.id, c.name]));
+      }
+      return rows.map((r) => ({ ...r, customer_name: names[r.customer_id] || null }));
+    },
+  });
+
+  const syncCampaignCounts = async (campaignId: string) => {
+    setSyncingCampaignId(campaignId);
+    try {
+      const { error } = await supabase.functions.invoke('mass-broadcast', {
+        body: { action: 'sync-counts', campaign_id: campaignId },
+      });
+      if (error) throw new Error(error.message);
+      queryClient.invalidateQueries({ queryKey: ['broadcast-campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['broadcast-campaign-logs', campaignId] });
+      toast({ title: 'Métricas atualizadas' });
+    } catch (e: any) {
+      toast({ title: 'Erro ao sincronizar', description: e.message, variant: 'destructive' });
+    } finally {
+      setSyncingCampaignId(null);
+    }
+  };
+
+
 
 
   // Templates from API
@@ -623,7 +679,214 @@ export default function MassBroadcast() {
     setSelectedServers(new Set());
   };
 
+  // Loop de envio em lotes reutilizável (usado no disparo novo e ao continuar um pausado)
+  const runQueueLoop = async (
+    queueCustomerIds: string[],
+    ctx: {
+      templateName: string;
+      templateLanguage: string;
+      phoneNumberId?: string;
+      campaignId: string | null;
+      customerById: Record<string, { name: string; phone: string }>;
+    },
+  ) => {
+    const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+    const applyBatchResults = (rows: any[]) => {
+      for (const row of rows || []) {
+        const info = ctx.customerById[row.customer_id];
+        if (!info) continue;
+        realtimeResultsRef.current.set(row.customer_id, {
+          customer: info.name,
+          phone: info.phone,
+          status: row.status === 'sent' ? 'sent' : row.status === 'skipped' ? 'skipped' : 'error',
+          error: row.status === 'sent' ? undefined : row.error || 'Erro desconhecido',
+        });
+      }
+      recomputeRef.current?.();
+    };
+
+    const runBatch = async (batch: string[]) => {
+      const res = await supabase.functions.invoke('mass-broadcast', {
+        body: {
+          action: 'batch',
+          customer_ids: batch,
+          template_name: ctx.templateName,
+          template_language: ctx.templateLanguage,
+          phone_number_id: ctx.phoneNumberId || undefined,
+          campaign_id: ctx.campaignId || undefined,
+          audience_mode: audienceMode,
+        },
+      });
+      if (res.error) throw new Error(res.error.message);
+      if (!res.data?.success) throw new Error(res.data?.error || 'Erro ao enviar lote');
+      return res.data;
+    };
+
+    let lastError: string | null = null;
+    let pausedByUser = false;
+
+    for (let offset = 0; offset < queueCustomerIds.length; offset += batchSize) {
+      if (cancelSendRef.current) break;
+      if (pauseRef.current) {
+        pausedByUser = true;
+        break;
+      }
+
+      const batch = queueCustomerIds.slice(offset, offset + batchSize);
+      let data: any = null;
+
+      for (let attempt = 1; attempt <= 2 && !cancelSendRef.current; attempt++) {
+        try {
+          data = await runBatch(batch);
+          break;
+        } catch (err: any) {
+          lastError = err?.message || 'Falha ao enviar lote';
+          console.error(`Lote ${offset / batchSize + 1} falhou (tentativa ${attempt}):`, err);
+          if (attempt === 1) await sleep(2500);
+        }
+      }
+
+      let rateLimitWaitMs = 0;
+      if (data) {
+        applyBatchResults(data.results || []);
+        for (const r of (data.results || []) as any[]) {
+          const msg = String(r?.error || '');
+          if (!/rate limit|too many requests|429/i.test(msg)) continue;
+          const ms = msg.match(/retry\s*after\s*(\d+)\s*ms/i);
+          const s = msg.match(/retry\s*after\s*(\d+)\s*s/i);
+          const wait = ms ? Number(ms[1]) : s ? Number(s[1]) * 1000 : 20000;
+          rateLimitWaitMs = Math.max(rateLimitWaitMs, Math.min(wait + 2000, 90000));
+        }
+      } else {
+        applyBatchResults(
+          batch.map((id) => ({ customer_id: id, status: 'error', error: lastError || 'Falha no lote' })),
+        );
+      }
+
+      const isLast = offset + batchSize >= queueCustomerIds.length;
+      if (!isLast) {
+        const waitMs = Math.max(batchIntervalSeconds * 1000, rateLimitWaitMs);
+        if (waitMs > 0) await sleep(waitMs);
+      }
+    }
+
+    queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
+
+    if (pausedByUser) {
+      if (ctx.campaignId) {
+        await supabase.functions
+          .invoke('mass-broadcast', { body: { action: 'pause', campaign_id: ctx.campaignId } })
+          .catch(() => null);
+      }
+      queryClient.invalidateQueries({ queryKey: ['broadcast-campaigns'] });
+      toast({
+        title: 'Disparo pausado',
+        description: 'Você pode continuar depois pelo histórico de disparos.',
+      });
+      return { paused: true, lastError };
+    }
+
+    completeRef.current = true;
+    setIsBroadcastComplete(true);
+    setBroadcastReport((prev) => (prev ? { ...prev, completedAt: new Date() } : prev));
+
+    if (ctx.campaignId) {
+      await supabase.functions
+        .invoke('mass-broadcast', { body: { action: 'finish', campaign_id: ctx.campaignId } })
+        .catch(() => null);
+      await supabase.functions
+        .invoke('mass-broadcast', { body: { action: 'sync-counts', campaign_id: ctx.campaignId } })
+        .catch(() => null);
+      queryClient.invalidateQueries({ queryKey: ['broadcast-campaigns'] });
+    }
+
+    if (lastError) {
+      toast({
+        title: 'Disparo finalizado com falhas',
+        description: `Alguns lotes falharam: ${lastError}`,
+        variant: 'destructive',
+      });
+    }
+
+    return { paused: false, lastError };
+  };
+
+  // Continuar um disparo pausado a partir do histórico
+  const resumeCampaign = async (campaign: any) => {
+    if (isSending) {
+      toast({ title: 'Já existe um disparo em andamento', variant: 'destructive' });
+      return;
+    }
+    setResumingCampaignId(campaign.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('mass-broadcast', {
+        body: { action: 'resume', campaign_id: campaign.id },
+      });
+      if (error) throw new Error(error.message);
+      if (!data?.success) throw new Error(data?.error || 'Falha ao retomar disparo');
+
+      const pending: string[] = data.pending_customer_ids || [];
+      if (pending.length === 0) {
+        toast({ title: 'Nada pendente', description: 'Todos os números desta campanha já foram processados.' });
+        queryClient.invalidateQueries({ queryKey: ['broadcast-campaigns'] });
+        return;
+      }
+
+      const { data: pendingCustomers, error: custError } = await supabase
+        .from('customers')
+        .select('id, name, phone')
+        .in('id', pending.slice(0, 1000));
+      if (custError) throw custError;
+
+      const customerById: Record<string, { name: string; phone: string }> = Object.fromEntries(
+        (pendingCustomers || []).map((c: any) => [c.id, { name: c.name, phone: c.phone }]),
+      );
+
+      const startedAt = new Date();
+      const startedAtIso = new Date(startedAt.getTime() - 15_000).toISOString();
+      const templateName = campaign.template_name;
+
+      campaignIdRef.current = campaign.id;
+      cancelSendRef.current = false;
+      pauseRef.current = false;
+      setIsPaused(false);
+      completeRef.current = false;
+      setIsBroadcastComplete(false);
+      initialResultsRef.current = [];
+      realtimeResultsRef.current = new Map();
+      setBroadcastResults([]);
+      setBroadcastStats({ sent: 0, errors: 0, skipped: 0 });
+      setActiveBroadcast({ templateName, startedAtIso, customerById, total: pending.length });
+      setBroadcastReport({
+        total: pending.length,
+        sent: 0,
+        errors: 0,
+        skipped: 0,
+        details: [],
+        templateName,
+        startedAt,
+      });
+      setShowProgressModal(true);
+      setIsSending(true);
+
+      await runQueueLoop(pending, {
+        templateName,
+        templateLanguage: campaign.template_language || 'pt_BR',
+        phoneNumberId: campaign.phone_number_id || undefined,
+        campaignId: campaign.id,
+        customerById,
+      });
+    } catch (e: any) {
+      toast({ title: 'Erro ao continuar disparo', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsSending(false);
+      setResumingCampaignId(null);
+    }
+  };
+
   // Send broadcast
+
   const sendBroadcast = async () => {
     if (isSending) return;
 
@@ -678,6 +941,8 @@ export default function MassBroadcast() {
     });
 
     cancelSendRef.current = false;
+    pauseRef.current = false;
+    setIsPaused(false);
     setIsSending(true);
     setSendingProgress(0);
     initialResultsRef.current = [];
@@ -772,105 +1037,14 @@ export default function MassBroadcast() {
       clearSelection();
       queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
 
-      // 2) Envia em lotes curtos, sem travar a fila caso um lote falhe
-      const applyBatchResults = (rows: any[]) => {
-        for (const row of rows || []) {
-          const info = customerById[row.customer_id];
-          if (!info) continue;
-          realtimeResultsRef.current.set(row.customer_id, {
-            customer: info.name,
-            phone: info.phone,
-            status: row.status === 'sent' ? 'sent' : row.status === 'skipped' ? 'skipped' : 'error',
-            error: row.status === 'sent' ? undefined : row.error || 'Erro desconhecido',
-          });
-        }
-        recomputeRef.current?.();
-      };
-
-      const runBatch = async (batch: string[]) => {
-        const res = await supabase.functions.invoke('mass-broadcast', {
-          body: {
-            action: 'batch',
-            customer_ids: batch,
-            template_name: templateName,
-            template_language: selectedTemplateInfo?.language || selectedTemplateLanguage || 'pt_BR',
-            phone_number_id: senderPhoneId || selectedTemplateInfo?.phone_number_id || undefined,
-            campaign_id: campaignIdRef.current || undefined,
-            audience_mode: audienceMode,
-          },
-        });
-        if (res.error) throw new Error(res.error.message);
-        if (!res.data?.success) throw new Error(res.data?.error || 'Erro ao enviar lote');
-        return res.data;
-      };
-
-      let lastError: string | null = null;
-
-      for (let offset = 0; offset < queueCustomerIds.length; offset += batchSize) {
-        if (cancelSendRef.current) break;
-
-        const batch = queueCustomerIds.slice(offset, offset + batchSize);
-        let data: any = null;
-
-        for (let attempt = 1; attempt <= 2 && !cancelSendRef.current; attempt++) {
-          try {
-            data = await runBatch(batch);
-            break;
-          } catch (err: any) {
-            lastError = err?.message || 'Falha ao enviar lote';
-            console.error(`Lote ${offset / batchSize + 1} falhou (tentativa ${attempt}):`, err);
-            if (attempt === 1) await sleep(2500);
-          }
-        }
-
-        let rateLimitWaitMs = 0;
-        if (data) {
-          applyBatchResults(data.results || []);
-          // Se a Meta devolveu rate limit, respeita o tempo pedido antes do próximo lote
-          for (const r of (data.results || []) as any[]) {
-            const msg = String(r?.error || '');
-            if (!/rate limit|too many requests|429/i.test(msg)) continue;
-            const ms = msg.match(/retry\s*after\s*(\d+)\s*ms/i);
-            const s = msg.match(/retry\s*after\s*(\d+)\s*s/i);
-            const wait = ms ? Number(ms[1]) : s ? Number(s[1]) * 1000 : 20000;
-            rateLimitWaitMs = Math.max(rateLimitWaitMs, Math.min(wait + 2000, 90000));
-          }
-        } else {
-          // Marca o lote como erro para a barra continuar avançando
-          applyBatchResults(
-            batch.map((id) => ({ customer_id: id, status: 'error', error: lastError || 'Falha no lote' })),
-          );
-        }
-
-        const isLast = offset + batchSize >= queueCustomerIds.length;
-        if (!isLast) {
-          const waitMs = Math.max(batchIntervalSeconds * 1000, rateLimitWaitMs);
-          if (waitMs > 0) await sleep(waitMs);
-        }
-
-      }
-
-      completeRef.current = true;
-      setIsBroadcastComplete(true);
-
-      setBroadcastReport((prev) => (prev ? { ...prev, completedAt: new Date() } : prev));
-      queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
-
-      if (campaignIdRef.current) {
-        await supabase.functions.invoke('mass-broadcast', {
-          body: { action: 'finish', campaign_id: campaignIdRef.current },
-        }).catch(() => null);
-        queryClient.invalidateQueries({ queryKey: ['broadcast-campaigns'] });
-      }
-
-
-      if (lastError) {
-        toast({
-          title: 'Disparo finalizado com falhas',
-          description: `Alguns lotes falharam: ${lastError}`,
-          variant: 'destructive',
-        });
-      }
+      // 2) Envia em lotes curtos (com suporte a pausar/continuar)
+      await runQueueLoop(queueCustomerIds, {
+        templateName,
+        templateLanguage: selectedTemplateInfo?.language || selectedTemplateLanguage || 'pt_BR',
+        phoneNumberId: senderPhoneId || selectedTemplateInfo?.phone_number_id || undefined,
+        campaignId: campaignIdRef.current,
+        customerById,
+      });
     } catch (error: any) {
       console.error('Broadcast error:', error);
       toast({
@@ -1634,21 +1808,32 @@ export default function MassBroadcast() {
             </Card>
 
             {/* Histórico de disparos */}
-            <Card>
+            <Card className="border-border/40 bg-card/60 backdrop-blur-xl shadow-lg">
               <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <CardTitle className="text-lg flex items-center gap-2">
-                    <Clock className="w-5 h-5" />
+                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/15">
+                      <Clock className="w-4 h-4 text-primary" />
+                    </span>
                     Histórico de disparos
                   </CardTitle>
-                  <Button variant="outline" size="sm" onClick={() => setShowHistory((v) => !v)}>
-                    {showHistory ? 'Ocultar' : 'Ver'}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => queryClient.invalidateQueries({ queryKey: ['broadcast-campaigns'] })}
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setShowHistory((v) => !v)}>
+                      {showHistory ? 'Ocultar' : 'Ver'}
+                    </Button>
+                  </div>
                 </div>
                 <CardDescription>Enviados, entregues, lidos e respondidos por campanha</CardDescription>
               </CardHeader>
               {showHistory && (
-                <CardContent className="space-y-2">
+                <CardContent className="space-y-3">
                   {isLoadingCampaigns ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
@@ -1656,46 +1841,185 @@ export default function MassBroadcast() {
                   ) : campaigns.length === 0 ? (
                     <p className="text-sm text-muted-foreground">Nenhum disparo registrado ainda.</p>
                   ) : (
-                    campaigns.map((c: any) => (
-                      <div key={c.id} className="rounded-xl border border-border/60 p-3 bg-card">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">{c.name}</p>
-                            <p className="text-xs text-muted-foreground truncate">
-                              {c.template_name} · {new Date(c.created_at).toLocaleString('pt-BR')}
-                            </p>
-                          </div>
-                          <Badge variant={c.finished_at ? 'secondary' : 'default'} className="shrink-0">
-                            {c.finished_at ? 'Concluído' : 'Em andamento'}
-                          </Badge>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-3 text-center">
-                          {[
-                            { label: 'Alvos', value: c.total_targets || 0 },
-                            { label: 'Enviados', value: c.sent_count || 0 },
-                            { label: 'Entregues', value: c.delivered_count || 0 },
-                            { label: 'Lidos', value: c.read_count || 0 },
-                            { label: 'Respostas', value: c.replied_count || 0 },
-                          ].map((m) => (
-                            <div key={m.label} className="rounded-lg bg-muted/50 py-1.5">
-                              <p className="text-sm font-semibold">{m.value}</p>
-                              <p className="text-[10px] text-muted-foreground uppercase">{m.label}</p>
+                    campaigns.map((c: any) => {
+                      const pendingCount = Array.isArray(c.pending_customer_ids) ? c.pending_customer_ids.length : 0;
+                      const isPausedCampaign = c.status === 'paused' || (!c.finished_at && pendingCount > 0 && !isSending);
+                      const processed = (c.sent_count || 0) + (c.error_count || 0);
+                      const pct = c.total_targets ? Math.min(100, (processed / c.total_targets) * 100) : 0;
+                      const isOpen = expandedCampaignId === c.id;
+                      const logs = isOpen
+                        ? campaignLogs.filter((l: any) => {
+                            const q = campaignSearch.trim().toLowerCase();
+                            if (!q) return true;
+                            return (
+                              String(l.phone_normalized || '').includes(q.replace(/\D/g, '')) ||
+                              String(l.customer_name || '').toLowerCase().includes(q)
+                            );
+                          })
+                        : [];
+
+                      return (
+                        <div
+                          key={c.id}
+                          className="rounded-2xl border border-border/40 bg-background/40 backdrop-blur-md p-4 transition-all hover:border-primary/30"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold truncate">{c.name}</p>
+                              <p className="text-xs text-muted-foreground truncate">
+                                {c.template_name} · {new Date(c.created_at).toLocaleString('pt-BR')}
+                              </p>
                             </div>
-                          ))}
+                            <Badge
+                              variant={c.finished_at ? 'secondary' : isPausedCampaign ? 'outline' : 'default'}
+                              className="shrink-0"
+                            >
+                              {c.finished_at ? 'Concluído' : isPausedCampaign ? 'Pausado' : 'Em andamento'}
+                            </Badge>
+                          </div>
+
+                          <div className="relative mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
+                            <div
+                              className={cn(
+                                'h-full rounded-full transition-[width] duration-500',
+                                c.finished_at ? 'bg-emerald-500' : 'bg-primary',
+                              )}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mt-3 text-center">
+                            {[
+                              { label: 'Alvos', value: c.total_targets || 0, icon: Users },
+                              { label: 'Enviados', value: c.sent_count || 0, icon: Send },
+                              { label: 'Entregues', value: c.delivered_count || 0, icon: CheckCheck },
+                              { label: 'Lidos', value: c.read_count || 0, icon: Eye },
+                              { label: 'Respostas', value: c.replied_count || 0, icon: Reply },
+                            ].map((m) => (
+                              <div key={m.label} className="rounded-xl border border-border/30 bg-muted/30 py-2">
+                                <m.icon className="w-3.5 h-3.5 mx-auto mb-1 text-muted-foreground" />
+                                <p className="text-sm font-bold tabular-nums">{m.value}</p>
+                                <p className="text-[10px] text-muted-foreground uppercase">{m.label}</p>
+                              </div>
+                            ))}
+                          </div>
+
+                          {(c.skipped_count > 0 || c.error_count > 0 || pendingCount > 0) && (
+                            <p className="text-[11px] text-muted-foreground mt-2">
+                              {c.skipped_count > 0 && `${c.skipped_count} ignorados`}
+                              {c.skipped_count > 0 && c.error_count > 0 && ' · '}
+                              {c.error_count > 0 && `${c.error_count} erros`}
+                              {pendingCount > 0 && ` · ${pendingCount} pendentes`}
+                            </p>
+                          )}
+
+                          <div className="flex flex-wrap items-center gap-2 mt-3">
+                            {pendingCount > 0 && !isSending && (
+                              <Button size="sm" onClick={() => resumeCampaign(c)} disabled={resumingCampaignId === c.id}>
+                                {resumingCampaignId === c.id ? (
+                                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                                ) : (
+                                  <Play className="w-4 h-4 mr-1" />
+                                )}
+                                Continuar
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => syncCampaignCounts(c.id)}
+                              disabled={syncingCampaignId === c.id}
+                            >
+                              {syncingCampaignId === c.id ? (
+                                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                              ) : (
+                                <RefreshCw className="w-4 h-4 mr-1" />
+                              )}
+                              Sincronizar métricas
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setCampaignSearch('');
+                                setExpandedCampaignId(isOpen ? null : c.id);
+                              }}
+                            >
+                              <ChevronDown className={cn('w-4 h-4 mr-1 transition-transform', isOpen && 'rotate-180')} />
+                              {isOpen ? 'Fechar detalhes' : 'Ver número por número'}
+                            </Button>
+                          </div>
+
+                          {isOpen && (
+                            <div className="mt-3 rounded-xl border border-border/40 bg-background/50 p-3">
+                              <div className="relative mb-2">
+                                <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
+                                <Input
+                                  value={campaignSearch}
+                                  onChange={(e) => setCampaignSearch(e.target.value)}
+                                  placeholder="Buscar por nome ou telefone"
+                                  className="pl-8 h-9"
+                                />
+                              </div>
+                              {isLoadingCampaignLogs ? (
+                                <div className="flex items-center gap-2 py-6 justify-center text-sm text-muted-foreground">
+                                  <Loader2 className="w-4 h-4 animate-spin" /> Carregando números...
+                                </div>
+                              ) : logs.length === 0 ? (
+                                <p className="text-sm text-muted-foreground py-4 text-center">
+                                  Nenhum registro encontrado.
+                                </p>
+                              ) : (
+                                <div className="max-h-[320px] overflow-y-auto space-y-1">
+                                  {logs.map((l: any) => (
+                                    <div
+                                      key={l.id}
+                                      className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-2.5 py-2"
+                                    >
+                                      <div className="min-w-0">
+                                        <p className="text-xs font-medium truncate">
+                                          {l.customer_name || 'Cliente'}
+                                        </p>
+                                        <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                          <Phone className="w-3 h-3" />
+                                          {l.phone_normalized || l.phone}
+                                        </p>
+                                      </div>
+                                      <div className="flex items-center gap-1.5 shrink-0">
+                                        {l.replied_at && <Reply className="w-3.5 h-3.5 text-violet-400" />}
+                                        {l.read_at && <Eye className="w-3.5 h-3.5 text-blue-400" />}
+                                        {l.delivered_at && <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />}
+                                        <Badge
+                                          variant={
+                                            l.last_status === 'sent'
+                                              ? 'default'
+                                              : l.last_status === 'error'
+                                                ? 'destructive'
+                                                : 'secondary'
+                                          }
+                                          className="text-[10px]"
+                                        >
+                                          {l.last_status === 'sent'
+                                            ? 'Enviado'
+                                            : l.last_status === 'error'
+                                              ? 'Erro'
+                                              : l.last_status || 'Pendente'}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
-                        {(c.skipped_count > 0 || c.error_count > 0) && (
-                          <p className="text-[11px] text-muted-foreground mt-2">
-                            {c.skipped_count > 0 && `${c.skipped_count} ignorados`}
-                            {c.skipped_count > 0 && c.error_count > 0 && ' · '}
-                            {c.error_count > 0 && `${c.error_count} erros`}
-                          </p>
-                        )}
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </CardContent>
               )}
             </Card>
+
 
 
             {/* Template Selection */}
@@ -2037,6 +2361,12 @@ export default function MassBroadcast() {
         skipped={broadcastStats.skipped}
         isSending={isSending}
         startedAt={broadcastReport?.startedAt || null}
+        isPaused={isPaused}
+        onPause={() => {
+          pauseRef.current = true;
+          setIsPaused(true);
+          toast({ title: 'Pausando...', description: 'O disparo para após o lote atual e fica salvo no histórico.' });
+        }}
         onCancel={() => {
           cancelSendRef.current = true;
           toast({ title: 'Disparo cancelado', description: 'O envio será interrompido após o lote atual.' });

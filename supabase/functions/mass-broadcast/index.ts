@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-type BroadcastAction = 'start' | 'batch' | 'legacy' | 'finish';
+type BroadcastAction = 'start' | 'batch' | 'legacy' | 'finish' | 'pause' | 'resume' | 'sync-counts';
 
 interface BroadcastRequestBase {
   action?: BroadcastAction;
@@ -355,10 +355,13 @@ async function startBroadcastPlan(args: {
         owner_id: args.ownerId,
         name: (args.campaignName || '').trim() || `Disparo ${args.templateName}`,
         template_name: args.templateName,
+        template_language: (args as any).templateLanguage || null,
         phone_number_id: args.phoneNumberId || null,
         audience_mode: audienceMode,
         total_targets: customersToSend.length,
         skipped_count: alreadySentCustomers.length + duplicateCustomers.length,
+        status: 'running',
+        pending_customer_ids: customersToSend.map((c: any) => c.id),
       })
       .select('id')
       .maybeSingle();
@@ -601,15 +604,20 @@ async function processBroadcastBatch(args: {
   if (args.campaignId) {
     const { data: campaign } = await supabase
       .from('broadcast_campaigns')
-      .select('sent_count, error_count')
+      .select('sent_count, error_count, pending_customer_ids')
       .eq('id', args.campaignId)
       .maybeSingle();
     if (campaign) {
+      const processedIds = new Set(args.customerIds.map((id: string) => String(id)));
+      const pending = Array.isArray((campaign as any).pending_customer_ids)
+        ? ((campaign as any).pending_customer_ids as string[]).filter((id) => !processedIds.has(String(id)))
+        : [];
       await supabase
         .from('broadcast_campaigns')
         .update({
           sent_count: (campaign.sent_count || 0) + sent,
           error_count: (campaign.error_count || 0) + errors,
+          pending_customer_ids: pending,
         })
         .eq('id', args.campaignId);
     }
@@ -769,7 +777,7 @@ Deno.serve(async (req) => {
       : 'pt_BR';
     const action: BroadcastAction = (body.action as BroadcastAction) || 'start';
 
-    if (action !== 'finish') {
+    if (!['finish', 'pause', 'resume', 'sync-counts'].includes(action as string)) {
       if (!customer_ids || customer_ids.length === 0) {
         return new Response(JSON.stringify({ error: 'No customers specified' }), {
           status: 400,
@@ -823,11 +831,83 @@ Deno.serve(async (req) => {
       if (campaignId) {
         await supabase
           .from('broadcast_campaigns')
-          .update({ finished_at: new Date().toISOString() })
+          .update({ finished_at: new Date().toISOString(), status: 'completed', pending_customer_ids: [] })
           .eq('id', campaignId)
           .eq('owner_id', userId);
       }
       return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (action === 'pause') {
+      const campaignId = String((body as any).campaign_id || '');
+      if (campaignId) {
+        await supabase
+          .from('broadcast_campaigns')
+          .update({ status: 'paused', paused_at: new Date().toISOString() })
+          .eq('id', campaignId)
+          .eq('owner_id', userId);
+      }
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (action === 'resume') {
+      const campaignId = String((body as any).campaign_id || '');
+      const { data: campaign, error: campaignError } = await supabase
+        .from('broadcast_campaigns')
+        .select('*')
+        .eq('id', campaignId)
+        .eq('owner_id', userId)
+        .maybeSingle();
+
+      if (campaignError || !campaign) {
+        return new Response(JSON.stringify({ success: false, error: 'Campanha não encontrada' }), {
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const pending: string[] = Array.isArray((campaign as any).pending_customer_ids)
+        ? ((campaign as any).pending_customer_ids as string[])
+        : [];
+
+      await supabase
+        .from('broadcast_campaigns')
+        .update({ status: 'running', paused_at: null, finished_at: null })
+        .eq('id', campaignId);
+
+      return new Response(JSON.stringify({ success: true, campaign, pending_customer_ids: pending }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Recalcula entregues/lidos/respondidos a partir dos logs por número
+    if (action === 'sync-counts') {
+      const campaignId = String((body as any).campaign_id || '');
+      const { data: logs } = await supabase
+        .from('broadcast_logs')
+        .select('last_status, delivered_at, read_at, replied_at')
+        .eq('campaign_id', campaignId);
+
+      const rows = logs || [];
+      const counts = {
+        sent_count: rows.filter((r: any) => r.last_status === 'sent').length,
+        error_count: rows.filter((r: any) => r.last_status === 'error').length,
+        delivered_count: rows.filter((r: any) => !!r.delivered_at).length,
+        read_count: rows.filter((r: any) => !!r.read_at).length,
+        replied_count: rows.filter((r: any) => !!r.replied_at).length,
+      };
+
+      await supabase
+        .from('broadcast_campaigns')
+        .update(counts)
+        .eq('id', campaignId)
+        .eq('owner_id', userId);
+
+      return new Response(JSON.stringify({ success: true, ...counts }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -840,12 +920,13 @@ Deno.serve(async (req) => {
         supabaseServiceKey,
         customerIds: customer_ids,
         templateName: template_name,
+        templateLanguage: template_language,
         audienceMode: ((body as any).audience_mode as 'new' | 'all' | 'already') || 'new',
         ownerId: userId,
         campaignName: (body as any).campaign_name || null,
         phoneNumberId: (body as any).phone_number_id || null,
         logSkips: (body as any).log_skips === true,
-      });
+      } as any);
 
 
       return new Response(JSON.stringify(planned.body), {
