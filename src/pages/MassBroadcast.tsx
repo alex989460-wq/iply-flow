@@ -889,6 +889,8 @@ export default function MassBroadcast() {
     });
 
     cancelSendRef.current = false;
+    pauseRef.current = false;
+    setIsPaused(false);
     setIsSending(true);
     setSendingProgress(0);
     initialResultsRef.current = [];
