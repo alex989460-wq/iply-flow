@@ -534,7 +534,7 @@ async function startBroadcastPlan(args: {
         phone_number_id: args.phoneNumberId || null,
         audience_mode: audienceMode,
         total_targets: customersToSend.length,
-        skipped_count: alreadySentCustomers.length + duplicateCustomers.length,
+        skipped_count: alreadySentCustomers.length + duplicateCustomers.length + activeCurrentCustomers.length,
         status: 'running',
         pending_customer_ids: customersToSend.map((c: any) => c.id),
       })
@@ -551,7 +551,7 @@ async function startBroadcastPlan(args: {
       success: true,
       total: customers.length,
       unique: customersToSend.length,
-      skipped: alreadySentCustomers.length + duplicateCustomers.length,
+      skipped: alreadySentCustomers.length + duplicateCustomers.length + activeCurrentCustomers.length,
       already_sent: alreadySentCustomers.length,
       duplicates: duplicateCustomers.length,
       active_current: activeCurrentCustomers.length,
