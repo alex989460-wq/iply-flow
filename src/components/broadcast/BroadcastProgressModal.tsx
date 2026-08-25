@@ -31,6 +31,8 @@ interface BroadcastProgressModalProps {
   skipped: number;
   isSending?: boolean;
   startedAt?: Date | null;
+  isPaused?: boolean;
+  onPause?: () => void;
   onCancel?: () => void;
 }
 
