@@ -979,105 +979,14 @@ export default function MassBroadcast() {
       clearSelection();
       queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
 
-      // 2) Envia em lotes curtos, sem travar a fila caso um lote falhe
-      const applyBatchResults = (rows: any[]) => {
-        for (const row of rows || []) {
-          const info = customerById[row.customer_id];
-          if (!info) continue;
-          realtimeResultsRef.current.set(row.customer_id, {
-            customer: info.name,
-            phone: info.phone,
-            status: row.status === 'sent' ? 'sent' : row.status === 'skipped' ? 'skipped' : 'error',
-            error: row.status === 'sent' ? undefined : row.error || 'Erro desconhecido',
-          });
-        }
-        recomputeRef.current?.();
-      };
-
-      const runBatch = async (batch: string[]) => {
-        const res = await supabase.functions.invoke('mass-broadcast', {
-          body: {
-            action: 'batch',
-            customer_ids: batch,
-            template_name: templateName,
-            template_language: selectedTemplateInfo?.language || selectedTemplateLanguage || 'pt_BR',
-            phone_number_id: senderPhoneId || selectedTemplateInfo?.phone_number_id || undefined,
-            campaign_id: campaignIdRef.current || undefined,
-            audience_mode: audienceMode,
-          },
-        });
-        if (res.error) throw new Error(res.error.message);
-        if (!res.data?.success) throw new Error(res.data?.error || 'Erro ao enviar lote');
-        return res.data;
-      };
-
-      let lastError: string | null = null;
-
-      for (let offset = 0; offset < queueCustomerIds.length; offset += batchSize) {
-        if (cancelSendRef.current) break;
-
-        const batch = queueCustomerIds.slice(offset, offset + batchSize);
-        let data: any = null;
-
-        for (let attempt = 1; attempt <= 2 && !cancelSendRef.current; attempt++) {
-          try {
-            data = await runBatch(batch);
-            break;
-          } catch (err: any) {
-            lastError = err?.message || 'Falha ao enviar lote';
-            console.error(`Lote ${offset / batchSize + 1} falhou (tentativa ${attempt}):`, err);
-            if (attempt === 1) await sleep(2500);
-          }
-        }
-
-        let rateLimitWaitMs = 0;
-        if (data) {
-          applyBatchResults(data.results || []);
-          // Se a Meta devolveu rate limit, respeita o tempo pedido antes do próximo lote
-          for (const r of (data.results || []) as any[]) {
-            const msg = String(r?.error || '');
-            if (!/rate limit|too many requests|429/i.test(msg)) continue;
-            const ms = msg.match(/retry\s*after\s*(\d+)\s*ms/i);
-            const s = msg.match(/retry\s*after\s*(\d+)\s*s/i);
-            const wait = ms ? Number(ms[1]) : s ? Number(s[1]) * 1000 : 20000;
-            rateLimitWaitMs = Math.max(rateLimitWaitMs, Math.min(wait + 2000, 90000));
-          }
-        } else {
-          // Marca o lote como erro para a barra continuar avançando
-          applyBatchResults(
-            batch.map((id) => ({ customer_id: id, status: 'error', error: lastError || 'Falha no lote' })),
-          );
-        }
-
-        const isLast = offset + batchSize >= queueCustomerIds.length;
-        if (!isLast) {
-          const waitMs = Math.max(batchIntervalSeconds * 1000, rateLimitWaitMs);
-          if (waitMs > 0) await sleep(waitMs);
-        }
-
-      }
-
-      completeRef.current = true;
-      setIsBroadcastComplete(true);
-
-      setBroadcastReport((prev) => (prev ? { ...prev, completedAt: new Date() } : prev));
-      queryClient.invalidateQueries({ queryKey: ['billing-logs'] });
-
-      if (campaignIdRef.current) {
-        await supabase.functions.invoke('mass-broadcast', {
-          body: { action: 'finish', campaign_id: campaignIdRef.current },
-        }).catch(() => null);
-        queryClient.invalidateQueries({ queryKey: ['broadcast-campaigns'] });
-      }
-
-
-      if (lastError) {
-        toast({
-          title: 'Disparo finalizado com falhas',
-          description: `Alguns lotes falharam: ${lastError}`,
-          variant: 'destructive',
-        });
-      }
+      // 2) Envia em lotes curtos (com suporte a pausar/continuar)
+      await runQueueLoop(queueCustomerIds, {
+        templateName,
+        templateLanguage: selectedTemplateInfo?.language || selectedTemplateLanguage || 'pt_BR',
+        phoneNumberId: senderPhoneId || selectedTemplateInfo?.phone_number_id || undefined,
+        campaignId: campaignIdRef.current,
+        customerById,
+      });
     } catch (error: any) {
       console.error('Broadcast error:', error);
       toast({
