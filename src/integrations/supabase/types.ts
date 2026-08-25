@@ -990,12 +990,16 @@ export type Database = {
           id: string
           name: string
           owner_id: string
+          paused_at: string | null
+          pending_customer_ids: Json
           phone_number_id: string | null
           read_count: number
           replied_count: number
           sent_count: number
           skipped_count: number
           started_at: string
+          status: string
+          template_language: string | null
           template_name: string
           total_targets: number
           updated_at: string
@@ -1009,12 +1013,16 @@ export type Database = {
           id?: string
           name: string
           owner_id: string
+          paused_at?: string | null
+          pending_customer_ids?: Json
           phone_number_id?: string | null
           read_count?: number
           replied_count?: number
           sent_count?: number
           skipped_count?: number
           started_at?: string
+          status?: string
+          template_language?: string | null
           template_name: string
           total_targets?: number
           updated_at?: string
@@ -1028,12 +1036,16 @@ export type Database = {
           id?: string
           name?: string
           owner_id?: string
+          paused_at?: string | null
+          pending_customer_ids?: Json
           phone_number_id?: string | null
           read_count?: number
           replied_count?: number
           sent_count?: number
           skipped_count?: number
           started_at?: string
+          status?: string
+          template_language?: string | null
           template_name?: string
           total_targets?: number
           updated_at?: string
