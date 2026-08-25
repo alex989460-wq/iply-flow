@@ -207,15 +207,23 @@ serve(async (req) => {
     }
     
     const supportedApp = /(DUPLECAST|CLOUDDY|IBOPLAYERPRO|IBO PLAYER PRO|BOBPLAYER|BOB PLAYER|BOBPRO|BOBPREMIUM|IBOPLAYER|IBO PLAYER|IBOSTB|IBOSSPLAYER|IBOSOLPLAYER|IBO VPN|IBO PLAY|ABEPLAYER|MACPLAYER|VIRGINIA|ALLPLAYER|HUSHPLAY|KTNPLAYER|FAMILYPLAYER|KING4K|IBOXXPLAYER|DUPLEX|FLIXNET|SMARTONEPRO|CR PLAYER|HQ PLAYER|MESSITV)/i.test(String(request.app_name || ''));
-    const forceAny = true; // Temporary flag to force Cristiano's case
-    const forceConfirm = true;
-    const newStatus = 'completed';
-    
-    console.log('[ActivationAction] FORCING completed status for request_id:', request_id);
+
+    // Nunca marcar como concluído quando a ativação automática falhou:
+    // isso escondia falhas (ex.: IBO Player Pro) e o cliente ficava sem ativação.
+    const autoAttempted = action === 'activate' && supportedApp && !!request.user_id;
+    const newStatus =
+      action !== 'activate'
+        ? 'rejected'
+        : autoAttempted && !autoActivationOk && !force
+          ? 'failed'
+          : 'completed';
+
+    console.log('[ActivationAction] status:', newStatus, 'err:', autoActivationError, 'request_id:', request_id);
     await supabaseAdmin.from('activation_requests').update({
       status: newStatus,
       updated_at: new Date().toISOString(),
     }).eq('id', request_id);
+
 
     // ── Pendências manuais: baixa automática no sucesso / abertura na falha ──
     const phoneDigits = String(request.customer_phone || '').replace(/\D/g, '');
