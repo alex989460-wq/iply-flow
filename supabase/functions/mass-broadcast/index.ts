@@ -818,8 +818,10 @@ async function processBroadcastBatch(args: {
     whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error || 'Unknown error'}`,
   }));
 
-  const { error: billingError } = await supabase.from('billing_logs').insert(billingRows);
-  if (billingError) console.error('Error inserting billing logs (batch):', billingError);
+  if (billingRows.length > 0) {
+    const { error: billingError } = await supabase.from('billing_logs').insert(billingRows);
+    if (billingError) console.error('Error inserting billing logs (batch):', billingError);
+  }
 
   const broadcastRows = results.map(({ customer, normalizedPhone, sendResult }) => ({
     customer_id: customer.id,
@@ -839,10 +841,12 @@ async function processBroadcastBatch(args: {
     new Map(broadcastRows.map((row) => [`${row.phone_normalized}|${row.template_name}`, row])).values(),
   );
 
-  const { error: broadcastError } = await supabase
-    .from('broadcast_logs')
-    .upsert(dedupedRows, { onConflict: 'phone_normalized,template_name' });
-  if (broadcastError) console.error('Error upserting broadcast logs (batch):', broadcastError);
+  if (dedupedRows.length > 0) {
+    const { error: broadcastError } = await supabase
+      .from('broadcast_logs')
+      .upsert(dedupedRows, { onConflict: 'phone_normalized,template_name' });
+    if (broadcastError) console.error('Error upserting broadcast logs (batch):', broadcastError);
+  }
 
 
   const sent = results.filter((r) => r.sendResult.success).length;
