@@ -715,6 +715,8 @@ export default function MassBroadcast() {
       phoneNumberId?: string;
       campaignId: string | null;
       customerById: Record<string, { name: string; phone: string }>;
+      audienceMode?: 'new' | 'all' | 'already';
+      excludeActivePhones?: boolean;
     },
   ) => {
     const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -742,8 +744,8 @@ export default function MassBroadcast() {
           template_language: ctx.templateLanguage,
           phone_number_id: ctx.phoneNumberId || undefined,
           campaign_id: ctx.campaignId || undefined,
-          audience_mode: audienceMode,
-          exclude_active_phones: excludeActivePhones,
+          audience_mode: ctx.audienceMode || audienceMode,
+          exclude_active_phones: ctx.excludeActivePhones ?? excludeActivePhones,
         },
       });
       if (res.error) throw new Error(res.error.message);
@@ -905,6 +907,8 @@ export default function MassBroadcast() {
         phoneNumberId: campaign.phone_number_id || undefined,
         campaignId: campaign.id,
         customerById,
+        audienceMode: campaign.audience_mode || 'new',
+        excludeActivePhones: campaign.exclude_active_phones === true || campaign.filter_config?.exclude_active_phones === true,
       });
     } catch (e: any) {
       toast({ title: 'Erro ao continuar disparo', description: e.message, variant: 'destructive' });
@@ -940,6 +944,17 @@ export default function MassBroadcast() {
 
     const templateName = selectedTemplate;
     const allCustomerIds = customersToSend.map((c) => c.id);
+    const filterConfig = {
+      selection_mode: selectionMode,
+      status_filter: statusFilter,
+      selected_customer_ids: selectionMode === 'customers' ? Array.from(selectedCustomers) : [],
+      selected_server_ids: selectionMode === 'servers' ? Array.from(selectedServers) : [],
+      overdue_segment_enabled: overdueSegmentEnabled,
+      overdue_min: overdueRange.min,
+      overdue_max: overdueRange.max,
+      audience_mode: audienceMode,
+      exclude_active_phones: excludeActivePhones,
+    };
 
     // Estimativa de custo (categoria do template)
     const tplObj = templates.find((t) => t.name === templateName);
@@ -1003,6 +1018,7 @@ export default function MassBroadcast() {
           campaign_name: campaignName || `Disparo ${templateName}`,
           phone_number_id: senderPhoneId || selectedTemplateInfo?.phone_number_id || undefined,
           exclude_active_phones: excludeActivePhones,
+          filter_config: filterConfig,
         },
 
       });
@@ -1074,6 +1090,8 @@ export default function MassBroadcast() {
         phoneNumberId: senderPhoneId || selectedTemplateInfo?.phone_number_id || undefined,
         campaignId: campaignIdRef.current,
         customerById,
+        audienceMode,
+        excludeActivePhones,
       });
     } catch (error: any) {
       console.error('Broadcast error:', error);
