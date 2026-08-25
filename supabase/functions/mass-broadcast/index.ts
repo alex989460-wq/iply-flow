@@ -258,7 +258,7 @@ async function fetchCustomersByIds(supabase: any, customerIds: string[]) {
   const customers: any[] = [];
 
   for (const chunk of chunkArray(customerIds, CUSTOMER_ID_CHUNK_SIZE)) {
-    const { data, error } = await supabase.from('customers').select('id, name, phone, status, due_date').in('id', chunk);
+    const { data, error } = await supabase.from('customers').select('id, name, phone, status, due_date, server_id').in('id', chunk);
     if (error) return { customers: null as any[] | null, error };
     if (data?.length) customers.push(...data);
   }
@@ -293,7 +293,7 @@ async function fetchCustomersForOwner(supabase: any, ownerId: string) {
   return fetchAllRows(
     supabase,
     'customers',
-    'id, name, phone, status, due_date',
+    'id, name, phone, status, due_date, server_id',
     (query) => query.eq('created_by', ownerId).order('name', { ascending: true }),
   );
 }
