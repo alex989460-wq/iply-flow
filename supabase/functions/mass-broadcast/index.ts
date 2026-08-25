@@ -622,7 +622,7 @@ async function processBroadcastBatch(args: {
   // Customers
   const { data: customers, error: customersError } = await supabase
     .from('customers')
-    .select('id, name, phone')
+    .select('id, name, phone, status, due_date')
     .in('id', args.customerIds);
 
   if (customersError || !customers) {
@@ -642,6 +642,15 @@ async function processBroadcastBatch(args: {
   const claimedCustomers: any[] = [];
   const skippedCustomers: any[] = [];
   const seenBatchPhones = new Set<string>();
+  const shouldExcludeActivePhones = isRecoveryBroadcast(args.templateName);
+  const { activePhones, error: activePhonesError } = shouldExcludeActivePhones
+    ? await fetchActiveCurrentPhonesForOwner(supabase, userId)
+    : { activePhones: new Set<string>(), error: null };
+
+  if (activePhonesError || !activePhones) {
+    console.error('Error fetching active phones for broadcast batch:', activePhonesError);
+    return { ok: false as const, status: 500, body: { error: 'Não foi possível processar o envio' } };
+  }
 
   for (const customer of customers as any[]) {
     const normalizedPhone = normalizePhone(customer.phone || '');
@@ -650,6 +659,11 @@ async function processBroadcastBatch(args: {
       continue;
     }
     seenBatchPhones.add(normalizedPhone);
+
+    if (shouldExcludeActivePhones && (isActiveCurrentCustomer(customer) || hasActiveCurrentPhone(customer, activePhones))) {
+      skippedCustomers.push({ ...customer, skipReason: 'Cliente ativo/em dia' });
+      continue;
+    }
 
     const { data: existing } = await supabase
       .from('broadcast_logs')
@@ -824,7 +838,7 @@ async function processBroadcastBatch(args: {
           customer: customer.name,
           phone: customer.phone,
           status: 'skipped',
-          error: 'Já enviado ou em processamento',
+          error: customer.skipReason || 'Já enviado ou em processamento',
         })),
       ],
     },
