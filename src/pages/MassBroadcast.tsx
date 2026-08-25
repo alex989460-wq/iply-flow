@@ -1861,7 +1861,23 @@ export default function MassBroadcast() {
                       return (
                         <div
                           key={c.id}
-                          className="rounded-2xl border border-border/40 bg-background/40 backdrop-blur-md p-4 transition-all hover:border-primary/30"
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => {
+                            setCampaignSearch('');
+                            setExpandedCampaignId(isOpen ? null : c.id);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              setCampaignSearch('');
+                              setExpandedCampaignId(isOpen ? null : c.id);
+                            }
+                          }}
+                          className={cn(
+                            'cursor-pointer rounded-2xl border border-border/40 bg-background/40 backdrop-blur-md p-4 transition-all hover:border-primary/40 hover:bg-background/60',
+                            isOpen && 'border-primary/50 bg-background/70 shadow-lg',
+                          )}
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
@@ -1870,13 +1886,16 @@ export default function MassBroadcast() {
                                 {c.template_name} · {new Date(c.created_at).toLocaleString('pt-BR')}
                               </p>
                             </div>
-                            <Badge
-                              variant={c.finished_at ? 'secondary' : isPausedCampaign ? 'outline' : 'default'}
-                              className="shrink-0"
-                            >
-                              {c.finished_at ? 'Concluído' : isPausedCampaign ? 'Pausado' : 'Em andamento'}
-                            </Badge>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <Badge variant={c.finished_at ? 'secondary' : isPausedCampaign ? 'outline' : 'default'}>
+                                {c.finished_at ? 'Concluído' : isPausedCampaign ? 'Pausado' : 'Em andamento'}
+                              </Badge>
+                              <ChevronDown
+                                className={cn('w-4 h-4 text-muted-foreground transition-transform', isOpen && 'rotate-180')}
+                              />
+                            </div>
                           </div>
+
 
                           <div className="relative mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
                             <div
