@@ -355,10 +355,13 @@ async function startBroadcastPlan(args: {
         owner_id: args.ownerId,
         name: (args.campaignName || '').trim() || `Disparo ${args.templateName}`,
         template_name: args.templateName,
+        template_language: (args as any).templateLanguage || null,
         phone_number_id: args.phoneNumberId || null,
         audience_mode: audienceMode,
         total_targets: customersToSend.length,
         skipped_count: alreadySentCustomers.length + duplicateCustomers.length,
+        status: 'running',
+        pending_customer_ids: customersToSend.map((c: any) => c.id),
       })
       .select('id')
       .maybeSingle();
