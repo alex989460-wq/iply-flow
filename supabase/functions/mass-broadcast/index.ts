@@ -777,7 +777,7 @@ Deno.serve(async (req) => {
       : 'pt_BR';
     const action: BroadcastAction = (body.action as BroadcastAction) || 'start';
 
-    if (action !== 'finish') {
+    if (!['finish', 'pause', 'resume', 'sync-counts'].includes(action as string)) {
       if (!customer_ids || customer_ids.length === 0) {
         return new Response(JSON.stringify({ error: 'No customers specified' }), {
           status: 400,
