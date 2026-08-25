@@ -831,11 +831,83 @@ Deno.serve(async (req) => {
       if (campaignId) {
         await supabase
           .from('broadcast_campaigns')
-          .update({ finished_at: new Date().toISOString() })
+          .update({ finished_at: new Date().toISOString(), status: 'completed', pending_customer_ids: [] })
           .eq('id', campaignId)
           .eq('owner_id', userId);
       }
       return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (action === 'pause') {
+      const campaignId = String((body as any).campaign_id || '');
+      if (campaignId) {
+        await supabase
+          .from('broadcast_campaigns')
+          .update({ status: 'paused', paused_at: new Date().toISOString() })
+          .eq('id', campaignId)
+          .eq('owner_id', userId);
+      }
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (action === 'resume') {
+      const campaignId = String((body as any).campaign_id || '');
+      const { data: campaign, error: campaignError } = await supabase
+        .from('broadcast_campaigns')
+        .select('*')
+        .eq('id', campaignId)
+        .eq('owner_id', userId)
+        .maybeSingle();
+
+      if (campaignError || !campaign) {
+        return new Response(JSON.stringify({ success: false, error: 'Campanha não encontrada' }), {
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const pending: string[] = Array.isArray((campaign as any).pending_customer_ids)
+        ? ((campaign as any).pending_customer_ids as string[])
+        : [];
+
+      await supabase
+        .from('broadcast_campaigns')
+        .update({ status: 'running', paused_at: null, finished_at: null })
+        .eq('id', campaignId);
+
+      return new Response(JSON.stringify({ success: true, campaign, pending_customer_ids: pending }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Recalcula entregues/lidos/respondidos a partir dos logs por número
+    if (action === 'sync-counts') {
+      const campaignId = String((body as any).campaign_id || '');
+      const { data: logs } = await supabase
+        .from('broadcast_logs')
+        .select('last_status, delivered_at, read_at, replied_at')
+        .eq('campaign_id', campaignId);
+
+      const rows = logs || [];
+      const counts = {
+        sent_count: rows.filter((r: any) => r.last_status === 'sent').length,
+        error_count: rows.filter((r: any) => r.last_status === 'error').length,
+        delivered_count: rows.filter((r: any) => !!r.delivered_at).length,
+        read_count: rows.filter((r: any) => !!r.read_at).length,
+        replied_count: rows.filter((r: any) => !!r.replied_at).length,
+      };
+
+      await supabase
+        .from('broadcast_campaigns')
+        .update(counts)
+        .eq('id', campaignId)
+        .eq('owner_id', userId);
+
+      return new Response(JSON.stringify({ success: true, ...counts }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -848,12 +920,13 @@ Deno.serve(async (req) => {
         supabaseServiceKey,
         customerIds: customer_ids,
         templateName: template_name,
+        templateLanguage: template_language,
         audienceMode: ((body as any).audience_mode as 'new' | 'all' | 'already') || 'new',
         ownerId: userId,
         campaignName: (body as any).campaign_name || null,
         phoneNumberId: (body as any).phone_number_id || null,
         logSkips: (body as any).log_skips === true,
-      });
+      } as any);
 
 
       return new Response(JSON.stringify(planned.body), {
