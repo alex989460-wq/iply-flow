@@ -1737,7 +1737,7 @@ Deno.serve(async (req) => {
       if (!callerId) throw new Error("Não autorizado");
       const { data: existing } = await admin.from("crm_oficial_settings").select("api_key").eq("user_id", callerId).maybeSingle();
       const existingKey = (existing?.api_key || "").trim();
-      if (existingKey && await crmKeyIsUsable(existingKey)) {
+      if (existingKey && (await crmKeyIsUsable(existingKey) || await repairCrmKeyScopes(existingKey))) {
         results.api_key = { ok: true, saved: true, existing: true };
       } else {
         const { data: profile } = await admin.from("profiles").select("full_name").eq("user_id", callerId).maybeSingle();
