@@ -29,7 +29,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { format, addDays, isPast, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Users, RefreshCw, Search, Calendar, Ban, CheckCircle, Clock, Pencil, Eye, EyeOff, UserPlus, Coins, Plus, Smartphone, Trash2, Network, Users2, BadgeCheck } from "lucide-react";
+import { Users, RefreshCw, Search, Calendar, Ban, CheckCircle, Clock, Pencil, Eye, EyeOff, UserPlus, Coins, Plus, Smartphone, Trash2, Network, Users2, BadgeCheck, LogIn, Loader2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Navigate } from "react-router-dom";
 import { z } from "zod";
@@ -496,6 +496,8 @@ export default function Resellers() {
     }
   };
 
+
+  const [impersonatingId, setImpersonatingId] = useState<string | null>(null);
 
   const handleEdit = (reseller: ResellerAccess) => {
     setSelectedReseller(reseller);
