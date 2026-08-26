@@ -1707,11 +1707,13 @@ Deno.serve(async (req) => {
       const callerId = authData?.user?.id;
       if (!callerId) throw new Error("Não autorizado");
       const { data: existing } = await admin.from("crm_oficial_settings").select("api_key").eq("user_id", callerId).maybeSingle();
-      if (existing?.api_key) {
+      const existingKey = (existing?.api_key || "").trim();
+      if (existingKey && await crmKeyIsUsable(existingKey)) {
         results.api_key = { ok: true, saved: true, existing: true };
       } else {
         const { data: profile } = await admin.from("profiles").select("full_name").eq("user_id", callerId).maybeSingle();
         results.api_key = await provisionManagedCrmKey(callerId, profile?.full_name || undefined);
+        if (existingKey) (results.api_key as Record<string, unknown>).replaced_invalid_key = true;
       }
     }
 
@@ -1730,19 +1732,25 @@ Deno.serve(async (req) => {
         }
       }
       if (!allowed) throw new Error("Apenas administradores podem reparar integrações");
-      const { data: resellers, error: resellerError } = await admin.from("reseller_access").select("user_id, full_name");
+      const onlyUserId = String((data as any)?.user_id || "").trim();
+      let query = admin.from("reseller_access").select("user_id, full_name");
+      if (onlyUserId) query = query.eq("user_id", onlyUserId);
+      const { data: resellers, error: resellerError } = await query;
       if (resellerError) throw resellerError;
       const repaired: string[] = [];
       const failed: string[] = [];
       for (const reseller of resellers || []) {
         const { data: existing } = await admin.from("crm_oficial_settings").select("api_key").eq("user_id", reseller.user_id).maybeSingle();
-        if (existing?.api_key) continue;
+        const key = (existing?.api_key || "").trim();
+        // Repara também chaves salvas porém sem escopos (403 "Missing scope").
+        if (key && await crmKeyIsUsable(key)) continue;
         const provisioned = await provisionManagedCrmKey(reseller.user_id, reseller.full_name || undefined);
         if (provisioned.ok) repaired.push(reseller.user_id);
         else failed.push(reseller.user_id);
       }
-      results.repair = { ok: failed.length === 0, repaired_count: repaired.length, failed_count: failed.length };
+      results.repair = { ok: failed.length === 0, repaired_count: repaired.length, failed_count: failed.length, failed };
     }
+
 
 
     if (action === "ping") {
