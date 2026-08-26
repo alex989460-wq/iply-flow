@@ -206,18 +206,26 @@ async function createCrmSession(email: string, password: string) {
   return { ok: true, status: response.status, body, accessToken: String(body.access_token), ownerId: String(body.user.id) };
 }
 
-// Escopos necessários para o SuperGestor operar o CRM (canais, contatos, mensagens...).
+// Escopos completos usados pelo ZapCRM na "Chave inicial (signup)".
+// Chaves criadas manualmente nascem só com contatos/mensagens e falham em canais/templates.
 const CRM_FULL_SCOPES = [
-  "channels:read", "channels:write",
   "contacts:read", "contacts:write",
   "conversations:read", "conversations:write",
-  "messages:read", "messages:write", "messages:send",
-  "templates:read", "templates:write",
+  "messages:read", "messages:write",
+  "broadcasts:read", "broadcasts:write",
+  "channels:read", "channels:write",
+  "tags:read", "tags:write",
   "chatbots:read", "chatbots:write",
+  "templates:read", "templates:write",
+  "whatsapp-template-send:write",
+  "media:read", "media:write",
+  "whatsapp-media-send:write",
+  "utm:read", "utm:write",
+  "profile:read",
 ];
 
-// Valida se a chave realmente enxerga os canais. Chaves criadas sem escopos
-// respondem 403 "Missing scope: channels:read" e precisam ser reprovisionadas.
+// Valida se a chave realmente enxerga os canais. Chaves sem escopos
+// respondem 403 "Missing scope: channels:read".
 async function crmKeyIsUsable(apiKey: string) {
   try {
     const res = await crmFetch("/api/public/v1/channels", { method: "GET", apiKey });
@@ -230,6 +238,27 @@ async function crmKeyIsUsable(apiKey: string) {
     return true;
   }
 }
+
+// Conserta a chave existente concedendo todos os escopos, sem trocar a conta do
+// revendedor (o que faria ele perder canais e conversas já criados).
+async function repairCrmKeyScopes(apiKey: string) {
+  try {
+    const { accessToken } = await openCrmSession(apiKey);
+    const prefix = apiKey.slice(0, 6);
+    const rows = await crmRest(`integration_api_keys?select=id,token_prefix,scopes`, accessToken) as any[];
+    const target = (rows || []).find((r) => String(r?.token_prefix || "").startsWith(prefix));
+    if (!target?.id) return false;
+    await crmRest(`integration_api_keys?id=eq.${target.id}`, accessToken, {
+      method: "PATCH",
+      body: JSON.stringify({ scopes: CRM_FULL_SCOPES }),
+    });
+    return await crmKeyIsUsable(apiKey);
+  } catch (e) {
+    console.error("[crm-oficial-sync] repairCrmKeyScopes:", e);
+    return false;
+  }
+}
+
 
 async function createCrmIntegrationKey(email: string, password: string) {
   const session = await createCrmSession(email, password);
