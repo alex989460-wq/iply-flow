@@ -284,12 +284,29 @@ async function createCrmIntegrationKey(email: string, password: string) {
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) return { ok: false, status: response.status, body };
-  // Sem escopos válidos a chave é inútil: devolve erro para cair no provisionamento gerenciado.
+
+  // Garantia extra: se o CRM ignorar os escopos enviados, força um PATCH com a
+  // sessão do dono antes de desistir da chave.
   if (!(await crmKeyIsUsable(rawToken))) {
-    return { ok: false, status: 403, body: { error: "Chave criada sem escopos (Missing scope)" } };
+    const createdId = Array.isArray(body) ? body?.[0]?.id : body?.id;
+    if (createdId) {
+      await fetch(`${CRM_SUPABASE_URL}/rest/v1/integration_api_keys?id=eq.${createdId}`, {
+        method: "PATCH",
+        headers: {
+          apikey: CRM_SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${session.accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ scopes: CRM_FULL_SCOPES }),
+      }).catch(() => null);
+    }
+    if (!(await crmKeyIsUsable(rawToken))) {
+      return { ok: false, status: 403, body: { error: "Chave criada sem escopos (Missing scope)" } };
+    }
   }
   return { ok: true, status: response.status, body, apiKey: rawToken };
 }
+
 
 
 function extractSignupApiKey(body: any) {
