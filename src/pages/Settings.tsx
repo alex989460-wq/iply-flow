@@ -23,6 +23,8 @@ import EvolutionApiCard from '@/components/settings/EvolutionApiCard';
 import CrmOficialCard from '@/components/settings/CrmOficialCard';
 import RecaptchaSettingsCard from '@/components/settings/RecaptchaSettingsCard';
 import SecuritySettingsCard from '@/components/settings/SecuritySettingsCard';
+import PasswordChangeCard from '@/components/settings/PasswordChangeCard';
+
 
 import EfiSettingsCard from '@/components/settings/EfiSettingsCard';
 import ResellerCheckoutCard from '@/components/settings/ResellerCheckoutCard';
