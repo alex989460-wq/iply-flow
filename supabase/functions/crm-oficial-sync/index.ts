@@ -206,6 +206,60 @@ async function createCrmSession(email: string, password: string) {
   return { ok: true, status: response.status, body, accessToken: String(body.access_token), ownerId: String(body.user.id) };
 }
 
+// Escopos completos usados pelo ZapCRM na "Chave inicial (signup)".
+// Chaves criadas manualmente nascem só com contatos/mensagens e falham em canais/templates.
+const CRM_FULL_SCOPES = [
+  "contacts:read", "contacts:write",
+  "conversations:read", "conversations:write",
+  "messages:read", "messages:write",
+  "broadcasts:read", "broadcasts:write",
+  "channels:read", "channels:write",
+  "tags:read", "tags:write",
+  "chatbots:read", "chatbots:write",
+  "templates:read", "templates:write",
+  "whatsapp-template-send:write",
+  "media:read", "media:write",
+  "whatsapp-media-send:write",
+  "utm:read", "utm:write",
+  "profile:read",
+];
+
+// Valida se a chave realmente enxerga os canais. Chaves sem escopos
+// respondem 403 "Missing scope: channels:read".
+async function crmKeyIsUsable(apiKey: string) {
+  try {
+    const res = await crmFetch("/api/public/v1/channels", { method: "GET", apiKey });
+    if (res.ok) return true;
+    const text = typeof res.body === "string" ? res.body : JSON.stringify(res.body ?? "");
+    if (res.status === 403 || /missing scope/i.test(text)) return false;
+    // Erros temporários (5xx/timeout) não invalidam a chave.
+    return res.status < 500;
+  } catch {
+    return true;
+  }
+}
+
+// Conserta a chave existente concedendo todos os escopos, sem trocar a conta do
+// revendedor (o que faria ele perder canais e conversas já criados).
+async function repairCrmKeyScopes(apiKey: string) {
+  try {
+    const { accessToken } = await openCrmSession(apiKey);
+    const prefix = apiKey.slice(0, 6);
+    const rows = await crmRest(`integration_api_keys?select=id,token_prefix,scopes`, accessToken) as any[];
+    const target = (rows || []).find((r) => String(r?.token_prefix || "").startsWith(prefix));
+    if (!target?.id) return false;
+    await crmRest(`integration_api_keys?id=eq.${target.id}`, accessToken, {
+      method: "PATCH",
+      body: JSON.stringify({ scopes: CRM_FULL_SCOPES }),
+    });
+    return await crmKeyIsUsable(apiKey);
+  } catch (e) {
+    console.error("[crm-oficial-sync] repairCrmKeyScopes:", e);
+    return false;
+  }
+}
+
+
 async function createCrmIntegrationKey(email: string, password: string) {
   const session = await createCrmSession(email, password);
   if (!session.ok || !session.accessToken || !session.ownerId) return session;
@@ -225,12 +279,18 @@ async function createCrmIntegrationKey(email: string, password: string) {
       name: "SuperGestor",
       token_hash: tokenHash,
       token_prefix: rawToken.slice(0, 6),
+      scopes: CRM_FULL_SCOPES,
     }),
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) return { ok: false, status: response.status, body };
+  // Sem escopos válidos a chave é inútil: devolve erro para cair no provisionamento gerenciado.
+  if (!(await crmKeyIsUsable(rawToken))) {
+    return { ok: false, status: 403, body: { error: "Chave criada sem escopos (Missing scope)" } };
+  }
   return { ok: true, status: response.status, body, apiKey: rawToken };
 }
+
 
 function extractSignupApiKey(body: any) {
   const candidates = [body?.api_key, body?.apiKey, body?.token, body?.data?.api_key, body?.data?.apiKey];
@@ -1676,11 +1736,13 @@ Deno.serve(async (req) => {
       const callerId = authData?.user?.id;
       if (!callerId) throw new Error("Não autorizado");
       const { data: existing } = await admin.from("crm_oficial_settings").select("api_key").eq("user_id", callerId).maybeSingle();
-      if (existing?.api_key) {
+      const existingKey = (existing?.api_key || "").trim();
+      if (existingKey && (await crmKeyIsUsable(existingKey) || await repairCrmKeyScopes(existingKey))) {
         results.api_key = { ok: true, saved: true, existing: true };
       } else {
         const { data: profile } = await admin.from("profiles").select("full_name").eq("user_id", callerId).maybeSingle();
         results.api_key = await provisionManagedCrmKey(callerId, profile?.full_name || undefined);
+        if (existingKey) (results.api_key as Record<string, unknown>).replaced_invalid_key = true;
       }
     }
 
@@ -1699,19 +1761,25 @@ Deno.serve(async (req) => {
         }
       }
       if (!allowed) throw new Error("Apenas administradores podem reparar integrações");
-      const { data: resellers, error: resellerError } = await admin.from("reseller_access").select("user_id, full_name");
+      const onlyUserId = String((data as any)?.user_id || "").trim();
+      let query = admin.from("reseller_access").select("user_id, full_name");
+      if (onlyUserId) query = query.eq("user_id", onlyUserId);
+      const { data: resellers, error: resellerError } = await query;
       if (resellerError) throw resellerError;
       const repaired: string[] = [];
       const failed: string[] = [];
       for (const reseller of resellers || []) {
         const { data: existing } = await admin.from("crm_oficial_settings").select("api_key").eq("user_id", reseller.user_id).maybeSingle();
-        if (existing?.api_key) continue;
+        const key = (existing?.api_key || "").trim();
+        // Repara também chaves salvas porém sem escopos (403 "Missing scope").
+        if (key && (await crmKeyIsUsable(key) || await repairCrmKeyScopes(key))) continue;
         const provisioned = await provisionManagedCrmKey(reseller.user_id, reseller.full_name || undefined);
         if (provisioned.ok) repaired.push(reseller.user_id);
         else failed.push(reseller.user_id);
       }
-      results.repair = { ok: failed.length === 0, repaired_count: repaired.length, failed_count: failed.length };
+      results.repair = { ok: failed.length === 0, repaired_count: repaired.length, failed_count: failed.length, failed };
     }
+
 
 
     if (action === "ping") {
