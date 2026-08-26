@@ -710,9 +710,11 @@ export default function Settings() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="seguranca" className="mt-6">
+          <TabsContent value="seguranca" className="mt-6 space-y-6">
             <SecuritySettingsCard />
+            <PasswordChangeCard />
           </TabsContent>
+
 
 
           {isAdmin && (
