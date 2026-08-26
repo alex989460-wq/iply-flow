@@ -1008,12 +1008,30 @@ export default function Resellers() {
                             Renovar
                           </Button>
                         )}
+                        {isAdmin && !isSelf && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs border-primary/40 text-primary hover:bg-primary/10"
+                            onClick={() => handleImpersonate(reseller)}
+                            disabled={impersonatingId === reseller.user_id}
+                            title="Entrar no painel deste revendedor"
+                          >
+                            {impersonatingId === reseller.user_id ? (
+                              <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                            ) : (
+                              <LogIn className="h-3.5 w-3.5 mr-1" />
+                            )}
+                            Entrar no painel
+                          </Button>
+                        )}
                         {isAdmin && (
                           <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => handleEdit(reseller)}>
                             <Pencil className="h-3.5 w-3.5 mr-1" />
                             Editar
                           </Button>
                         )}
+
                         {isAdmin && (
                           <>
                             <Button
