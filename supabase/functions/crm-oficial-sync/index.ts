@@ -1772,7 +1772,7 @@ Deno.serve(async (req) => {
         const { data: existing } = await admin.from("crm_oficial_settings").select("api_key").eq("user_id", reseller.user_id).maybeSingle();
         const key = (existing?.api_key || "").trim();
         // Repara também chaves salvas porém sem escopos (403 "Missing scope").
-        if (key && await crmKeyIsUsable(key)) continue;
+        if (key && (await crmKeyIsUsable(key) || await repairCrmKeyScopes(key))) continue;
         const provisioned = await provisionManagedCrmKey(reseller.user_id, reseller.full_name || undefined);
         if (provisioned.ok) repaired.push(reseller.user_id);
         else failed.push(reseller.user_id);
