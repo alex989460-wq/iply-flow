@@ -29,7 +29,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { format, addDays, isPast, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Users, RefreshCw, Search, Calendar, Ban, CheckCircle, Clock, Pencil, Eye, EyeOff, UserPlus, Coins, Plus, Smartphone, Trash2, Network, Users2, BadgeCheck } from "lucide-react";
+import { Users, RefreshCw, Search, Calendar, Ban, CheckCircle, Clock, Pencil, Eye, EyeOff, UserPlus, Coins, Plus, Smartphone, Trash2, Network, Users2, BadgeCheck, LogIn, Loader2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Navigate } from "react-router-dom";
 import { z } from "zod";
@@ -475,6 +475,29 @@ export default function Resellers() {
     setRenewDays("30");
     setIsRenewDialogOpen(true);
   };
+
+  const handleImpersonate = async (reseller: ResellerAccess) => {
+    setImpersonatingId(reseller.user_id);
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-impersonate', {
+        body: { targetUserId: reseller.user_id, redirectTo: `${window.location.origin}/dashboard` },
+      });
+      if (error || !data?.success || !data?.url) {
+        throw new Error(data?.error || error?.message || 'Falha ao gerar acesso');
+      }
+      toast({
+        title: 'Abrindo painel do revendedor',
+        description: `Você entrará como ${reseller.email}. Sua sessão de admin será substituída — faça login novamente depois.`,
+      });
+      window.location.href = data.url as string;
+    } catch (e) {
+      toast({ title: 'Não foi possível entrar', description: (e as Error).message, variant: 'destructive' });
+      setImpersonatingId(null);
+    }
+  };
+
+
+  const [impersonatingId, setImpersonatingId] = useState<string | null>(null);
 
   const handleEdit = (reseller: ResellerAccess) => {
     setSelectedReseller(reseller);
@@ -1008,12 +1031,30 @@ export default function Resellers() {
                             Renovar
                           </Button>
                         )}
+                        {isAdmin && !isSelf && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs border-primary/40 text-primary hover:bg-primary/10"
+                            onClick={() => handleImpersonate(reseller)}
+                            disabled={impersonatingId === reseller.user_id}
+                            title="Entrar no painel deste revendedor"
+                          >
+                            {impersonatingId === reseller.user_id ? (
+                              <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                            ) : (
+                              <LogIn className="h-3.5 w-3.5 mr-1" />
+                            )}
+                            Entrar no painel
+                          </Button>
+                        )}
                         {isAdmin && (
                           <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => handleEdit(reseller)}>
                             <Pencil className="h-3.5 w-3.5 mr-1" />
                             Editar
                           </Button>
                         )}
+
                         {isAdmin && (
                           <>
                             <Button
