@@ -476,6 +476,27 @@ export default function Resellers() {
     setIsRenewDialogOpen(true);
   };
 
+  const handleImpersonate = async (reseller: ResellerAccess) => {
+    setImpersonatingId(reseller.user_id);
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-impersonate', {
+        body: { targetUserId: reseller.user_id, redirectTo: `${window.location.origin}/dashboard` },
+      });
+      if (error || !data?.success || !data?.url) {
+        throw new Error(data?.error || error?.message || 'Falha ao gerar acesso');
+      }
+      toast({
+        title: 'Abrindo painel do revendedor',
+        description: `Você entrará como ${reseller.email}. Sua sessão de admin será substituída — faça login novamente depois.`,
+      });
+      window.location.href = data.url as string;
+    } catch (e) {
+      toast({ title: 'Não foi possível entrar', description: (e as Error).message, variant: 'destructive' });
+      setImpersonatingId(null);
+    }
+  };
+
+
   const handleEdit = (reseller: ResellerAccess) => {
     setSelectedReseller(reseller);
     setEditForm({
