@@ -206,6 +206,31 @@ async function createCrmSession(email: string, password: string) {
   return { ok: true, status: response.status, body, accessToken: String(body.access_token), ownerId: String(body.user.id) };
 }
 
+// Escopos necessários para o SuperGestor operar o CRM (canais, contatos, mensagens...).
+const CRM_FULL_SCOPES = [
+  "channels:read", "channels:write",
+  "contacts:read", "contacts:write",
+  "conversations:read", "conversations:write",
+  "messages:read", "messages:write", "messages:send",
+  "templates:read", "templates:write",
+  "chatbots:read", "chatbots:write",
+];
+
+// Valida se a chave realmente enxerga os canais. Chaves criadas sem escopos
+// respondem 403 "Missing scope: channels:read" e precisam ser reprovisionadas.
+async function crmKeyIsUsable(apiKey: string) {
+  try {
+    const res = await crmFetch("/api/public/v1/channels", { method: "GET", apiKey });
+    if (res.ok) return true;
+    const text = typeof res.body === "string" ? res.body : JSON.stringify(res.body ?? "");
+    if (res.status === 403 || /missing scope/i.test(text)) return false;
+    // Erros temporários (5xx/timeout) não invalidam a chave.
+    return res.status < 500;
+  } catch {
+    return true;
+  }
+}
+
 async function createCrmIntegrationKey(email: string, password: string) {
   const session = await createCrmSession(email, password);
   if (!session.ok || !session.accessToken || !session.ownerId) return session;
@@ -225,12 +250,18 @@ async function createCrmIntegrationKey(email: string, password: string) {
       name: "SuperGestor",
       token_hash: tokenHash,
       token_prefix: rawToken.slice(0, 6),
+      scopes: CRM_FULL_SCOPES,
     }),
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) return { ok: false, status: response.status, body };
+  // Sem escopos válidos a chave é inútil: devolve erro para cair no provisionamento gerenciado.
+  if (!(await crmKeyIsUsable(rawToken))) {
+    return { ok: false, status: 403, body: { error: "Chave criada sem escopos (Missing scope)" } };
+  }
   return { ok: true, status: response.status, body, apiKey: rawToken };
 }
+
 
 function extractSignupApiKey(body: any) {
   const candidates = [body?.api_key, body?.apiKey, body?.token, body?.data?.api_key, body?.data?.apiKey];
