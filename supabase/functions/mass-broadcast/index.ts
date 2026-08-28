@@ -163,7 +163,7 @@ async function sendWhatsAppTemplate(
 
     console.log(`[CRM Oficial] Sending template "${templateName}" to ${formattedPhone}`);
 
-    const invokeTemplate = (selectedPhoneNumberId?: string | null) => fetch(
+    const invokeTemplate = (selectedPhoneNumberId?: string | null, withParams = true) => fetch(
       `${Deno.env.get('SUPABASE_URL')}/functions/v1/crm-oficial-sync`,
       {
         method: 'POST',
@@ -178,7 +178,7 @@ async function sendWhatsAppTemplate(
           language: templateLanguage,
           user_id: userIdOrDept,
           // Nome real do cliente (evita cair no fallback "Cliente" nos templates/CRM)
-          ...(customerName && String(customerName).trim()
+          ...(withParams && customerName && String(customerName).trim()
             ? { parameters: [String(customerName).trim()], contact_name: String(customerName).trim() }
             : {}),
           ...(selectedPhoneNumberId ? { phone_number_id: selectedPhoneNumberId, from_phone_number_id: selectedPhoneNumberId } : {}),
@@ -186,6 +186,7 @@ async function sendWhatsAppTemplate(
       }
     );
 
+    let sendWithParams = true;
     let response = await invokeTemplate(phoneNumberId);
     let result = await response.json().catch(() => ({}));
 
@@ -201,6 +202,18 @@ async function sendWhatsAppTemplate(
       result = await response.json().catch(() => ({}));
     }
 
+    // Template sem variáveis no corpo: reenvia sem parâmetros (#132000)
+    const paramError = () => JSON.stringify(result || '');
+    if (
+      (!response.ok || result?.success === false) &&
+      /132000|number of parameters does not match|localizable_params/i.test(paramError())
+    ) {
+      console.warn(`[CRM Oficial] Template "${templateName}" não tem variáveis — reenviando sem parâmetros`);
+      sendWithParams = false;
+      response = await invokeTemplate(phoneNumberId, false);
+      result = await response.json().catch(() => ({}));
+    }
+
     const initialError = String(result?.send?.body?.error || result?.error || '');
     if (
       phoneNumberId &&
@@ -208,9 +221,10 @@ async function sendWhatsAppTemplate(
       /Canal WhatsApp Oficial não configurado|does not exist in the translation|não existe no idioma|132001/i.test(initialError)
     ) {
       console.warn(`[CRM Oficial] Retrying template "${templateName}" without forced sender ${phoneNumberId}`);
-      response = await invokeTemplate(null);
+      response = await invokeTemplate(null, sendWithParams);
       result = await response.json().catch(() => ({}));
     }
+
     if (!response.ok || result?.success === false) {
       console.error(`[CRM Oficial] template error: ${response.status}`, result);
       return { success: false, error: (result?.send?.body?.error || result?.error || 'Falha ao enviar template') as string };
