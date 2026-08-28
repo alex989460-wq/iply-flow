@@ -52,6 +52,7 @@
   function getChatRows(pane) {
     const selectors = [
       '[role="listitem"]',
+      '[role="row"]',
       '[role="gridcell"]',
       '[data-testid="cell-frame-container"]',
       'div[tabindex="-1"]',
@@ -224,6 +225,11 @@
     statusEl.dataset.kind = kind;
     progressEl.style.width = `${progress}%`;
   };
+  const escapeOption = (value) => String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 
   box.querySelector('#sg-minimize').onclick = (event) => {
     box.classList.toggle('sg-minimized');
@@ -240,7 +246,7 @@
     try {
       const groups = await scanGroups();
       select.innerHTML = groups.length
-        ? groups.map((g) => `<option value="${g.replace(/"/g, '&quot;')}">${g}</option>`).join('')
+        ? groups.map((g) => `<option value="${escapeOption(g)}">${escapeOption(g)}</option>`).join('')
         : '<option value="">Nenhum grupo encontrado</option>';
       countEl.textContent = `${groups.length} ${groups.length === 1 ? 'grupo carregado' : 'grupos carregados'}`;
       setStatus(groups.length ? `${groups.length} grupos prontos para seleção.` : 'Não consegui ativar o filtro Grupos. Clique em “Grupos” no WhatsApp e tente novamente.', groups.length ? 'ok' : 'error', groups.length ? 100 : 0);
