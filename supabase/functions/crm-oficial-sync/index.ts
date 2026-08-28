@@ -631,6 +631,40 @@ async function directMetaMediaSend(args: {
   return { ok: true, status: 200, body: { ok: true, whatsapp: graph, direct_meta_media: true, phone_number_id: creds.phone_number_id } };
 }
 
+// Renderiza o texto do template aprovado (substituindo variáveis) para que o
+// inbox do CRM mostre o conteúdo real, e não apenas "[Template: nome]".
+function renderTemplateText(officialTemplate: any, sentComponents: unknown[]): string {
+  const comps = Array.isArray(officialTemplate?.components) ? officialTemplate.components : [];
+  const bodyDef = comps.find((c: any) => String(c?.type || "").toUpperCase() === "BODY");
+  let text = String(bodyDef?.text || "");
+  if (!text) return "";
+  const sentBody = (Array.isArray(sentComponents) ? sentComponents : []).find(
+    (c: any) => String(c?.type || "").toLowerCase() === "body",
+  ) as { parameters?: Array<any> } | undefined;
+  const values = (sentBody?.parameters || []).map((p) => String(p?.text ?? ""));
+  values.forEach((value, index) => {
+    text = text.replaceAll(`{{${index + 1}}}`, value);
+  });
+  (sentBody?.parameters || []).forEach((p) => {
+    if (p?.parameter_name) text = text.replaceAll(`{{${p.parameter_name}}}`, String(p?.text ?? ""));
+  });
+  return text;
+}
+
+// Descobre quais colunas a tabela messages do CRM realmente possui, para
+// gravar o snapshot do template apenas nos campos suportados.
+async function detectMessageColumns(accessToken: string): Promise<Set<string>> {
+  try {
+    const rows = await crmRest(`messages?select=*&limit=1`, accessToken) as any[];
+    if (Array.isArray(rows) && rows[0] && typeof rows[0] === "object") {
+      return new Set(Object.keys(rows[0]));
+    }
+  } catch (error) {
+    console.warn("[crm-oficial-sync] não foi possível detectar colunas de messages:", error instanceof Error ? error.message : error);
+  }
+  return new Set<string>();
+}
+
 async function directMetaTemplateSend(args: {
   apiKey?: string;
   phone: string;
@@ -640,7 +674,11 @@ async function directMetaTemplateSend(args: {
   components?: unknown[];
   channelId?: unknown;
   phoneNumberId?: unknown;
+  officialTemplate?: any;
+  templateParams?: unknown[];
+  headerMedia?: { type: "image" | "video" | "document"; url: string };
 }) {
+
   const { accessToken, ownerId } = await getCrmOwnerSession(args.apiKey);
   const selectorPhone = args.phoneNumberId ? String(args.phoneNumberId) : "";
   const selectorChannel = args.channelId ? String(args.channelId) : "";
