@@ -761,20 +761,20 @@ function normalizeListTemplatesBody(body: unknown): any[] {
           : [];
 }
 
-function extractOfficialTemplateHeaderImage(template: any): string | undefined {
+function extractOfficialTemplateHeaderMedia(template: any): { type: "image" | "video" | "document"; url: string } | undefined {
   const components = Array.isArray(template?.components) ? template.components : [];
-  const header = components.find((component: any) =>
-    String(component?.type || "").toUpperCase() === "HEADER" &&
-    String(component?.format || "").toUpperCase() === "IMAGE"
-  );
-  return header?.example?.header_handle?.[0] || header?.example?.header_url?.[0] || undefined;
+  const header = components.find((component: any) => String(component?.type || "").toUpperCase() === "HEADER");
+  const format = String(header?.format || "").toLowerCase();
+  if (!["image", "video", "document"].includes(format)) return undefined;
+  const url = header?.example?.header_handle?.[0] || header?.example?.header_url?.[0];
+  return url ? { type: format as "image" | "video" | "document", url: String(url) } : undefined;
 }
 
 function isMetaTemplateMediaUrl(url?: string) {
   return !!url && /scontent\.whatsapp\.net|lookaside\.fbsbx\.com/i.test(url);
 }
 
-async function fetchOfficialTemplateHeaderImage(templateName: string, language: string, apiKey?: string) {
+async function fetchOfficialTemplateHeaderMedia(templateName: string, language: string, apiKey?: string) {
   const result = await crmFetchWithKeyFallback("/api/public/v1/templates?limit=250", { method: "GET" }, apiKey);
   const templates = normalizeListTemplatesBody(result.body);
   const matches = templates.filter((template: any) => {
@@ -784,7 +784,7 @@ async function fetchOfficialTemplateHeaderImage(templateName: string, language: 
     return !lang || !language || lang === language;
   });
   const selected = matches.find((template: any) => String(template?.status || "").toUpperCase() === "APPROVED") || matches[0];
-  return extractOfficialTemplateHeaderImage(selected);
+  return extractOfficialTemplateHeaderMedia(selected);
 }
 
 // Busca a definição do template diretamente na Graph API (filtrando por nome),
@@ -917,8 +917,11 @@ function getTemplateBodyParamNames(template: any): string[] {
 
 
 
-function replaceHeaderImageInComponents(components: unknown[], publicUrl?: string) {
-  if (!publicUrl) return components;
+function replaceHeaderMediaInComponents(
+  components: unknown[],
+  media?: { type: "image" | "video" | "document"; url: string },
+) {
+  if (!media?.url) return components;
   let replaced = false;
   return components.map((component) => {
     const c = component as { type?: string; parameters?: Array<Record<string, unknown>> };
@@ -927,12 +930,9 @@ function replaceHeaderImageInComponents(components: unknown[], publicUrl?: strin
     replaced = true;
     return {
       ...c,
-      parameters: c.parameters.map((parameter) => {
-        if (String(parameter?.type || "").toLowerCase() !== "image") return parameter;
-        return { ...parameter, image: { link: publicUrl } };
-      }),
+      parameters: [{ type: media.type, [media.type]: { link: media.url } }],
     };
-  }).concat(replaced ? [] : [{ type: "header", parameters: [{ type: "image", image: { link: publicUrl } }] }]);
+  }).concat(replaced ? [] : [{ type: "header", parameters: [{ type: media.type, [media.type]: { link: media.url } }] }]);
 }
 
 function pickString(...values: unknown[]) {
@@ -955,7 +955,11 @@ async function ensurePublicMediaUrl(url: string, label = "media") {
     const response = await fetch(url);
     if (!response.ok) return url;
     const contentType = response.headers.get("content-type") || "image/jpeg";
-    const ext = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : "jpg";
+    const ext = contentType.includes("video/mp4") ? "mp4"
+      : contentType.includes("pdf") ? "pdf"
+      : contentType.includes("png") ? "png"
+      : contentType.includes("webp") ? "webp"
+      : "jpg";
     const bytes = new Uint8Array(await response.arrayBuffer());
     const admin = createClient(supabaseUrl, serviceKey);
     const path = `crm-oficial-template-headers/${Date.now()}-${label.replace(/[^a-zA-Z0-9_-]/g, "_")}.${ext}`;
@@ -1101,41 +1105,49 @@ async function doSendWhatsapp(payload: {
     const components = Array.isArray(payload.components) && payload.components.length
       ? payload.components
       : (inferredBodyParameters.length ? [{ type: "body", parameters: inferredBodyParameters }] : []);
-    const officialHeaderImageUrl = extractOfficialTemplateHeaderImage(officialTemplate)
-      || await fetchOfficialTemplateHeaderImage(String(payload.template_name), String(lang), apiKey).catch(() => undefined);
+    const officialHeaderMedia = extractOfficialTemplateHeaderMedia(officialTemplate)
+      || await fetchOfficialTemplateHeaderMedia(String(payload.template_name), String(lang), apiKey).catch(() => undefined);
     const requestHeaderImageUrl = imageHeaderFromComponents(components);
-    const rawHeaderImageUrl = officialHeaderImageUrl || (isMetaTemplateMediaUrl(requestHeaderImageUrl) ? requestHeaderImageUrl : undefined);
-    if (requestHeaderImageUrl && !rawHeaderImageUrl) {
+    const requestedHeaderMedia = requestHeaderImageUrl && isMetaTemplateMediaUrl(requestHeaderImageUrl)
+      ? { type: "image" as const, url: requestHeaderImageUrl }
+      : undefined;
+    const rawHeaderMedia = officialHeaderMedia || requestedHeaderMedia;
+    if (requestHeaderImageUrl && !rawHeaderMedia) {
       throw new Error("Template com imagem recebeu uma URL que não é a mídia oficial do Meta. Sincronize o template oficial antes de enviar.");
     }
-    const headerImageUrl = rawHeaderImageUrl ? await ensurePublicMediaUrl(rawHeaderImageUrl, String(payload.template_name)) : undefined;
-    const templateComponents = replaceHeaderImageInComponents(components, headerImageUrl);
-    if (isForeignWhatsappPhone(payload.phone)) {
-      try {
-        const directResult = await directMetaTemplateSend({
-          apiKey,
-          phone: payload.phone,
-          name: payload.name,
-          templateName: String(payload.template_name),
-          language: String(lang),
-          components: templateComponents,
-          channelId: payload.channel_id,
-          phoneNumberId: payload.phone_number_id || payload.from_phone_number_id,
-        });
-        console.log("[crm-oficial-sync] direct foreign template send", {
-          template: payload.template_name,
-          lang,
-          to: normalizeWhatsappPhone(payload.phone),
-          ok: true,
-          status: directResult.status,
-        });
-        return directResult;
-      } catch (directError) {
-        const message = directError instanceof Error ? directError.message : String(directError);
-        console.error("[crm-oficial-sync] direct foreign template falhou:", message);
-        return { ok: false, status: 502, body: { error: message, direct_meta_template: true, blocked_wrong_country_prefix_fallback: true } };
-      }
+    const headerMedia = rawHeaderMedia
+      ? { ...rawHeaderMedia, url: await ensurePublicMediaUrl(rawHeaderMedia.url, String(payload.template_name)) }
+      : undefined;
+    const templateComponents = replaceHeaderMediaInComponents(components, headerMedia);
+    // Envia todos os templates oficiais diretamente pela Meta. Assim o payload
+    // contém somente os componentes exigidos pela definição aprovada (inclusive
+    // HEADER de vídeo) e nunca ganha parâmetros extras do endpoint intermediário.
+    try {
+      const directResult = await directMetaTemplateSend({
+        apiKey,
+        phone: payload.phone,
+        name: payload.name,
+        templateName: String(payload.template_name),
+        language: String(lang),
+        components: templateComponents,
+        channelId: payload.channel_id,
+        phoneNumberId: payload.phone_number_id || payload.from_phone_number_id,
+      });
+      console.log("[crm-oficial-sync] direct template send", {
+        template: payload.template_name,
+        lang,
+        to: normalizeWhatsappPhone(payload.phone),
+        components: templateComponents.map((component: any) => String(component?.type || "")),
+        ok: true,
+        status: directResult.status,
+      });
+      return directResult;
+    } catch (directError) {
+      const message = directError instanceof Error ? directError.message : String(directError);
+      console.error("[crm-oficial-sync] direct template falhou:", message);
+      return { ok: false, status: 502, body: { error: message, direct_meta_template: true } };
     }
+    /* istanbul ignore next -- compatibility payload retained for older deployments */
     const officialPayload: Record<string, unknown> = {
       phone: recipientPhone,
       to: recipientPhone,
@@ -1154,7 +1166,7 @@ async function doSendWhatsapp(payload: {
       ...(fallbackBody ? { body: fallbackBody } : {}),
       ...(templateComponents.length ? { components: templateComponents } : {}),
       ...(params.length ? { template_params: params, templateParams: params, parameters: params } : {}),
-      ...(headerImageUrl ? { header_image_url: headerImageUrl, headerImageUrl } : {}),
+      ...(headerMedia?.type === "image" ? { header_image_url: headerMedia.url, headerImageUrl: headerMedia.url } : {}),
     };
     const legacyPayload: Record<string, unknown> = {
       phone: recipientPhone,
@@ -1175,7 +1187,7 @@ async function doSendWhatsapp(payload: {
       template_params: params,
       templateParams: params,
       components: templateComponents,
-      ...(headerImageUrl ? { header_image_url: headerImageUrl, headerImageUrl } : {}),
+      ...(headerMedia?.type === "image" ? { header_image_url: headerMedia.url, headerImageUrl: headerMedia.url } : {}),
       template: { name: payload.template_name, language: { code: lang, policy: "deterministic" }, components: templateComponents },
     };
     const variablePayload: Record<string, unknown> = {
@@ -1196,7 +1208,7 @@ async function doSendWhatsapp(payload: {
         ? Object.fromEntries(paramNames.map((name, i) => [name, textFromUnknown(params[i] ?? "Cliente")]))
         : { body_text: params.map(textFromUnknown).filter(Boolean) },
       ...(templateComponents.length ? { components: templateComponents } : {}),
-      ...(headerImageUrl ? { header_image_url: headerImageUrl, headerImageUrl } : {}),
+      ...(headerMedia?.type === "image" ? { header_image_url: headerMedia.url, headerImageUrl: headerMedia.url } : {}),
     };
     // Tenta endpoints específicos de template. NÃO faz fallback para /whatsapp-send (texto puro),
     // pois isso enviaria sem imagem/botões/formatação do template — exatamente o bug que estamos corrigindo.
@@ -1213,7 +1225,7 @@ async function doSendWhatsapp(payload: {
       template: payload.template_name,
       lang,
       params,
-      header_source: officialHeaderImageUrl ? "official_template" : (headerImageUrl ? "meta_request_payload" : "none"),
+      header_source: officialHeaderMedia ? `official_template_${officialHeaderMedia.type}` : (headerMedia ? `meta_request_${headerMedia.type}` : "none"),
       ok: templateResult.ok,
       status: templateResult.status,
       attempts: (templateResult as { attempts?: Array<{ status: number; body: unknown }> }).attempts?.map((a) => ({ status: a.status, body: a.body })),
@@ -1580,7 +1592,11 @@ Deno.serve(async (req) => {
       const isNamed = String(officialTemplate?.parameter_format || "").toUpperCase() === "NAMED"
         || (paramNames.length > 0 && paramNames.every((n) => n));
 
-      let finalParams = parameters.slice();
+      // A definição aprovada na Meta é a fonte da verdade. Se o template não
+      // possui variáveis, descarte qualquer nome enviado pelo disparador; se
+      // possui N variáveis, envie exatamente N parâmetros — nunca componentes
+      // extras que alterem a estrutura aprovada.
+      let finalParams = officialTemplate ? parameters.slice(0, paramNames.length) : parameters.slice();
       while (finalParams.length < paramNames.length) finalParams.push("Cliente");
 
       // Build body component explicitly so doSendWhatsapp uses our shape
