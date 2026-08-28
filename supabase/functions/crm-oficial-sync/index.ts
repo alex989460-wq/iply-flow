@@ -1119,32 +1119,35 @@ async function doSendWhatsapp(payload: {
       ? { ...rawHeaderMedia, url: await ensurePublicMediaUrl(rawHeaderMedia.url, String(payload.template_name)) }
       : undefined;
     const templateComponents = replaceHeaderMediaInComponents(components, headerMedia);
-    if (isForeignWhatsappPhone(payload.phone)) {
-      try {
-        const directResult = await directMetaTemplateSend({
-          apiKey,
-          phone: payload.phone,
-          name: payload.name,
-          templateName: String(payload.template_name),
-          language: String(lang),
-          components: templateComponents,
-          channelId: payload.channel_id,
-          phoneNumberId: payload.phone_number_id || payload.from_phone_number_id,
-        });
-        console.log("[crm-oficial-sync] direct foreign template send", {
-          template: payload.template_name,
-          lang,
-          to: normalizeWhatsappPhone(payload.phone),
-          ok: true,
-          status: directResult.status,
-        });
-        return directResult;
-      } catch (directError) {
-        const message = directError instanceof Error ? directError.message : String(directError);
-        console.error("[crm-oficial-sync] direct foreign template falhou:", message);
-        return { ok: false, status: 502, body: { error: message, direct_meta_template: true, blocked_wrong_country_prefix_fallback: true } };
-      }
+    // Envia todos os templates oficiais diretamente pela Meta. Assim o payload
+    // contém somente os componentes exigidos pela definição aprovada (inclusive
+    // HEADER de vídeo) e nunca ganha parâmetros extras do endpoint intermediário.
+    try {
+      const directResult = await directMetaTemplateSend({
+        apiKey,
+        phone: payload.phone,
+        name: payload.name,
+        templateName: String(payload.template_name),
+        language: String(lang),
+        components: templateComponents,
+        channelId: payload.channel_id,
+        phoneNumberId: payload.phone_number_id || payload.from_phone_number_id,
+      });
+      console.log("[crm-oficial-sync] direct template send", {
+        template: payload.template_name,
+        lang,
+        to: normalizeWhatsappPhone(payload.phone),
+        components: templateComponents.map((component: any) => String(component?.type || "")),
+        ok: true,
+        status: directResult.status,
+      });
+      return directResult;
+    } catch (directError) {
+      const message = directError instanceof Error ? directError.message : String(directError);
+      console.error("[crm-oficial-sync] direct template falhou:", message);
+      return { ok: false, status: 502, body: { error: message, direct_meta_template: true } };
     }
+    /* istanbul ignore next -- compatibility payload retained for older deployments */
     const officialPayload: Record<string, unknown> = {
       phone: recipientPhone,
       to: recipientPhone,
