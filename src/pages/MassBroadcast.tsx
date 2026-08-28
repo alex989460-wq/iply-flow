@@ -68,7 +68,7 @@ interface WhatsAppTemplate {
 }
 
 type StatusFilter = 'all' | 'ativa' | 'inativa' | 'suspensa' | 'bloqueado' | 'vencidos' | 'vencidos_mes_anterior' | 'ativos';
-type SelectionMode = 'customers' | 'servers';
+type SelectionMode = 'customers' | 'servers' | 'groups';
 
 interface BroadcastReportData {
   total: number;
@@ -120,6 +120,7 @@ export default function MassBroadcast() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
   const [selectedServers, setSelectedServers] = useState<Set<string>>(new Set());
+  const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [selectedTemplateLanguage, setSelectedTemplateLanguage] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -330,6 +331,49 @@ export default function MassBroadcast() {
     if (primary) setSenderPhoneId(primary.id);
   }, [senderNumbers, senderPhoneId]);
 
+
+  // Contatos extraídos de grupos do WhatsApp (viram destinatários com id prefixado por grp:)
+  const { data: groupContacts = [] } = useQuery({
+    queryKey: ['group-contacts-broadcast'],
+    queryFn: async () => {
+      const rows: Array<{ id: string; phone: string; name: string | null; group_name: string | null }> = [];
+      const pageSize = 1000;
+      for (let page = 0; page < 20; page++) {
+        const { data, error } = await supabase
+          .from('whatsapp_group_contacts')
+          .select('id, phone, name, group_name')
+          .order('created_at', { ascending: false })
+          .range(page * pageSize, page * pageSize + pageSize - 1);
+        if (error) throw error;
+        if (!data?.length) break;
+        rows.push(...(data as any[]));
+        if (data.length < pageSize) break;
+      }
+      return rows;
+    },
+  });
+
+  const groupBuckets = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of groupContacts) {
+      const key = c.group_name || 'Sem grupo';
+      map.set(key, (map.get(key) || 0) + 1);
+    }
+    return Array.from(map, ([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+  }, [groupContacts]);
+
+  const groupCustomers = useMemo(() => {
+    return groupContacts
+      .filter((c) => selectedGroups.has(c.group_name || 'Sem grupo'))
+      .map((c) => ({
+        id: `grp:${c.id}`,
+        name: c.name || 'Contato',
+        phone: c.phone,
+        status: 'inativa',
+        due_date: null,
+        server_id: null,
+      })) as any[];
+  }, [groupContacts, selectedGroups]);
 
   // Fetch all customers with pagination to overcome 1000 row limit
   const { data: customers = [], isLoading: customersLoading } = useQuery({
@@ -555,19 +599,23 @@ export default function MassBroadcast() {
   const getSelectedCustomersList = useMemo(() => {
     const base = selectionMode === 'customers'
       ? filteredCustomers.filter(c => selectedCustomers.has(c.id))
-      : getCustomersForServers;
+      : selectionMode === 'groups'
+        ? groupCustomers
+        : getCustomersForServers;
 
     if (!excludeActivePhones) return base;
     return base.filter(c => !activePhones.has(String(c.phone || '').replace(/\D/g, '')));
-  }, [selectionMode, filteredCustomers, selectedCustomers, getCustomersForServers, excludeActivePhones, activePhones]);
+  }, [selectionMode, filteredCustomers, selectedCustomers, getCustomersForServers, groupCustomers, excludeActivePhones, activePhones]);
 
   const excludedByActivePhoneCount = useMemo(() => {
     if (!excludeActivePhones) return 0;
     const base = selectionMode === 'customers'
       ? filteredCustomers.filter(c => selectedCustomers.has(c.id))
-      : getCustomersForServers;
+      : selectionMode === 'groups'
+        ? groupCustomers
+        : getCustomersForServers;
     return base.length - getSelectedCustomersList.length;
-  }, [excludeActivePhones, selectionMode, filteredCustomers, selectedCustomers, getCustomersForServers, getSelectedCustomersList]);
+  }, [excludeActivePhones, selectionMode, filteredCustomers, selectedCustomers, getCustomersForServers, groupCustomers, getSelectedCustomersList]);
 
   // Get selected template info
   const selectedTemplateInfo = useMemo(() => {
@@ -704,7 +752,18 @@ export default function MassBroadcast() {
   const clearSelection = () => {
     setSelectedCustomers(new Set());
     setSelectedServers(new Set());
+    setSelectedGroups(new Set());
   };
+
+  const toggleGroup = (name: string) => {
+    setSelectedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      return next;
+    });
+  };
+
+  const selectAllGroups = () => setSelectedGroups(new Set(groupBuckets.map(g => g.name)));
 
   // Loop de envio em lotes reutilizável (usado no disparo novo e ao continuar um pausado)
   const runQueueLoop = async (
@@ -1429,6 +1488,14 @@ export default function MassBroadcast() {
                     <Server className="w-4 h-4 mr-2" />
                     Por Servidores
                   </Button>
+                  <Button
+                    variant={selectionMode === 'groups' ? 'default' : 'outline'}
+                    onClick={() => setSelectionMode('groups')}
+                    className="flex-1"
+                  >
+                    <Users className="w-4 h-4 mr-2" />
+                    Contatos de Grupos
+                  </Button>
                 </div>
 
                 {/* Status Filter */}
@@ -1578,18 +1645,16 @@ export default function MassBroadcast() {
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">
-                    {selectionMode === 'customers' ? 'Selecionar Clientes' : 'Selecionar Servidores'}
+                    {selectionMode === 'customers' ? 'Selecionar Clientes' : selectionMode === 'groups' ? 'Selecionar Grupos Extraídos' : 'Selecionar Servidores'}
                   </CardTitle>
                   <div className="flex gap-2">
-                    {selectionMode === 'customers' ? (
-                      <Button variant="outline" size="sm" onClick={selectAllCustomers}>
-                        Selecionar Todos
-                      </Button>
-                    ) : (
-                      <Button variant="outline" size="sm" onClick={selectAllServers}>
-                        Selecionar Todos
-                      </Button>
-                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={selectionMode === 'customers' ? selectAllCustomers : selectionMode === 'groups' ? selectAllGroups : selectAllServers}
+                    >
+                      Selecionar Todos
+                    </Button>
                     <Button variant="outline" size="sm" onClick={clearSelection}>
                       Limpar
                     </Button>
@@ -1674,6 +1739,35 @@ export default function MassBroadcast() {
                       </>
                     )}
 
+                  </div>
+                ) : selectionMode === 'groups' ? (
+                  <div className="max-h-[400px] overflow-y-auto space-y-2">
+                    {groupBuckets.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8">
+                        Nenhum contato extraído ainda. Use a ferramenta “Extrair Grupos”.
+                      </p>
+                    ) : (
+                      groupBuckets.map(group => (
+                        <div
+                          key={group.name}
+                          className={cn(
+                            "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                            selectedGroups.has(group.name) ? "bg-primary/10 border-primary" : "bg-card hover:bg-muted/50"
+                          )}
+                          onClick={() => toggleGroup(group.name)}
+                        >
+                          <Checkbox
+                            checked={selectedGroups.has(group.name)}
+                            onCheckedChange={() => toggleGroup(group.name)}
+                          />
+                          <Users className="w-5 h-5 text-muted-foreground" />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{group.name}</p>
+                            <p className="text-sm text-muted-foreground">{group.count} contato(s) extraído(s)</p>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-2">
