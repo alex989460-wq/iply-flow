@@ -94,10 +94,24 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const [accounts, setAccounts] = useState<Array<{ waba_id: string; phone_number_id: string | null; phone_number: string | null; label: string }>>([]);
+  const [wabaId, setWabaId] = useState('default');
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
 
   useEffect(() => {
     if (open) setForm({ ...empty, ...initial } as FormState);
   }, [open]); // eslint-disable-line
+
+  useEffect(() => {
+    if (!open || mode !== 'create') return;
+    setLoadingAccounts(true);
+    setWabaId('default');
+    supabase.functions.invoke('meta-templates', { body: { action: 'list-accounts' } })
+      .then(({ data }) => setAccounts(Array.isArray(data?.accounts) ? data.accounts : []))
+      .catch(() => setAccounts([]))
+      .finally(() => setLoadingAccounts(false));
+  }, [open, mode]);
+
 
   const slug = useMemo(() => slugify(form.name), [form.name]);
 
