@@ -75,14 +75,6 @@ Deno.serve(async (req) => {
       userId = user.id;
     }
 
-    // Ferramenta restrita a administradores.
-    const { data: isAdminRow } = await admin
-      .from('user_roles')
-      .select('user_id')
-      .eq('user_id', userId)
-      .eq('role', 'admin')
-      .maybeSingle();
-    if (!isAdminRow) return json({ error: 'Apenas administradores podem usar esta ferramenta' }, 403);
 
     // ---- Token da extensão ----------------------------------------------
     if (action === 'get-token') {

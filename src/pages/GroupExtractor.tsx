@@ -13,7 +13,7 @@ type GroupItem = { id: string; subject: string; size: number | null };
 type ContactRow = { id: string; phone: string; name: string | null; group_name: string | null; source: string };
 
 export default function GroupExtractor() {
-  const { isAdmin } = useAuth();
+  const { user } = useAuth();
   const [invite, setInvite] = useState('');
   const [groups, setGroups] = useState<GroupItem[]>([]);
   const [contacts, setContacts] = useState<ContactRow[]>([]);
@@ -37,7 +37,7 @@ export default function GroupExtractor() {
     setContacts((data as ContactRow[]) || []);
   };
 
-  useEffect(() => { if (isAdmin) loadContacts(); }, [isAdmin]);
+  useEffect(() => { if (user) loadContacts(); }, [user]);
 
   const groupBuckets = useMemo(() => {
     const map = new Map<string, number>();
@@ -100,13 +100,6 @@ export default function GroupExtractor() {
       .catch((err) => toast({ title: 'Erro no download', description: err.message, variant: 'destructive' }));
   };
 
-  if (!isAdmin) {
-    return (
-      <DashboardLayout>
-        <Card><CardContent className="p-8 text-center text-muted-foreground">Ferramenta disponível apenas para administradores.</CardContent></Card>
-      </DashboardLayout>
-    );
-  }
 
   return (
     <DashboardLayout>
