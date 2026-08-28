@@ -332,23 +332,32 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
         ? { action: 'update', template_id: (initial as any).metaId, components, parameter_format: parameterFormat, header_media_url: form.headerMediaUrl || undefined }
         : { action: 'create', name: slug, category: form.category, language: form.language, components, parameter_format: parameterFormat, allow_category_change: form.allowCategoryChange, header_media_url: form.headerMediaUrl || undefined };
       const { data: res, error } = await supabase.functions.invoke('meta-templates', { body: payload });
-      if (error || res?.error) throw new Error(res?.error || error?.message || 'Falha na Meta API');
+      if (error || res?.error) {
+        const err: any = new Error(res?.error || error?.message || 'Falha na Meta API');
+        err.meta = res || null;
+        throw err;
+      }
       toast({ title: mode === 'edit' ? 'Template atualizado' : 'Template enviado', description: 'Aguarde validação da Meta.' });
       onOpenChange(false);
       onSaved();
     } catch (e: any) {
-      const msg = e.message || '';
-      let ptMsg = 'Erro desconhecido ao processar template.';
-      
-      if (msg.includes('invalid parameter')) ptMsg = 'Variáveis ou formato inválidos para a Meta.';
-      else if (msg.includes('400')) ptMsg = 'Requisição inválida. Verifique os campos do template.';
-      else if (msg.includes('401')) ptMsg = 'Sessão expirada ou sem permissão no CRM.';
-      else if (msg.includes('permission denied')) ptMsg = 'Erro de permissão no banco de dados.';
-      else if (msg.includes('already exists')) ptMsg = 'Já existe um template com este nome.';
-      else if (msg.includes('category')) ptMsg = 'Categoria inválida para este conteúdo.';
-      else ptMsg = msg;
-
-      toast({ title: 'Erro ao salvar', description: ptMsg, variant: 'destructive' });
+      const msg: string = e.message || 'Erro desconhecido ao processar template.';
+      const meta = e.meta || {};
+      // Mostra o motivo real devolvido pela Meta (mensagem + código + como corrigir).
+      const lines = [msg];
+      if (meta.meta_hint && !msg.includes(meta.meta_hint)) lines.push(`Como corrigir: ${meta.meta_hint}`);
+      if (!meta.meta_code) {
+        if (msg.toLowerCase().includes('permission denied')) lines.push('Erro de permissão no banco de dados.');
+        else if (msg.includes('401')) lines.push('Sessão expirada ou sem permissão no CRM.');
+      }
+      const description = lines.join('\n');
+      console.error('[TemplateBuilder] Erro Meta:', meta.details ?? msg);
+      toast({
+        title: meta.meta_title || 'Erro ao salvar template',
+        description: <span className="whitespace-pre-line text-xs leading-relaxed">{description}</span>,
+        variant: 'destructive',
+        duration: 15000,
+      });
     } finally {
       setSaving(false);
     }
