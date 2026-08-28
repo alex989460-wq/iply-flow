@@ -1062,7 +1062,7 @@ export type Database = {
         Row: {
           campaign_id: string | null
           created_at: string
-          customer_id: string
+          customer_id: string | null
           delivered_at: string | null
           id: string
           last_error: string | null
@@ -1078,7 +1078,7 @@ export type Database = {
         Insert: {
           campaign_id?: string | null
           created_at?: string
-          customer_id: string
+          customer_id?: string | null
           delivered_at?: string | null
           id?: string
           last_error?: string | null
@@ -1094,7 +1094,7 @@ export type Database = {
         Update: {
           campaign_id?: string | null
           created_at?: string
-          customer_id?: string
+          customer_id?: string | null
           delivered_at?: string | null
           id?: string
           last_error?: string | null

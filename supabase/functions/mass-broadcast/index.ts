@@ -252,19 +252,43 @@ function chunkArray<T>(items: T[], chunkSize: number): T[][] {
 // PostgREST can return 400 (Bad Request) when `.in(...)` lists are too large.
 // Chunking avoids URL/query length limits for big broadcasts.
 const CUSTOMER_ID_CHUNK_SIZE = 200;
+
+// Contatos extraídos de grupos usam o prefixo grp: e não existem na tabela customers.
+const isGroupContactId = (id: unknown) => String(id ?? '').startsWith('grp:');
+const logCustomerId = (id: unknown) => (isGroupContactId(id) ? null : String(id));
 const PHONE_CHUNK_SIZE = 500;
 
 async function fetchCustomersByIds(supabase: any, customerIds: string[]) {
   const customers: any[] = [];
+  const ids = customerIds.map((id) => String(id));
+  const realIds = ids.filter((id) => !id.startsWith('grp:'));
+  const groupIds = ids.filter((id) => id.startsWith('grp:')).map((id) => id.slice(4));
 
-  for (const chunk of chunkArray(customerIds, CUSTOMER_ID_CHUNK_SIZE)) {
+  for (const chunk of chunkArray(realIds, CUSTOMER_ID_CHUNK_SIZE)) {
     const { data, error } = await supabase.from('customers').select('id, name, phone, status, due_date, server_id').in('id', chunk);
     if (error) return { customers: null as any[] | null, error };
     if (data?.length) customers.push(...data);
   }
 
+  // Contatos extraídos de grupos do WhatsApp (não são clientes cadastrados)
+  for (const chunk of chunkArray(groupIds, CUSTOMER_ID_CHUNK_SIZE)) {
+    const { data, error } = await supabase.from('whatsapp_group_contacts').select('id, phone, name').in('id', chunk);
+    if (error) return { customers: null as any[] | null, error };
+    for (const row of data || []) {
+      customers.push({
+        id: `grp:${row.id}`,
+        name: row.name || 'Contato',
+        phone: row.phone,
+        status: 'inativa',
+        due_date: null,
+        server_id: null,
+      });
+    }
+  }
+
   return { customers, error: null };
 }
+
 
 async function fetchAllRows(
   supabase: any,
@@ -482,7 +506,7 @@ async function fetchAlreadySentPhones(
 
   // Compatibilidade com disparos antigos, anteriores à criação de broadcast_logs.
   // Esses envios eram registrados apenas em billing_logs.
-  for (const chunk of chunkArray(customers.map((customer) => customer.id), CUSTOMER_ID_CHUNK_SIZE)) {
+  for (const chunk of chunkArray(customers.map((customer) => customer.id).filter((id) => !isGroupContactId(id)), CUSTOMER_ID_CHUNK_SIZE)) {
     const { data, error } = await supabase
       .from('billing_logs')
       .select('customer_id')
@@ -605,7 +629,7 @@ async function startBroadcastPlan(args: {
     if (duplicateCustomers.length > 0) {
       const { error } = await supabase.from('billing_logs').insert(
         duplicateCustomers.map((customer) => ({
-          customer_id: customer.id,
+          customer_id: logCustomerId(customer.id),
           billing_type: 'D0' as any,
           message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName} - IGNORADO (telefone duplicado)`,
           whatsapp_status: 'skipped',
@@ -617,7 +641,7 @@ async function startBroadcastPlan(args: {
     if (alreadySentCustomers.length > 0) {
       const { error } = await supabase.from('billing_logs').insert(
         alreadySentCustomers.map((customer) => ({
-          customer_id: customer.id,
+          customer_id: logCustomerId(customer.id),
           billing_type: 'D0' as any,
           message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName} - IGNORADO (${skipReason})`,
           whatsapp_status: 'skipped',
@@ -751,11 +775,9 @@ async function processBroadcastBatch(args: {
     return { ok: false as const, status: 400, body: { error: 'CRM Oficial não configurado. Acesse Configurações e habilite o CRM Oficial.' } };
   }
 
-  // Customers
-  const { data: customers, error: customersError } = await supabase
-    .from('customers')
-    .select('id, name, phone, status, due_date, server_id')
-    .in('id', args.customerIds);
+  // Customers (inclui contatos extraídos de grupos, prefixados com grp:)
+  const { customers, error: customersError } = await fetchCustomersByIds(supabase, args.customerIds);
+
 
   if (customersError || !customers) {
     console.error('Error fetching customers for batch:', customersError);
@@ -841,7 +863,7 @@ async function processBroadcastBatch(args: {
       }
     } else {
       const { error: claimError } = await supabase.from('broadcast_logs').insert({
-        customer_id: customer.id,
+        customer_id: logCustomerId(customer.id),
         phone_normalized: normalizedPhone,
         template_name: args.templateName,
         last_status: 'processing',
@@ -900,7 +922,7 @@ async function processBroadcastBatch(args: {
 
 
   const billingRows = results.map(({ customer, sendResult }) => ({
-    customer_id: customer.id,
+    customer_id: logCustomerId(customer.id),
     billing_type: 'D0' as any,
     message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName}`,
     whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error || 'Unknown error'}`,
@@ -912,7 +934,7 @@ async function processBroadcastBatch(args: {
   }
 
   const broadcastRows = results.map(({ customer, normalizedPhone, sendResult }) => ({
-    customer_id: customer.id,
+    customer_id: logCustomerId(customer.id),
     phone_normalized: normalizedPhone,
     template_name: args.templateName,
     last_status: sendResult.success ? 'sent' : 'error',
@@ -978,14 +1000,14 @@ async function processBroadcastBatch(args: {
       skipped: skippedCustomers.length,
       results: [
         ...results.map(({ customer, sendResult }) => ({
-          customer_id: customer.id,
+          customer_id: logCustomerId(customer.id),
           customer: customer.name,
           phone: customer.phone,
           status: sendResult.success ? 'sent' : 'error',
           error: sendResult.success ? undefined : sendResult.error || 'Erro desconhecido',
         })),
         ...skippedCustomers.map((customer) => ({
-          customer_id: customer.id,
+          customer_id: logCustomerId(customer.id),
           customer: customer.name,
           phone: customer.phone,
           status: 'skipped',
@@ -1032,7 +1054,7 @@ async function processBroadcastLegacy(args: {
   if (args.duplicateCustomers.length > 0) {
     await supabase.from('billing_logs').insert(
       args.duplicateCustomers.map((customer) => ({
-        customer_id: customer.id,
+        customer_id: logCustomerId(customer.id),
         billing_type: 'D0' as any,
         message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName} - IGNORADO (telefone duplicado)`,
         whatsapp_status: 'skipped',
@@ -1044,7 +1066,7 @@ async function processBroadcastLegacy(args: {
   if (args.alreadySentCustomers.length > 0) {
     await supabase.from('billing_logs').insert(
       args.alreadySentCustomers.map((customer) => ({
-        customer_id: customer.id,
+        customer_id: logCustomerId(customer.id),
         billing_type: 'D0' as any,
         message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName} - IGNORADO (já enviado anteriormente)`,
         whatsapp_status: 'skipped',
@@ -1070,7 +1092,7 @@ async function processBroadcastLegacy(args: {
     );
 
     await supabase.from('billing_logs').insert({
-      customer_id: customer.id,
+      customer_id: logCustomerId(customer.id),
       billing_type: 'D0' as any,
       message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName}`,
       whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error}`,
@@ -1081,7 +1103,7 @@ async function processBroadcastLegacy(args: {
       .from('broadcast_logs')
       .upsert(
         {
-          customer_id: customer.id,
+          customer_id: logCustomerId(customer.id),
           phone_normalized: normalizedPhone,
           template_name: args.templateName,
           last_status: sendResult.success ? 'sent' : 'error',
