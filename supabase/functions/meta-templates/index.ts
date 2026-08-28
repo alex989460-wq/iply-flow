@@ -92,6 +92,17 @@ function withoutMediaHeader(payload: any): any | null {
   return { ...payload, components };
 }
 
+/** Erro da Meta/CRM indicando que o template já existe (criado apesar do erro). */
+function isDuplicateNameError(body: any): boolean {
+  const s = JSON.stringify(body || "").toLowerCase();
+  return s.includes("already exists")
+    || s.includes("já existe")
+    || s.includes("ja existe")
+    || s.includes("duplicate")
+    || s.includes("templates_name_language_unique");
+}
+
+
 /**
  * Valida limites da Meta antes de enviar (evita o genérico "Invalid parameter").
  * Botões: 25 caracteres. Rodapé: 60. Corpo: 1024. Cabeçalho texto: 60.
@@ -386,12 +397,33 @@ serve(async (req) => {
 
         const errText = () => JSON.stringify(r.body || "").toLowerCase();
 
+        // O CRM/Meta às vezes cria o template e ainda assim devolve erro (timeout do proxy).
+        // Nesse caso qualquer retry gera "already exists" e o usuário vê erro sem motivo.
+        const alreadyCreated = async (): Promise<boolean> => {
+          try {
+            const lr = await crmFetch(`/api/public/v1/templates?limit=250`, crmApiKey, { method: "GET" });
+            const list = lr.ok ? normalizeTemplatesBody(lr.body) : await listTemplatesDirectFromCrm(crmApiKey, 250);
+            return (list || []).some((t: any) =>
+              String(t?.name || "").toLowerCase() === String(name || "").toLowerCase() &&
+              (!language || !t?.language || String(t.language).toLowerCase() === String(language).toLowerCase()));
+          } catch {
+            return false;
+          }
+        };
+        const createdOk = async () => {
+          console.warn("[MetaTemplates] Template já criado na Meta apesar do erro — retornando sucesso");
+          return json({ success: true, already_exists: true, name, language, status: "PENDING" });
+        };
+
+        if (!r.ok && (isDuplicateNameError(r.body) || await alreadyCreated())) return await createdOk();
+
         // Retry without parameter_format (CRM proxy sometimes rejects it).
         if (!r.ok && payload.parameter_format && (errText().includes("invalid parameter") || r.status === 400 || r.status === 502)) {
           console.warn("[MetaTemplates] Retry without parameter_format:", r.status);
           const retryPayload = { ...payload };
           delete retryPayload.parameter_format;
           r = await crmFetch("/api/public/v1/templates", crmApiKey, { method: "POST", body: JSON.stringify(retryPayload) });
+          if (!r.ok && isDuplicateNameError(r.body)) return await createdOk();
         }
 
         // Fallback: convert NAMED variables to POSITIONAL (CRM proxy may not support named params).
@@ -400,6 +432,7 @@ serve(async (req) => {
           if (converted) {
             console.warn("[MetaTemplates] Retry as POSITIONAL:", r.status);
             r = await crmFetch("/api/public/v1/templates", crmApiKey, { method: "POST", body: JSON.stringify(converted) });
+            if (!r.ok && isDuplicateNameError(r.body)) return await createdOk();
           }
         }
 
@@ -410,8 +443,10 @@ serve(async (req) => {
           if (byUrl) {
             console.warn("[MetaTemplates] Retry com header_handle = URL pública");
             r = await crmFetch("/api/public/v1/templates", crmApiKey, { method: "POST", body: JSON.stringify(byUrl) });
+            if (!r.ok && isDuplicateNameError(r.body)) return await createdOk();
           }
           if (!r.ok) {
+            if (await alreadyCreated()) return await createdOk();
             return json({
               error: "A Meta recusou a imagem do cabeçalho. Envie a imagem novamente (JPG/PNG até 5MB) ou salve o template sem cabeçalho de mídia.",
               details: r.body,
@@ -422,6 +457,7 @@ serve(async (req) => {
 
         if (!r.ok) {
           console.error(`[MetaTemplates] CRM create ${r.status}:`, JSON.stringify(r.body).slice(0, 500));
+          if (await alreadyCreated()) return await createdOk();
           const detailMsg = (r.body as any)?.error?.error_user_msg
             || (r.body as any)?.error?.message
             || (typeof (r.body as any)?.error === "string" ? (r.body as any).error : null)
@@ -429,6 +465,7 @@ serve(async (req) => {
           return json({ error: detailMsg, details: r.body }, r.status || 500);
         }
         return json(r.body ?? { success: true });
+
       }
 
       if (action === "update") {
