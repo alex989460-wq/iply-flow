@@ -52,6 +52,22 @@ export default function GroupExtractor() {
     URL.revokeObjectURL(url);
   };
 
+  const downloadExtension = () => {
+    fetch('/supergestor-extension.zip')
+      .then((res) => {
+        if (!res.ok) throw new Error(`Download falhou: ${res.status}`);
+        return res.blob();
+      })
+      .then((blob) => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'supergestor-extension.zip';
+        a.click();
+        URL.revokeObjectURL(a.href);
+      })
+      .catch((err) => toast({ title: 'Erro no download', description: err.message, variant: 'destructive' }));
+  };
+
   if (!isAdmin) {
     return (
       <DashboardLayout>
@@ -121,8 +137,11 @@ export default function GroupExtractor() {
           <CardHeader><CardTitle className="text-base flex items-center gap-2"><Puzzle className="h-4 w-4" /> 3. Extensão do WhatsApp Web</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Instale a extensão da pasta <code>extension/</code>, abra o grupo no WhatsApp Web, veja a lista de participantes e clique em “Extrair contatos”. Cole o token abaixo quando solicitado.
+              Baixe a extensão, descompacte o ZIP e instale em <code>chrome://extensions</code> (ative o Modo desenvolvedor → Carregar sem compactação). Depois abra o grupo no WhatsApp Web, veja a lista de participantes e clique em “Extrair contatos”. Cole o token abaixo quando solicitado.
             </p>
+            <Button onClick={downloadExtension} className="gap-2">
+              <Download className="h-4 w-4" /> Baixar extensão (.zip)
+            </Button>
             <div className="flex gap-2">
               <Input readOnly value={token} placeholder="Clique em gerar token" />
               <Button variant="outline" disabled={busy === 'token'}
