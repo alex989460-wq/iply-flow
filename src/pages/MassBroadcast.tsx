@@ -169,15 +169,20 @@ export default function MassBroadcast() {
   const { data: campaigns = [], isLoading: isLoadingCampaigns } = useQuery({
     queryKey: ['broadcast-campaigns'],
     queryFn: async () => {
+      // Cada conta (inclusive admin) vê apenas os próprios disparos.
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
       const { data, error } = await supabase
         .from('broadcast_campaigns' as any)
         .select('*')
+        .eq('owner_id', user.id)
         .order('created_at', { ascending: false })
         .limit(50);
       if (error) throw error;
       return (data || []) as any[];
     },
   });
+
 
   const fetchCustomersLiteByIds = async (ids: string[]) => {
     const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
