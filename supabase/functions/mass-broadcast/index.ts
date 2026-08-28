@@ -771,11 +771,9 @@ async function processBroadcastBatch(args: {
     return { ok: false as const, status: 400, body: { error: 'CRM Oficial não configurado. Acesse Configurações e habilite o CRM Oficial.' } };
   }
 
-  // Customers
-  const { data: customers, error: customersError } = await supabase
-    .from('customers')
-    .select('id, name, phone, status, due_date, server_id')
-    .in('id', args.customerIds);
+  // Customers (inclui contatos extraídos de grupos, prefixados com grp:)
+  const { customers, error: customersError } = await fetchCustomersByIds(supabase, args.customerIds);
+
 
   if (customersError || !customers) {
     console.error('Error fetching customers for batch:', customersError);
