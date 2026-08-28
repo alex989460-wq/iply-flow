@@ -1778,26 +1778,116 @@ export default function MassBroadcast() {
                         Nenhum contato extraído ainda. Use a ferramenta “Extrair Grupos”.
                       </p>
                     ) : (
-                      groupBuckets.map(group => (
-                        <div
-                          key={group.name}
-                          className={cn(
-                            "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
-                            selectedGroups.has(group.name) ? "bg-primary/10 border-primary" : "bg-card hover:bg-muted/50"
-                          )}
-                          onClick={() => toggleGroup(group.name)}
-                        >
-                          <Checkbox
-                            checked={selectedGroups.has(group.name)}
-                            onCheckedChange={() => toggleGroup(group.name)}
-                          />
-                          <Users className="w-5 h-5 text-muted-foreground" />
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{group.name}</p>
-                            <p className="text-sm text-muted-foreground">{group.count} contato(s) extraído(s)</p>
+                      groupBuckets.map(group => {
+                        const isSelected = selectedGroups.has(group.name);
+                        const isExpanded = expandedGroup === group.name;
+                        const contactsInGroup = groupContacts.filter(c => (c.group_name || 'Sem grupo') === group.name);
+                        const excludedCount = contactsInGroup.filter(c => excludedGroupContacts.has(c.id)).length;
+                        const includedCount = contactsInGroup.length - excludedCount;
+                        const searchTerm = groupContactSearch.trim().toLowerCase();
+                        const visibleContacts = isExpanded && searchTerm
+                          ? contactsInGroup.filter(c =>
+                              (c.name || '').toLowerCase().includes(searchTerm) ||
+                              c.phone.includes(searchTerm)
+                            )
+                          : contactsInGroup;
+
+                        return (
+                          <div
+                            key={group.name}
+                            className={cn(
+                              "rounded-lg border transition-colors",
+                              isSelected ? "bg-primary/10 border-primary" : "bg-card hover:bg-muted/50"
+                            )}
+                          >
+                            <div
+                              className="flex items-center gap-3 p-3 cursor-pointer"
+                              onClick={() => toggleGroup(group.name)}
+                            >
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() => toggleGroup(group.name)}
+                              />
+                              <Users className="w-5 h-5 text-muted-foreground" />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium truncate">{group.name}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {includedCount} de {group.count} contato(s) selecionado(s)
+                                </p>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedGroup(isExpanded ? null : group.name);
+                                  setGroupContactSearch('');
+                                  if (!isSelected) toggleGroup(group.name);
+                                }}
+                              >
+                                <Filter className="w-4 h-4 mr-1" />
+                                Filtrar
+                                <ChevronDown className={cn("w-4 h-4 ml-1 transition-transform", isExpanded && "rotate-180")} />
+                              </Button>
+                            </div>
+
+                            {isExpanded && (
+                              <div className="border-t p-3 space-y-2 bg-background/50">
+                                <div className="flex items-center gap-2">
+                                  <div className="relative flex-1">
+                                    <Search className="absolute left-2 top-2.5 w-4 h-4 text-muted-foreground" />
+                                    <Input
+                                      placeholder="Buscar por nome ou número..."
+                                      value={groupContactSearch}
+                                      onChange={(e) => setGroupContactSearch(e.target.value)}
+                                      className="pl-8 h-9"
+                                    />
+                                  </div>
+                                  <Button variant="outline" size="sm" onClick={() => includeAllInGroup(group.name)}>
+                                    Todos
+                                  </Button>
+                                  <Button variant="outline" size="sm" onClick={() => excludeAllInGroup(group.name)}>
+                                    Nenhum
+                                  </Button>
+                                </div>
+                                <div className="max-h-[240px] overflow-y-auto space-y-1">
+                                  {visibleContacts.length === 0 ? (
+                                    <p className="text-xs text-muted-foreground text-center py-3">
+                                      Nenhum contato encontrado para essa busca.
+                                    </p>
+                                  ) : (
+                                    visibleContacts.map(c => {
+                                      const included = !excludedGroupContacts.has(c.id);
+                                      return (
+                                        <div
+                                          key={c.id}
+                                          className={cn(
+                                            "flex items-center gap-2 p-2 rounded-md border cursor-pointer text-sm",
+                                            included ? "border-border bg-card" : "border-border/50 bg-muted/30 opacity-60"
+                                          )}
+                                          onClick={() => toggleGroupContact(c.id)}
+                                        >
+                                          <Checkbox
+                                            checked={included}
+                                            onCheckedChange={() => toggleGroupContact(c.id)}
+                                          />
+                                          <div className="flex-1 min-w-0">
+                                            <p className="truncate font-medium">{c.name || 'Contato'}</p>
+                                            <p className="text-xs text-muted-foreground">{c.phone}</p>
+                                          </div>
+                                        </div>
+                                      );
+                                    })
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  Desmarque os contatos que NÃO devem receber o disparo.
+                                </p>
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 ) : (
