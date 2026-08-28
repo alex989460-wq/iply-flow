@@ -102,6 +102,87 @@ function isDuplicateNameError(body: any): boolean {
     || s.includes("templates_name_language_unique");
 }
 
+/** Procura recursivamente o objeto de erro da Graph API dentro de respostas aninhadas do proxy CRM. */
+function findGraphError(body: any, depth = 0): any {
+  if (!body || typeof body !== "object" || depth > 6) return null;
+  if (typeof body.message === "string" && (body.code !== undefined || body.error_subcode !== undefined || body.error_user_msg !== undefined)) {
+    return body;
+  }
+  for (const v of Object.values(body)) {
+    if (typeof v === "string") {
+      const s = v.trim();
+      if (s.startsWith("{") && s.includes("\"message\"")) {
+        try {
+          const found = findGraphError(JSON.parse(s), depth + 1);
+          if (found) return found;
+        } catch { /* ignore */ }
+      }
+      continue;
+    }
+    const found = findGraphError(v, depth + 1);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** Dicas acionáveis por código de erro da Meta (docs: Cloud API error codes / Template guidelines). */
+function metaHint(code?: number, subcode?: number, msg = ""): string | null {
+  const m = msg.toLowerCase();
+  const map: Record<string, string> = {
+    "192": "Número de telefone inválido no cadastro da WABA.",
+    "100": "Parâmetro inválido: confira nome (só minúsculas, números e _), idioma, categoria e as variáveis {{1}} em ordem sequencial, sem começar/terminar o texto e sem duas variáveis coladas.",
+    "2388023": "Já existe um template com este nome e idioma nessa WABA.",
+    "2388042": "Conteúdo com formatação inválida (variáveis fora de ordem, espaços ou pontuação em volta de {{1}}).",
+    "2388043": "O template contém conteúdo que a Meta considera promocional — mude a categoria para MARKETING ou remova ofertas/promoções do texto.",
+    "2388024": "Nome de template inválido: use apenas letras minúsculas, números e underline (máx. 512 caracteres).",
+    "132000": "Número de variáveis no corpo diferente do informado nos exemplos.",
+    "132001": "Template não existe no idioma informado.",
+    "132005": "Texto do template maior que o permitido.",
+    "132007": "Formato do template violado: exemplos obrigatórios para cada variável.",
+    "132012": "Formato de parâmetro incorreto (NAMED x POSITIONAL) — mantenha o mesmo padrão em todas as variáveis.",
+    "133000": "Não é possível excluir/alterar: template em uso ou em análise.",
+    "80007": "Limite de requisições da Meta atingido — aguarde alguns minutos e tente novamente.",
+    "368": "Conta temporariamente bloqueada por violação das políticas da Meta.",
+  };
+  const byCode = map[String(subcode ?? "")] || map[String(code ?? "")];
+  if (byCode) return byCode;
+  if (m.includes("example")) return "Faltam exemplos (example) para as variáveis do template — cada {{1}} precisa de um valor de exemplo.";
+  if (m.includes("button")) return "Problema nos botões: texto até 25 caracteres, URLs válidas (https://) e no máximo 10 botões.";
+  if (m.includes("header")) return "Problema no cabeçalho: texto até 60 caracteres com no máximo 1 variável, ou mídia válida (JPG/PNG/MP4/PDF até 5MB).";
+  if (m.includes("category")) return "Categoria incompatível com o conteúdo. UTILITY só aceita mensagens transacionais; conteúdo promocional exige MARKETING.";
+  if (m.includes("language")) return "Idioma inválido — use o código exato da Meta (ex.: pt_BR, en_US, es).";
+  return null;
+}
+
+/** Monta a mensagem de erro completa e acionável a partir da resposta do CRM/Meta. */
+function explainMetaError(body: any, status: number, fallback = "Falha na Meta API") {
+  const g = findGraphError(body) || (body as any)?.error || {};
+  const code = typeof g.code === "number" ? g.code : undefined;
+  const subcode = typeof g.error_subcode === "number" ? g.error_subcode : undefined;
+  const base = g.error_user_msg
+    || g.message
+    || (typeof (body as any)?.error === "string" ? (body as any).error : null)
+    || (typeof (body as any)?.message === "string" ? (body as any).message : null)
+    || `${fallback} (HTTP ${status})`;
+  const title = g.error_user_title || null;
+  const hint = metaHint(code, subcode, String(base || ""));
+  const parts = [
+    title ? `${title}: ${base}` : String(base),
+    code !== undefined ? `Código Meta: ${code}${subcode !== undefined ? ` / subcódigo ${subcode}` : ""}` : null,
+    hint ? `Como corrigir: ${hint}` : null,
+  ].filter(Boolean);
+  return {
+    error: parts.join("\n"),
+    meta_code: code ?? null,
+    meta_subcode: subcode ?? null,
+    meta_title: title,
+    meta_message: String(base),
+    meta_hint: hint,
+    details: body,
+  };
+}
+
+
 
 /**
  * Valida limites da Meta antes de enviar (evita o genérico "Invalid parameter").
