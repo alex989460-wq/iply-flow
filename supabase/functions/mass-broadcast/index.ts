@@ -1016,6 +1016,7 @@ async function processBroadcastBatch(args: {
       skipped: skippedCustomers.length,
       results: [
         ...results.map(({ customer, sendResult }) => ({
+          target_id: String(customer.id),
           customer_id: logCustomerId(customer.id),
           customer: customer.name,
           phone: customer.phone,
@@ -1023,6 +1024,7 @@ async function processBroadcastBatch(args: {
           error: sendResult.success ? undefined : sendResult.error || 'Erro desconhecido',
         })),
         ...skippedCustomers.map((customer) => ({
+          target_id: String(customer.id),
           customer_id: logCustomerId(customer.id),
           customer: customer.name,
           phone: customer.phone,
