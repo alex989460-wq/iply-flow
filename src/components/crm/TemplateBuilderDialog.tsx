@@ -396,7 +396,28 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
                 <p className="text-xs text-muted-foreground">Vira slug automaticamente: <span className="text-emerald-500 font-mono">{slug || 'nome_do_template'}</span></p>
               </div>
 
+              {mode === 'create' && (
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold">Conta da Meta (WhatsApp)</Label>
+                  <Select value={wabaId} onValueChange={setWabaId} disabled={loadingAccounts}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={loadingAccounts ? 'Carregando contas...' : 'Conta padrão do CRM'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Conta padrão do CRM</SelectItem>
+                      {accounts.map(a => (
+                        <SelectItem key={`${a.waba_id}:${a.phone_number_id || ''}`} value={a.waba_id}>
+                          {a.label}{a.phone_number ? ` — ${a.phone_number}` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">Escolha em qual conta o template será cadastrado na Meta.</p>
+                </div>
+              )}
+
               <div className="grid md:grid-cols-2 gap-4">
+
                 <div className="space-y-1.5">
                   <Label className="text-sm font-semibold">Idioma</Label>
                   <Select value={form.language} onValueChange={v => update({ language: v })}>
