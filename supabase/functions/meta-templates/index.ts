@@ -92,6 +92,17 @@ function withoutMediaHeader(payload: any): any | null {
   return { ...payload, components };
 }
 
+/** Erro da Meta/CRM indicando que o template já existe (criado apesar do erro). */
+function isDuplicateNameError(body: any): boolean {
+  const s = JSON.stringify(body || "").toLowerCase();
+  return s.includes("already exists")
+    || s.includes("já existe")
+    || s.includes("ja existe")
+    || s.includes("duplicate")
+    || s.includes("templates_name_language_unique");
+}
+
+
 /**
  * Valida limites da Meta antes de enviar (evita o genérico "Invalid parameter").
  * Botões: 25 caracteres. Rodapé: 60. Corpo: 1024. Cabeçalho texto: 60.
