@@ -464,6 +464,80 @@ serve(async (req) => {
     }
     if (!crmApiKey && callerIsAdmin) crmApiKey = (Deno.env.get("CRM_OFICIAL_API_KEY") || "").trim();
 
+    // Lista as contas WhatsApp (WABAs) disponíveis para escolher onde criar o template.
+    if (action === "list-accounts") {
+      if (!crmApiKey) return json({ accounts: [] });
+      try {
+        const creds = await getCrmCredentials(crmApiKey);
+        const seen = new Set<string>();
+        const accounts = creds
+          .filter(c => {
+            const w = String(c.waba_id || "").trim();
+            if (!w || !String(c.system_user_token || "").trim() || seen.has(`${w}:${c.phone_number_id || ""}`)) return false;
+            seen.add(`${w}:${c.phone_number_id || ""}`);
+            return true;
+          })
+          .map(c => ({
+            waba_id: String(c.waba_id),
+            phone_number_id: c.phone_number_id ? String(c.phone_number_id) : null,
+            phone_number: c.phone_number || null,
+            label: c.label || c.phone_number || `WABA ${String(c.waba_id).slice(-6)}`,
+            source: c.source,
+          }));
+        return json({ accounts });
+      } catch (e) {
+        console.warn("[MetaTemplates] list-accounts failed:", e instanceof Error ? e.message : e);
+        return json({ accounts: [], error: e instanceof Error ? e.message : String(e) });
+      }
+    }
+
+    // Criação direcionada a uma conta específica (WABA escolhida pelo usuário).
+    if (action === "create" && crmApiKey && String(body?.waba_id || "").trim()) {
+      const targetWaba = String(body.waba_id).trim();
+      const { name, category, language, components, allow_category_change, parameter_format } = body;
+      const vErr = validateTemplateComponents(components);
+      if (vErr) return json({ error: vErr }, 400);
+      try {
+        const creds = await getCrmCredentials(crmApiKey);
+        const cred = creds.find(c => String(c.waba_id || "").trim() === targetWaba && String(c.system_user_token || "").trim());
+        if (!cred) return json({ error: "Conta da Meta selecionada não encontrada ou sem token válido no CRM Oficial." }, 400);
+
+        const payload: any = { name, category, language, components };
+        if (parameter_format === "NAMED" || parameter_format === "POSITIONAL") payload.parameter_format = parameter_format;
+        if (allow_category_change) payload.allow_category_change = true;
+
+        const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${targetWaba}/message_templates`;
+        const post = (p: any) => fetchWithTimeout(url, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${cred.system_user_token}`, "Content-Type": "application/json" },
+          body: JSON.stringify(p),
+        }, 30_000);
+
+        let res = await post(payload);
+        let data = await res.json().catch(() => ({}));
+
+        // Retry convertendo variáveis nomeadas em posicionais se a Meta reclamar.
+        if (!res.ok && /invalid parameter|param/i.test(JSON.stringify(data || ""))) {
+          const converted = convertNamedToPositional(payload);
+          if (converted) {
+            res = await post(converted);
+            data = await res.json().catch(() => ({}));
+          }
+        }
+
+        if (!res.ok) {
+          if (isDuplicateNameError(data)) return json({ success: true, already_exists: true, name, language, status: "PENDING" });
+          console.error(`[MetaTemplates] Graph create WABA ${targetWaba} ${res.status}:`, JSON.stringify(data).slice(0, 600));
+          return json(explainMetaError(data, res.status, "Erro ao criar template"), res.status || 500);
+        }
+        return json({ success: true, waba_id: targetWaba, ...(data || {}) });
+      } catch (e) {
+        return json({ error: e instanceof Error ? e.message : String(e) }, 500);
+      }
+    }
+
+
+
     // ============================================================
     // Route list/create/update/delete through CRM Oficial REST API
     // (same path the CRM uses internally — no expired local tokens)
