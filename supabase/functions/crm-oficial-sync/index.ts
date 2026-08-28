@@ -734,25 +734,73 @@ async function directMetaTemplateSend(args: {
         conv = createdConv?.[0];
       }
       if (conv?.id) {
-        const body = `[Template: ${args.templateName}]`;
+        const renderedText = renderTemplateText(args.officialTemplate, args.components || []);
+        const body = renderedText || `[Template: ${args.templateName}]`;
         const now = new Date().toISOString();
-        await crmRest(`messages`, accessToken, {
-          method: "POST",
-          body: JSON.stringify({
-            conversation_id: conv.id,
-            owner_id: ownerId,
-            direction: "out",
-            body,
-            status: graph?.messages?.[0]?.message_status || "accepted",
-            wa_message_id: graph?.messages?.[0]?.id ?? null,
-            phone_number_id: creds.phone_number_id,
-          }),
-        });
+
+        const snapshot = {
+          name: args.templateName,
+          language: args.language,
+          status: args.officialTemplate?.status || "APPROVED",
+          parameter_format: args.officialTemplate?.parameter_format || null,
+          // Definição aprovada na Meta (header/body/footer/buttons) + o que foi enviado
+          components: args.officialTemplate?.components || null,
+          sent_components: args.components || [],
+          variables: Array.isArray(args.templateParams) ? args.templateParams : [],
+          header_media: args.headerMedia || null,
+          rendered_text: renderedText || null,
+        };
+
+        const columns = await detectMessageColumns(accessToken);
+        const has = (column: string) => columns.size === 0 ? false : columns.has(column);
+
+        const row: Record<string, unknown> = {
+          conversation_id: conv.id,
+          owner_id: ownerId,
+          direction: "out",
+          body,
+          status: graph?.messages?.[0]?.message_status || "accepted",
+          wa_message_id: graph?.messages?.[0]?.id ?? null,
+          phone_number_id: creds.phone_number_id,
+        };
+        if (has("type")) row.type = "template";
+        if (has("message_type")) row.message_type = "template";
+        if (has("template_name")) row.template_name = args.templateName;
+        if (has("template_language")) row.template_language = args.language;
+        if (has("template")) row.template = snapshot;
+        if (has("template_data")) row.template_data = snapshot;
+        if (has("template_snapshot")) row.template_snapshot = snapshot;
+        if (has("template_components")) row.template_components = snapshot.components;
+        if (has("template_variables")) row.template_variables = snapshot.variables;
+        if (has("metadata")) row.metadata = { template: snapshot };
+        if (has("payload")) row.payload = { type: "template", template: snapshot };
+        if (has("media_url") && args.headerMedia?.url) row.media_url = args.headerMedia.url;
+        if (has("media_type") && args.headerMedia?.type) row.media_type = args.headerMedia.type;
+
+        try {
+          await crmRest(`messages`, accessToken, { method: "POST", body: JSON.stringify(row) });
+        } catch (insertError) {
+          console.warn("[crm-oficial-sync] insert com snapshot falhou, gravando mensagem simples:", insertError instanceof Error ? insertError.message : insertError);
+          await crmRest(`messages`, accessToken, {
+            method: "POST",
+            body: JSON.stringify({
+              conversation_id: conv.id,
+              owner_id: ownerId,
+              direction: "out",
+              body,
+              status: graph?.messages?.[0]?.message_status || "accepted",
+              wa_message_id: graph?.messages?.[0]?.id ?? null,
+              phone_number_id: creds.phone_number_id,
+            }),
+          });
+        }
+
         await crmRest(`conversations?id=eq.${conv.id}`, accessToken, {
           method: "PATCH",
           body: JSON.stringify({ last_message: body, last_message_at: now, unread_count: 0, status: "open", phone_number_id: creds.phone_number_id }),
         });
       }
+
     }
   } catch (persistError) {
     console.warn("[crm-oficial-sync] template enviado, mas não persistiu no inbox:", persistError instanceof Error ? persistError.message : persistError);
