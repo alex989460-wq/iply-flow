@@ -121,6 +121,9 @@ export default function MassBroadcast() {
   const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
   const [selectedServers, setSelectedServers] = useState<Set<string>>(new Set());
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
+  const [excludedGroupContacts, setExcludedGroupContacts] = useState<Set<string>>(new Set());
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+  const [groupContactSearch, setGroupContactSearch] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [selectedTemplateLanguage, setSelectedTemplateLanguage] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -364,7 +367,7 @@ export default function MassBroadcast() {
 
   const groupCustomers = useMemo(() => {
     return groupContacts
-      .filter((c) => selectedGroups.has(c.group_name || 'Sem grupo'))
+      .filter((c) => selectedGroups.has(c.group_name || 'Sem grupo') && !excludedGroupContacts.has(c.id))
       .map((c) => ({
         id: `grp:${c.id}`,
         name: c.name || 'Contato',
@@ -373,7 +376,7 @@ export default function MassBroadcast() {
         due_date: null,
         server_id: null,
       })) as any[];
-  }, [groupContacts, selectedGroups]);
+  }, [groupContacts, selectedGroups, excludedGroupContacts]);
 
   // Fetch all customers with pagination to overcome 1000 row limit
   const { data: customers = [], isLoading: customersLoading } = useQuery({
