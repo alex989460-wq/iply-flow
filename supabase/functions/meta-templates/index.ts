@@ -528,22 +528,19 @@ serve(async (req) => {
           }
           if (!r.ok) {
             if (await alreadyCreated()) return await createdOk();
+            const ex = explainMetaError(r.body, r.status, "A Meta recusou a mídia do cabeçalho");
             return json({
-              error: "A Meta recusou a imagem do cabeçalho. Envie a imagem novamente (JPG/PNG até 5MB) ou salve o template sem cabeçalho de mídia.",
-              details: r.body,
-            }, 400);
+              ...ex,
+              error: `A Meta recusou a imagem do cabeçalho (JPG/PNG até 5MB).\n${ex.error}`,
+            }, r.status || 400);
           }
         }
 
 
         if (!r.ok) {
-          console.error(`[MetaTemplates] CRM create ${r.status}:`, JSON.stringify(r.body).slice(0, 500));
+          console.error(`[MetaTemplates] CRM create ${r.status}:`, JSON.stringify(r.body).slice(0, 800));
           if (await alreadyCreated()) return await createdOk();
-          const detailMsg = (r.body as any)?.error?.error_user_msg
-            || (r.body as any)?.error?.message
-            || (typeof (r.body as any)?.error === "string" ? (r.body as any).error : null)
-            || `CRM Oficial ${r.status}`;
-          return json({ error: detailMsg, details: r.body }, r.status || 500);
+          return json(explainMetaError(r.body, r.status, "Erro ao criar template"), r.status || 500);
         }
         return json(r.body ?? { success: true });
 
