@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SuperGestor Panel Auto-Renew",
-  "version": "2.1.1",
-  "description": "Renova clientes Uniplay usando a sessao real logada e mantem a sessao IBO Sol viva automaticamente.",
+  "version": "2.2.0",
+  "description": "Automação de painéis e extração organizada de membros de grupos do WhatsApp Web.",
   "permissions": [
     "storage",
     "alarms",
@@ -38,6 +38,9 @@
       ],
       "js": [
         "wa-extract.js"
+      ],
+      "css": [
+        "wa-extract.css"
       ],
       "run_at": "document_idle"
     }

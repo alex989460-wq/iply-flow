@@ -18,6 +18,16 @@
 
   const paneSide = () => document.querySelector('#pane-side');
 
+  const waitFor = async (getter, timeout = 5000) => {
+    const started = Date.now();
+    while (Date.now() - started < timeout) {
+      const result = getter();
+      if (result) return result;
+      await sleep(150);
+    }
+    return null;
+  };
+
   function clickEl(el) {
     if (!el) return false;
     el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
@@ -33,46 +43,79 @@
 
   // ---------- Lista de grupos abertos ----------
   async function applyGroupFilter() {
-    const btn = Array.from(document.querySelectorAll('button,div[role="button"]'))
-      .find((el) => /^grupos$/i.test(norm(el.textContent)) || /grupos/i.test(el.getAttribute('aria-label') || ''));
+    const btn = Array.from(document.querySelectorAll('button,div[role="button"],span[role="button"]'))
+      .find((el) => /^(grupos|groups)$/i.test(norm(el.textContent)) || /^(grupos|groups)$/i.test(norm(el.getAttribute('aria-label'))));
     if (btn) { clickEl(btn); await sleep(700); return true; }
     return false;
   }
 
+  function getChatRows(pane) {
+    const selectors = [
+      '[role="listitem"]',
+      '[role="row"]',
+      '[role="gridcell"]',
+      '[data-testid="cell-frame-container"]',
+      'div[tabindex="-1"]',
+    ];
+    const rows = [];
+    for (const selector of selectors) {
+      pane.querySelectorAll(selector).forEach((row) => {
+        if (!rows.includes(row) && (row.querySelector('span[title]') || row.getAttribute('aria-label'))) rows.push(row);
+      });
+      if (rows.length) break;
+    }
+    return rows;
+  }
+
+  function rowTitle(row) {
+    const titled = Array.from(row.querySelectorAll('span[title]'))
+      .map((el) => norm(el.getAttribute('title')))
+      .find((text) => text && !/^(foto|photo|imagem|image)$/i.test(text));
+    return titled || norm(row.getAttribute('aria-label')) || norm(row.innerText.split('\n')[0]);
+  }
+
   async function scanGroups() {
-    await applyGroupFilter();
-    const pane = paneSide();
+    const filtered = await applyGroupFilter();
+    const pane = await waitFor(paneSide);
     if (!pane) return [];
     const seen = new Map();
-    let last = -1;
-    for (let i = 0; i < 40; i++) {
-      pane.querySelectorAll('[role="listitem"]').forEach((row) => {
-        const title = norm(row.querySelector('span[title]')?.getAttribute('title') || '');
+    const scroller = pane.querySelector('[role="grid"]') || pane;
+    const initialTop = scroller.scrollTop;
+    scroller.scrollTop = 0;
+    await sleep(300);
+    let stableRounds = 0;
+    let previousTop = -1;
+    for (let i = 0; i < 100 && stableRounds < 3; i++) {
+      getChatRows(pane).forEach((row) => {
+        const title = rowTitle(row);
         if (!title || isPhoneLike(title)) return;
         if (!seen.has(title)) seen.set(title, true);
       });
-      pane.scrollTop = pane.scrollTop + pane.clientHeight * 0.85;
-      await sleep(200);
-      if (pane.scrollTop === last) break;
-      last = pane.scrollTop;
+      scroller.scrollTop += Math.max(320, scroller.clientHeight * 0.8);
+      await sleep(250);
+      stableRounds = scroller.scrollTop === previousTop ? stableRounds + 1 : 0;
+      previousTop = scroller.scrollTop;
     }
-    pane.scrollTop = 0;
-    return Array.from(seen.keys()).sort((a, b) => a.localeCompare(b));
+    scroller.scrollTop = initialTop;
+    // Com o filtro Grupos ativo, todas as linhas são grupos. Sem o filtro,
+    // evitamos afirmar que conversas individuais são grupos.
+    return filtered ? Array.from(seen.keys()).sort((a, b) => a.localeCompare(b)) : [];
   }
 
   // ---------- Abrir grupo + lista de participantes ----------
   async function openChat(title) {
     const pane = paneSide();
     if (!pane) throw new Error('Lista de conversas não encontrada');
+    const scroller = pane.querySelector('[role="grid"]') || pane;
+    scroller.scrollTop = 0;
     let last = -1;
     for (let i = 0; i < 60; i++) {
-      const row = Array.from(pane.querySelectorAll('[role="listitem"]'))
-        .find((r) => norm(r.querySelector('span[title]')?.getAttribute('title')) === title);
+      const row = getChatRows(pane).find((r) => rowTitle(r) === title);
       if (row) { clickEl(row.querySelector('span[title]') || row); await sleep(1200); return true; }
-      pane.scrollTop = pane.scrollTop + pane.clientHeight * 0.85;
+      scroller.scrollTop += Math.max(320, scroller.clientHeight * 0.8);
       await sleep(220);
-      if (pane.scrollTop === last) break;
-      last = pane.scrollTop;
+      if (scroller.scrollTop === last) break;
+      last = scroller.scrollTop;
     }
     throw new Error('Grupo não encontrado na lista');
   }
@@ -158,58 +201,87 @@
   }
 
   // ---------- UI ----------
-  const box = document.createElement('div');
-  box.style.cssText = 'position:fixed;z-index:99999;right:16px;bottom:16px;background:#111b21;color:#e9edef;border:1px solid #2a3942;border-radius:12px;padding:12px;font:13px system-ui;box-shadow:0 8px 24px rgba(0,0,0,.4);width:260px';
-  box.innerHTML = `<div style="font-weight:600;margin-bottom:8px">SuperGestor — Grupos</div>
-    <button id="sg-scan" style="width:100%;padding:8px;border:0;border-radius:8px;background:#2a3942;color:#e9edef;font-weight:600;cursor:pointer">Buscar grupos</button>
-    <select id="sg-groups" style="width:100%;margin-top:8px;padding:7px;border-radius:8px;border:1px solid #2a3942;background:#0b141a;color:#e9edef;font-size:12px"><option value="">Nenhum grupo carregado</option></select>
-    <button id="sg-extract" style="width:100%;margin-top:8px;padding:8px;border:0;border-radius:8px;background:#00a884;color:#fff;font-weight:600;cursor:pointer">Extrair membros</button>
-    <div id="sg-status" style="margin-top:8px;opacity:.8;font-size:12px">Clique em "Buscar grupos"</div>
-    <button id="sg-reset" style="margin-top:8px;width:100%;padding:4px;border:0;border-radius:6px;background:#2a3942;color:#8696a0;font-size:11px;cursor:pointer">Trocar token</button>`;
+  const box = document.createElement('section');
+  box.id = 'sg-wa-extractor';
+  box.innerHTML = `<div class="sg-header"><div class="sg-mark">SG</div><div class="sg-heading"><div class="sg-title">Extrator de grupos</div><div class="sg-subtitle">SuperGestor para WhatsApp Web</div></div><button id="sg-minimize" class="sg-icon" title="Minimizar">−</button></div>
+    <div class="sg-body"><span class="sg-label">Grupo para extração</span>
+    <button id="sg-scan" class="sg-secondary" style="width:100%">Atualizar lista de grupos</button>
+    <select id="sg-groups"><option value="">Clique em atualizar</option></select>
+    <div class="sg-row"><button id="sg-extract" class="sg-primary">Extrair membros</button><button id="sg-reset" class="sg-secondary" title="Trocar token">Token</button></div>
+    <div id="sg-status" class="sg-status" data-kind="idle"><i class="sg-dot"></i><span>Selecione “Grupos” no WhatsApp ou clique em atualizar.</span></div>
+    <div class="sg-progress"><i id="sg-progress"></i></div>
+    <div class="sg-footer"><span id="sg-count">0 grupos carregados</span><span>Admins não são extraídos</span></div></div>`;
   document.documentElement.appendChild(box);
 
   const statusEl = box.querySelector('#sg-status');
+  const statusText = statusEl.querySelector('span');
+  const progressEl = box.querySelector('#sg-progress');
+  const countEl = box.querySelector('#sg-count');
   const select = box.querySelector('#sg-groups');
+  const scanButton = box.querySelector('#sg-scan');
+  const extractButton = box.querySelector('#sg-extract');
+  const setStatus = (text, kind = 'idle', progress = 0) => {
+    statusText.textContent = text;
+    statusEl.dataset.kind = kind;
+    progressEl.style.width = `${progress}%`;
+  };
+  const escapeOption = (value) => String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  box.querySelector('#sg-minimize').onclick = (event) => {
+    box.classList.toggle('sg-minimized');
+    event.currentTarget.textContent = box.classList.contains('sg-minimized') ? '+' : '−';
+  };
 
   box.querySelector('#sg-reset').onclick = () => chrome.storage.local.remove('sgExtractToken', () => {
-    statusEl.textContent = 'Token removido';
+    setStatus('Token removido. Um novo será solicitado na extração.', 'ok');
   });
 
-  box.querySelector('#sg-scan').onclick = async () => {
-    statusEl.textContent = 'Procurando grupos...';
+  scanButton.onclick = async () => {
+    scanButton.disabled = true;
+    setStatus('Aplicando filtro e procurando todos os grupos...', 'busy', 25);
     try {
       const groups = await scanGroups();
       select.innerHTML = groups.length
-        ? groups.map((g) => `<option value="${g.replace(/"/g, '&quot;')}">${g}</option>`).join('')
+        ? groups.map((g) => `<option value="${escapeOption(g)}">${escapeOption(g)}</option>`).join('')
         : '<option value="">Nenhum grupo encontrado</option>';
-      statusEl.textContent = groups.length ? `${groups.length} grupos encontrados` : 'Nenhum grupo encontrado';
+      countEl.textContent = `${groups.length} ${groups.length === 1 ? 'grupo carregado' : 'grupos carregados'}`;
+      setStatus(groups.length ? `${groups.length} grupos prontos para seleção.` : 'Não consegui ativar o filtro Grupos. Clique em “Grupos” no WhatsApp e tente novamente.', groups.length ? 'ok' : 'error', groups.length ? 100 : 0);
     } catch (e) {
-      statusEl.textContent = `Erro: ${e.message}`;
+      setStatus(`Erro ao buscar grupos: ${e.message}`, 'error');
+    } finally {
+      scanButton.disabled = false;
     }
   };
 
-  box.querySelector('#sg-extract').onclick = async () => {
+  extractButton.onclick = async () => {
     const group = select.value;
-    if (!group) { statusEl.textContent = 'Selecione um grupo'; return; }
+    if (!group) { setStatus('Selecione um grupo antes de extrair.', 'error'); return; }
+    extractButton.disabled = true;
     try {
       const token = await getToken();
       if (!token) return;
-      statusEl.textContent = 'Abrindo grupo...';
+      setStatus(`Abrindo “${group}”...`, 'busy', 20);
       await openChat(group);
-      statusEl.textContent = 'Abrindo participantes...';
+      setStatus('Abrindo lista completa de participantes...', 'busy', 40);
       await openParticipants();
-      const contacts = await collectMembers(statusEl);
-      if (!contacts.length) { statusEl.textContent = 'Nenhum membro encontrado'; return; }
-      statusEl.textContent = `Enviando ${contacts.length}...`;
+      const contacts = await collectMembers({ set textContent(value) { setStatus(value, 'busy', 65); } });
+      if (!contacts.length) { setStatus('Nenhum membro comum encontrado. Administradores são ignorados.', 'error'); return; }
+      setStatus(`Salvando ${contacts.length} contatos...`, 'busy', 85);
       const res = await fetch(ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: ANON, Authorization: `Bearer ${ANON}`, 'x-extract-token': token },
         body: JSON.stringify({ action: 'import', token, group_name: group, contacts }),
       });
       const data = await res.json().catch(() => ({}));
-      statusEl.textContent = data.error ? `Erro: ${data.error}` : `Importados: ${data.imported} (${group})`;
+      setStatus(data.error ? `Erro: ${data.error}` : `${data.imported || contacts.length} membros importados de “${group}”.`, data.error ? 'error' : 'ok', data.error ? 0 : 100);
     } catch (e) {
-      statusEl.textContent = `Erro: ${e.message}`;
+      setStatus(`Erro: ${e.message}`, 'error');
+    } finally {
+      extractButton.disabled = false;
     }
   };
 })();
