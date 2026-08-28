@@ -289,23 +289,42 @@ function isExpiredTokenError(value: unknown) {
   return /validating access token|session has expired|OAuthException|code\s*190/i.test(text);
 }
 
-async function listTemplatesDirectFromCrm(apiKey: string, limit = 250) {
+type CrmCredential = { source: string; label?: string; phone_number?: string; phone_number_id?: string; waba_id?: string; system_user_token?: string };
+
+/** Lista todas as credenciais (contas WhatsApp Cloud) do dono da chave no CRM Oficial. */
+async function getCrmCredentials(apiKey: string): Promise<CrmCredential[]> {
   const accessToken = await getCrmOwnerSession(apiKey);
-  const credentials: Array<{ source: string; phone_number_id?: string; waba_id?: string; system_user_token?: string }> = [];
+  const credentials: CrmCredential[] = [];
 
   try {
     const legacy = await crmRest("whatsapp_settings?select=phone_number_id,system_user_token,waba_id&limit=1", accessToken) as any[];
-    for (const row of legacy || []) credentials.push({ source: "primary", ...row });
+    for (const row of legacy || []) credentials.push({ source: "primary", label: "Conta principal", ...row });
   } catch (e) {
     console.warn("[MetaTemplates] CRM primary credentials unavailable:", e instanceof Error ? e.message : e);
   }
 
   try {
-    const channels = await crmRest("channels?select=id,phone_number_id,system_user_token,waba_id,is_active,created_at&kind=eq.whatsapp_cloud&is_active=eq.true&order=created_at.desc", accessToken) as any[];
-    for (const row of channels || []) credentials.push({ source: "channel", ...row });
+    const channels = await crmRest("channels?select=*&kind=eq.whatsapp_cloud&is_active=eq.true&order=created_at.desc", accessToken) as any[];
+    for (const row of channels || []) {
+      credentials.push({
+        source: "channel",
+        label: String(row?.name || row?.label || row?.display_name || row?.verified_name || "").trim() || undefined,
+        phone_number: String(row?.phone_number || row?.display_phone_number || "").trim() || undefined,
+        phone_number_id: row?.phone_number_id,
+        waba_id: row?.waba_id,
+        system_user_token: row?.system_user_token,
+      });
+    }
   } catch (e) {
     console.warn("[MetaTemplates] CRM channel credentials unavailable:", e instanceof Error ? e.message : e);
   }
+
+  return credentials;
+}
+
+async function listTemplatesDirectFromCrm(apiKey: string, limit = 250) {
+  const credentials = await getCrmCredentials(apiKey);
+
 
   const seen = new Set<string>();
   const errors: string[] = [];
