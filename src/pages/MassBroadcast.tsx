@@ -768,6 +768,34 @@ export default function MassBroadcast() {
 
   const selectAllGroups = () => setSelectedGroups(new Set(groupBuckets.map(g => g.name)));
 
+  const toggleGroupContact = (id: string) => {
+    setExcludedGroupContacts(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const excludeAllInGroup = (groupName: string) => {
+    setExcludedGroupContacts(prev => {
+      const next = new Set(prev);
+      groupContacts
+        .filter(c => (c.group_name || 'Sem grupo') === groupName)
+        .forEach(c => next.add(c.id));
+      return next;
+    });
+  };
+
+  const includeAllInGroup = (groupName: string) => {
+    setExcludedGroupContacts(prev => {
+      const next = new Set(prev);
+      groupContacts
+        .filter(c => (c.group_name || 'Sem grupo') === groupName)
+        .forEach(c => next.delete(c.id));
+      return next;
+    });
+  };
+
   // Loop de envio em lotes reutilizável (usado no disparo novo e ao continuar um pausado)
   const runQueueLoop = async (
     queueCustomerIds: string[],
