@@ -1218,6 +1218,9 @@ async function doSendWhatsapp(payload: {
         components: templateComponents,
         channelId: payload.channel_id,
         phoneNumberId: payload.phone_number_id || payload.from_phone_number_id,
+        officialTemplate,
+        templateParams: params,
+        headerMedia,
       });
       console.log("[crm-oficial-sync] direct template send", {
         template: payload.template_name,
@@ -1402,6 +1405,9 @@ async function doSendWhatsapp(payload: {
             components: templateComponents,
             channelId: payload.channel_id,
             phoneNumberId: payload.phone_number_id || payload.from_phone_number_id,
+            officialTemplate,
+            templateParams: params,
+            headerMedia,
           });
           console.log("[crm-oficial-sync] template fallback lang OK via Meta direto", { template: payload.template_name, lang: altLang });
           return alt;
