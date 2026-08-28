@@ -256,15 +256,35 @@ const PHONE_CHUNK_SIZE = 500;
 
 async function fetchCustomersByIds(supabase: any, customerIds: string[]) {
   const customers: any[] = [];
+  const ids = customerIds.map((id) => String(id));
+  const realIds = ids.filter((id) => !id.startsWith('grp:'));
+  const groupIds = ids.filter((id) => id.startsWith('grp:')).map((id) => id.slice(4));
 
-  for (const chunk of chunkArray(customerIds, CUSTOMER_ID_CHUNK_SIZE)) {
+  for (const chunk of chunkArray(realIds, CUSTOMER_ID_CHUNK_SIZE)) {
     const { data, error } = await supabase.from('customers').select('id, name, phone, status, due_date, server_id').in('id', chunk);
     if (error) return { customers: null as any[] | null, error };
     if (data?.length) customers.push(...data);
   }
 
+  // Contatos extraídos de grupos do WhatsApp (não são clientes cadastrados)
+  for (const chunk of chunkArray(groupIds, CUSTOMER_ID_CHUNK_SIZE)) {
+    const { data, error } = await supabase.from('whatsapp_group_contacts').select('id, phone, name').in('id', chunk);
+    if (error) return { customers: null as any[] | null, error };
+    for (const row of data || []) {
+      customers.push({
+        id: `grp:${row.id}`,
+        name: row.name || 'Contato',
+        phone: row.phone,
+        status: 'inativa',
+        due_date: null,
+        server_id: null,
+      });
+    }
+  }
+
   return { customers, error: null };
 }
+
 
 async function fetchAllRows(
   supabase: any,
