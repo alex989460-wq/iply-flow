@@ -1589,7 +1589,11 @@ Deno.serve(async (req) => {
       const isNamed = String(officialTemplate?.parameter_format || "").toUpperCase() === "NAMED"
         || (paramNames.length > 0 && paramNames.every((n) => n));
 
-      let finalParams = parameters.slice();
+      // A definição aprovada na Meta é a fonte da verdade. Se o template não
+      // possui variáveis, descarte qualquer nome enviado pelo disparador; se
+      // possui N variáveis, envie exatamente N parâmetros — nunca componentes
+      // extras que alterem a estrutura aprovada.
+      let finalParams = officialTemplate ? parameters.slice(0, paramNames.length) : parameters.slice();
       while (finalParams.length < paramNames.length) finalParams.push("Cliente");
 
       // Build body component explicitly so doSendWhatsapp uses our shape
