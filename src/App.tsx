@@ -55,6 +55,7 @@ import CostCalculator from "./pages/CostCalculator";
 import LeadCapture from "./pages/LeadCapture";
 import AiTraining from "./pages/AiTraining";
 import Tutorials from "./pages/Tutorials";
+import GroupExtractor from "./pages/GroupExtractor";
 import Unsubscribe from "./pages/Unsubscribe";
 import EmbedChatbots from "./pages/EmbedChatbots";
 
@@ -162,6 +163,7 @@ function AppRoutes() {
       <Route path="/banner-generator" element={<ProtectedRoute><BannerGenerator /></ProtectedRoute>} />
       <Route path="/robo" element={<ProtectedRoute><RoboFlows /></ProtectedRoute>} />
       <Route path="/ai-training" element={<ProtectedRoute><AiTraining /></ProtectedRoute>} />
+      <Route path="/group-extractor" element={<ProtectedRoute><GroupExtractor /></ProtectedRoute>} />
       <Route path="/tutoriais" element={<ProtectedRoute><Tutorials /></ProtectedRoute>} />
       <Route path="/unsubscribe" element={<Unsubscribe />} />
       <Route path="/embed/chatbots" element={<EmbedChatbots />} />

@@ -3,8 +3,13 @@
   "name": "SuperGestor Panel Auto-Renew",
   "version": "2.1.1",
   "description": "Renova clientes Uniplay usando a sessao real logada e mantem a sessao IBO Sol viva automaticamente.",
-
-  "permissions": ["storage", "alarms", "notifications", "tabs", "scripting"],
+  "permissions": [
+    "storage",
+    "alarms",
+    "notifications",
+    "tabs",
+    "scripting"
+  ],
   "host_permissions": [
     "https://searchdefense.top/*",
     "http://searchdefense.top/*",
@@ -13,9 +18,28 @@
     "https://ibosol.com/*",
     "https://*.ibosol.com/*",
     "https://backend-apis.ibosol.com/*",
-    "https://fphqfgxfeaylldpxjqan.supabase.co/*"
+    "https://fphqfgxfeaylldpxjqan.supabase.co/*",
+    "https://web.whatsapp.com/*"
   ],
-  "background": { "service_worker": "background.js" },
-  "action": { "default_popup": "popup.html", "default_title": "SuperGestor Auto-Renew" },
-  "icons": { "128": "icon.png" }
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "SuperGestor Auto-Renew"
+  },
+  "icons": {
+    "128": "icon.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://web.whatsapp.com/*"
+      ],
+      "js": [
+        "wa-extract.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
 }

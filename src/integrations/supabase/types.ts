@@ -3781,6 +3781,60 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_extract_tokens: {
+        Row: {
+          created_at: string
+          token: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          token?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          token?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      whatsapp_group_contacts: {
+        Row: {
+          created_at: string
+          group_jid: string | null
+          group_name: string | null
+          id: string
+          is_admin_member: boolean
+          name: string | null
+          phone: string
+          source: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_jid?: string | null
+          group_name?: string | null
+          id?: string
+          is_admin_member?: boolean
+          name?: string | null
+          phone: string
+          source?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          group_jid?: string | null
+          group_name?: string | null
+          id?: string
+          is_admin_member?: boolean
+          name?: string | null
+          phone?: string
+          source?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       whatsapp_utility_attempts: {
         Row: {
           attempt_no: number
