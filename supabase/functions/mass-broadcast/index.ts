@@ -935,12 +935,14 @@ async function processBroadcastBatch(args: {
 
 
 
-  const billingRows = results.map(({ customer, sendResult }) => ({
-    customer_id: logCustomerId(customer.id),
-    billing_type: 'D0' as any,
-    message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName}`,
-    whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error || 'Unknown error'}`,
-  }));
+  const billingRows = results
+    .filter(({ customer }) => !!logCustomerId(customer.id))
+    .map(({ customer, sendResult }) => ({
+      customer_id: logCustomerId(customer.id),
+      billing_type: 'D0' as any,
+      message: `[BROADCAST] ${customer.phone} - Template: ${args.templateName}`,
+      whatsapp_status: sendResult.success ? 'sent' : `error: ${sendResult.error || 'Unknown error'}`,
+    }));
 
   if (billingRows.length > 0) {
     const { error: billingError } = await supabase.from('billing_logs').insert(billingRows);
@@ -1014,6 +1016,7 @@ async function processBroadcastBatch(args: {
       skipped: skippedCustomers.length,
       results: [
         ...results.map(({ customer, sendResult }) => ({
+          target_id: String(customer.id),
           customer_id: logCustomerId(customer.id),
           customer: customer.name,
           phone: customer.phone,
@@ -1021,6 +1024,7 @@ async function processBroadcastBatch(args: {
           error: sendResult.success ? undefined : sendResult.error || 'Erro desconhecido',
         })),
         ...skippedCustomers.map((customer) => ({
+          target_id: String(customer.id),
           customer_id: logCustomerId(customer.id),
           customer: customer.name,
           phone: customer.phone,

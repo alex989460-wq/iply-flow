@@ -818,9 +818,13 @@ export default function MassBroadcast() {
 
     const applyBatchResults = (rows: any[]) => {
       for (const row of rows || []) {
-        const info = ctx.customerById[row.customer_id];
-        if (!info) continue;
-        realtimeResultsRef.current.set(row.customer_id, {
+        const key = String(row.target_id || row.customer_id || row.phone || '');
+        if (!key) continue;
+        const info = ctx.customerById[key] || {
+          name: row.customer || row.phone || 'Contato',
+          phone: row.phone || '',
+        };
+        realtimeResultsRef.current.set(key, {
           customer: info.name,
           phone: info.phone,
           status: row.status === 'sent' ? 'sent' : row.status === 'skipped' ? 'skipped' : 'error',
