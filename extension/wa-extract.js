@@ -12,8 +12,14 @@
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   function groupName() {
-    const header = document.querySelector('header [role="button"] span[title]');
-    return header?.getAttribute('title') || document.title.replace(/\s*\(\d+\)\s*/, '') || 'Grupo';
+    // 1) cabeçalho do drawer "Dados do grupo"
+    const drawerTitles = Array.from(document.querySelectorAll('span[title]'))
+      .map((el) => (el.getAttribute('title') || '').trim())
+      .filter((t) => t && t.length > 1 && !/^\+?\d[\d\s().-]+$/.test(t));
+    // 2) cabeçalho do chat aberto
+    const header = document.querySelector('header span[title]')?.getAttribute('title')?.trim();
+    const fromTitle = (document.title || '').replace(/\s*\(\d+\)\s*/, '').replace(/\s*[-–]\s*WhatsApp.*$/i, '').trim();
+    return header || drawerTitles[0] || fromTitle || 'Grupo';
   }
 
   function scrollableList() {
@@ -23,19 +29,28 @@
   }
 
   function harvest(map) {
-    const text = document.body.innerText || '';
     const rows = document.querySelectorAll('[role="listitem"], [data-testid="cell-frame-container"]');
     const push = (phone, name) => {
       const d = String(phone || '').replace(/\D/g, '');
-      if (d.length >= 10 && d.length <= 15) map.set(d, name || map.get(d) || '');
+      if (d.length < 10 || d.length > 15) return;
+      const clean = String(name || '')
+        .replace(/[\u200e\u200f]/g, '')
+        .replace(/~\s*/, '')
+        .trim();
+      const prev = map.get(d);
+      map.set(d, /\d{6,}/.test(clean) ? (prev || '') : (clean || prev || ''));
     };
     rows.forEach((row) => {
       const t = row.innerText || '';
-      const m = t.match(/\+?\d[\d\s().-]{8,}\d/g) || [];
-      const name = (t.split('\n')[0] || '').trim();
-      m.forEach((p) => push(p, /\d/.test(name) ? '' : name));
+      const titled = row.querySelector('span[title]')?.getAttribute('title') || '';
+      const numbers = (titled + '\n' + t).match(/\+?\d[\d\s().-]{8,}\d/g) || [];
+      let name = titled;
+      if (/^\+?\d[\d\s().-]+$/.test(name.trim())) {
+        const line = (t.split('\n').find((l) => l.trim() && !/^\+?\d[\d\s().-]+$/.test(l.trim())) || '').trim();
+        name = line;
+      }
+      numbers.forEach((p) => push(p, name));
     });
-    (text.match(/\+\d[\d\s().-]{8,}\d/g) || []).forEach((p) => push(p, ''));
   }
 
   async function collect(statusEl) {
@@ -68,11 +83,16 @@
   box.style.cssText = 'position:fixed;z-index:99999;right:16px;bottom:16px;background:#111b21;color:#e9edef;border:1px solid #2a3942;border-radius:12px;padding:12px;font:13px system-ui;box-shadow:0 8px 24px rgba(0,0,0,.4);width:230px';
   box.innerHTML = `<div style="font-weight:600;margin-bottom:6px">SuperGestor</div>
     <button id="sg-extract" style="width:100%;padding:8px;border:0;border-radius:8px;background:#00a884;color:#fff;font-weight:600;cursor:pointer">Extrair contatos</button>
+    <input id="sg-group" placeholder="Nome do grupo" style="width:100%;margin-top:6px;padding:6px;border-radius:8px;border:1px solid #2a3942;background:#0b141a;color:#e9edef;font-size:12px" />
     <div id="sg-status" style="margin-top:6px;opacity:.8;font-size:12px">Abra a lista de participantes</div>
     <button id="sg-reset" style="margin-top:6px;width:100%;padding:4px;border:0;border-radius:6px;background:#2a3942;color:#8696a0;font-size:11px;cursor:pointer">Trocar token</button>`;
   document.documentElement.appendChild(box);
 
   const statusEl = box.querySelector('#sg-status');
+  const groupInput = box.querySelector('#sg-group');
+  const syncName = () => { if (document.activeElement !== groupInput) groupInput.value = groupName(); };
+  syncName();
+  setInterval(syncName, 2000);
   box.querySelector('#sg-reset').onclick = () => chrome.storage.local.remove('sgExtractToken', () => {
     statusEl.textContent = 'Token removido';
   });
@@ -81,6 +101,8 @@
     try {
       const token = await getToken();
       if (!token) return;
+      const nameInput = box.querySelector('#sg-group');
+      if (!nameInput.value.trim()) nameInput.value = groupName();
       statusEl.textContent = 'Coletando...';
       const contacts = await collect(statusEl);
       if (!contacts.length) { statusEl.textContent = 'Nenhum contato encontrado'; return; }
@@ -88,7 +110,7 @@
       const res = await fetch(ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: ANON, Authorization: `Bearer ${ANON}`, 'x-extract-token': token },
-        body: JSON.stringify({ action: 'import', token, group_name: groupName(), contacts }),
+        body: JSON.stringify({ action: 'import', token, group_name: box.querySelector('#sg-group').value.trim() || groupName(), contacts }),
       });
       const data = await res.json().catch(() => ({}));
       statusEl.textContent = data.error ? `Erro: ${data.error}` : `Importados: ${data.imported}`;
