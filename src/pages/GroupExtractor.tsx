@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
-import { Users2, LogIn, Download, Copy, RefreshCw, Loader2, Puzzle, Trash2, Folder } from 'lucide-react';
+import { Users2, LogIn, Download, Copy, RefreshCw, Loader2, Puzzle, Trash2, Folder, ShieldCheck, Search, ContactRound, ExternalLink } from 'lucide-react';
 
 type GroupItem = { id: string; subject: string; size: number | null };
 type ContactRow = { id: string; phone: string; name: string | null; group_name: string | null; source: string };
@@ -111,9 +111,16 @@ export default function GroupExtractor() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
+        <div className="flex flex-col gap-4 rounded-lg border bg-card p-5 md:flex-row md:items-center md:justify-between">
+          <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><Users2 className="h-6 w-6 text-primary" /> Extrair Contatos de Grupos</h1>
-          <p className="text-sm text-muted-foreground">Entre em grupos por link e extraia os participantes, ou use a extensão no WhatsApp Web.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Escolha um grupo, importe membros e organize cada lista para suas campanhas.</p>
+          </div>
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div><p className="text-xl font-bold">{groupBuckets.length}</p><p className="text-xs text-muted-foreground">Grupos</p></div>
+            <div><p className="text-xl font-bold">{contacts.length}</p><p className="text-xs text-muted-foreground">Contatos</p></div>
+            <div><ShieldCheck className="mx-auto h-5 w-5 text-primary" /><p className="text-xs text-muted-foreground">Sem admins</p></div>
+          </div>
         </div>
 
         <Card>
@@ -166,14 +173,20 @@ export default function GroupExtractor() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Puzzle className="h-4 w-4" /> 3. Extensão do WhatsApp Web</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
+          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Puzzle className="h-4 w-4" /> 3. Extensão inteligente do WhatsApp Web</CardTitle></CardHeader>
+          <CardContent className="grid gap-5 lg:grid-cols-[1.2fr_.8fr]">
+            <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Baixe a extensão, descompacte o ZIP e instale em <code>chrome://extensions</code> (ative o Modo desenvolvedor → Carregar sem compactação). Depois abra o grupo no WhatsApp Web, veja a lista de participantes e clique em “Extrair contatos”. Cole o token abaixo quando solicitado.
+              A nova versão detecta os grupos exibidos no filtro <strong>Grupos</strong>, permite selecionar um deles e percorre toda a lista de participantes. Administradores e o seu próprio contato são ignorados automaticamente.
             </p>
+            <div className="flex flex-wrap gap-2">
             <Button onClick={downloadExtension} className="gap-2">
               <Download className="h-4 w-4" /> Baixar extensão (.zip)
             </Button>
+            <Button variant="outline" className="gap-2" onClick={() => window.open('https://web.whatsapp.com', '_blank')}>
+              <ExternalLink className="h-4 w-4" /> Abrir WhatsApp Web
+            </Button>
+            </div>
             <div className="flex gap-2">
               <Input readOnly value={token} placeholder="Clique em gerar token" />
               <Button variant="outline" disabled={busy === 'token'}
@@ -185,12 +198,21 @@ export default function GroupExtractor() {
                 <Copy className="h-4 w-4" />
               </Button>
             </div>
+            </div>
+            <div className="rounded-lg border bg-muted/30 p-4">
+              <p className="mb-3 text-sm font-semibold">Instalação e uso</p>
+              <ol className="space-y-3 text-sm text-muted-foreground">
+                <li className="flex gap-2"><Badge>1</Badge><span>Descompacte e carregue a pasta em <code>chrome://extensions</code>.</span></li>
+                <li className="flex gap-2"><Badge>2</Badge><span>Recarregue o WhatsApp Web e clique em <strong>Atualizar lista de grupos</strong>.</span></li>
+                <li className="flex gap-2"><Badge>3</Badge><span>Escolha o grupo e clique em <strong>Extrair membros</strong>.</span></li>
+              </ol>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Contatos extraídos <Badge variant="secondary">{visibleContacts.length}</Badge></CardTitle>
+            <CardTitle className="text-base flex items-center gap-2"><ContactRound className="h-4 w-4" /> Contatos extraídos <Badge variant="secondary">{visibleContacts.length}</Badge></CardTitle>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={loadContacts}><RefreshCw className="h-4 w-4" /></Button>
               <Button variant="outline" size="sm" disabled={!visibleContacts.length}
@@ -222,7 +244,7 @@ export default function GroupExtractor() {
                 <Badge variant="outline">{c.group_name || c.source}</Badge>
               </div>
             ))}
-            {!visibleContacts.length && <p className="text-sm text-muted-foreground">Nenhum contato ainda.</p>}
+            {!visibleContacts.length && <div className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground"><Search className="h-8 w-8" /><p className="text-sm">Nenhum contato neste grupo.</p><p className="text-xs">Use a extensão no WhatsApp Web e atualize esta lista.</p></div>}
           </CardContent>
         </Card>
       </div>
