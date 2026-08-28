@@ -761,20 +761,20 @@ function normalizeListTemplatesBody(body: unknown): any[] {
           : [];
 }
 
-function extractOfficialTemplateHeaderImage(template: any): string | undefined {
+function extractOfficialTemplateHeaderMedia(template: any): { type: "image" | "video" | "document"; url: string } | undefined {
   const components = Array.isArray(template?.components) ? template.components : [];
-  const header = components.find((component: any) =>
-    String(component?.type || "").toUpperCase() === "HEADER" &&
-    String(component?.format || "").toUpperCase() === "IMAGE"
-  );
-  return header?.example?.header_handle?.[0] || header?.example?.header_url?.[0] || undefined;
+  const header = components.find((component: any) => String(component?.type || "").toUpperCase() === "HEADER");
+  const format = String(header?.format || "").toLowerCase();
+  if (!["image", "video", "document"].includes(format)) return undefined;
+  const url = header?.example?.header_handle?.[0] || header?.example?.header_url?.[0];
+  return url ? { type: format as "image" | "video" | "document", url: String(url) } : undefined;
 }
 
 function isMetaTemplateMediaUrl(url?: string) {
   return !!url && /scontent\.whatsapp\.net|lookaside\.fbsbx\.com/i.test(url);
 }
 
-async function fetchOfficialTemplateHeaderImage(templateName: string, language: string, apiKey?: string) {
+async function fetchOfficialTemplateHeaderMedia(templateName: string, language: string, apiKey?: string) {
   const result = await crmFetchWithKeyFallback("/api/public/v1/templates?limit=250", { method: "GET" }, apiKey);
   const templates = normalizeListTemplatesBody(result.body);
   const matches = templates.filter((template: any) => {
@@ -784,7 +784,7 @@ async function fetchOfficialTemplateHeaderImage(templateName: string, language: 
     return !lang || !language || lang === language;
   });
   const selected = matches.find((template: any) => String(template?.status || "").toUpperCase() === "APPROVED") || matches[0];
-  return extractOfficialTemplateHeaderImage(selected);
+  return extractOfficialTemplateHeaderMedia(selected);
 }
 
 // Busca a definição do template diretamente na Graph API (filtrando por nome),
@@ -917,8 +917,11 @@ function getTemplateBodyParamNames(template: any): string[] {
 
 
 
-function replaceHeaderImageInComponents(components: unknown[], publicUrl?: string) {
-  if (!publicUrl) return components;
+function replaceHeaderMediaInComponents(
+  components: unknown[],
+  media?: { type: "image" | "video" | "document"; url: string },
+) {
+  if (!media?.url) return components;
   let replaced = false;
   return components.map((component) => {
     const c = component as { type?: string; parameters?: Array<Record<string, unknown>> };
@@ -927,12 +930,9 @@ function replaceHeaderImageInComponents(components: unknown[], publicUrl?: strin
     replaced = true;
     return {
       ...c,
-      parameters: c.parameters.map((parameter) => {
-        if (String(parameter?.type || "").toLowerCase() !== "image") return parameter;
-        return { ...parameter, image: { link: publicUrl } };
-      }),
+      parameters: [{ type: media.type, [media.type]: { link: media.url } }],
     };
-  }).concat(replaced ? [] : [{ type: "header", parameters: [{ type: "image", image: { link: publicUrl } }] }]);
+  }).concat(replaced ? [] : [{ type: "header", parameters: [{ type: media.type, [media.type]: { link: media.url } }] }]);
 }
 
 function pickString(...values: unknown[]) {
@@ -955,7 +955,11 @@ async function ensurePublicMediaUrl(url: string, label = "media") {
     const response = await fetch(url);
     if (!response.ok) return url;
     const contentType = response.headers.get("content-type") || "image/jpeg";
-    const ext = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : "jpg";
+    const ext = contentType.includes("video/mp4") ? "mp4"
+      : contentType.includes("pdf") ? "pdf"
+      : contentType.includes("png") ? "png"
+      : contentType.includes("webp") ? "webp"
+      : "jpg";
     const bytes = new Uint8Array(await response.arrayBuffer());
     const admin = createClient(supabaseUrl, serviceKey);
     const path = `crm-oficial-template-headers/${Date.now()}-${label.replace(/[^a-zA-Z0-9_-]/g, "_")}.${ext}`;
