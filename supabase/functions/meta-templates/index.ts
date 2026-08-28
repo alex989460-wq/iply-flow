@@ -564,7 +564,7 @@ serve(async (req) => {
         const r = await crmFetch("/api/public/v1/templates", crmApiKey, { method: "POST", body: JSON.stringify({ name, ...payload }) });
         if (!r.ok) {
           console.error(`[MetaTemplates] CRM update fallback ${r.status}:`, JSON.stringify(r.body).slice(0, 300));
-          return json({ error: r.body?.error || `CRM Oficial ${r.status}`, details: r.body }, r.status || 500);
+          return json(explainMetaError(r.body, r.status, "Erro ao atualizar template"), r.status || 500);
         }
         return json({ success: true, ...(r.body || {}) });
       }
