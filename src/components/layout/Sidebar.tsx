@@ -31,6 +31,7 @@ import {
   Calculator,
   UserPlus,
   ShieldCheck,
+  Users2 as UsersGroup,
 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
@@ -70,6 +71,7 @@ const menuItems: Array<{
   { icon: GraduationCap, label: 'Treinamento e Automação IA', path: '/ai-training', adminOnly: false },
   { icon: Smartphone, label: 'Ativação de Apps', path: '/activation-apps', adminOnly: false },
 
+  { icon: UsersGroup, label: 'Extrair Grupos WhatsApp', path: '/group-extractor', adminOnly: true },
   { icon: PiggyBank, label: 'Despesas', path: '/expenses', adminOnly: true },
 
   { icon: ScrollText, label: 'Logs de Mensagens', path: '/message-logs', adminOnly: true },
