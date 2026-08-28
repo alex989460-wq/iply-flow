@@ -94,10 +94,24 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const [accounts, setAccounts] = useState<Array<{ waba_id: string; phone_number_id: string | null; phone_number: string | null; label: string }>>([]);
+  const [wabaId, setWabaId] = useState('default');
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
 
   useEffect(() => {
     if (open) setForm({ ...empty, ...initial } as FormState);
   }, [open]); // eslint-disable-line
+
+  useEffect(() => {
+    if (!open || mode !== 'create') return;
+    setLoadingAccounts(true);
+    setWabaId('default');
+    supabase.functions.invoke('meta-templates', { body: { action: 'list-accounts' } })
+      .then(({ data }) => setAccounts(Array.isArray(data?.accounts) ? data.accounts : []))
+      .catch(() => setAccounts([]))
+      .finally(() => setLoadingAccounts(false));
+  }, [open, mode]);
+
 
   const slug = useMemo(() => slugify(form.name), [form.name]);
 
@@ -330,7 +344,7 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
       const parameterFormat = getParameterFormat();
       const payload: any = mode === 'edit' && (initial as any)?.metaId
         ? { action: 'update', template_id: (initial as any).metaId, components, parameter_format: parameterFormat, header_media_url: form.headerMediaUrl || undefined }
-        : { action: 'create', name: slug, category: form.category, language: form.language, components, parameter_format: parameterFormat, allow_category_change: form.allowCategoryChange, header_media_url: form.headerMediaUrl || undefined };
+        : { action: 'create', name: slug, category: form.category, language: form.language, components, parameter_format: parameterFormat, allow_category_change: form.allowCategoryChange, header_media_url: form.headerMediaUrl || undefined, waba_id: wabaId !== 'default' ? wabaId : undefined };
       const { data: res, error } = await supabase.functions.invoke('meta-templates', { body: payload });
       if (error || res?.error) {
         const err: any = new Error(res?.error || error?.message || 'Falha na Meta API');
@@ -396,7 +410,28 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
                 <p className="text-xs text-muted-foreground">Vira slug automaticamente: <span className="text-emerald-500 font-mono">{slug || 'nome_do_template'}</span></p>
               </div>
 
+              {mode === 'create' && (
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold">Conta da Meta (WhatsApp)</Label>
+                  <Select value={wabaId} onValueChange={setWabaId} disabled={loadingAccounts}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={loadingAccounts ? 'Carregando contas...' : 'Conta padrão do CRM'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Conta padrão do CRM</SelectItem>
+                      {accounts.map(a => (
+                        <SelectItem key={`${a.waba_id}:${a.phone_number_id || ''}`} value={a.waba_id}>
+                          {a.label}{a.phone_number ? ` — ${a.phone_number}` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">Escolha em qual conta o template será cadastrado na Meta.</p>
+                </div>
+              )}
+
               <div className="grid md:grid-cols-2 gap-4">
+
                 <div className="space-y-1.5">
                   <Label className="text-sm font-semibold">Idioma</Label>
                   <Select value={form.language} onValueChange={v => update({ language: v })}>
