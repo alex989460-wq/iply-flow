@@ -344,7 +344,7 @@ export default function TemplateBuilderDialog({ open, onOpenChange, mode, initia
       const parameterFormat = getParameterFormat();
       const payload: any = mode === 'edit' && (initial as any)?.metaId
         ? { action: 'update', template_id: (initial as any).metaId, components, parameter_format: parameterFormat, header_media_url: form.headerMediaUrl || undefined }
-        : { action: 'create', name: slug, category: form.category, language: form.language, components, parameter_format: parameterFormat, allow_category_change: form.allowCategoryChange, header_media_url: form.headerMediaUrl || undefined };
+        : { action: 'create', name: slug, category: form.category, language: form.language, components, parameter_format: parameterFormat, allow_category_change: form.allowCategoryChange, header_media_url: form.headerMediaUrl || undefined, waba_id: wabaId !== 'default' ? wabaId : undefined };
       const { data: res, error } = await supabase.functions.invoke('meta-templates', { body: payload });
       if (error || res?.error) {
         const err: any = new Error(res?.error || error?.message || 'Falha na Meta API');
