@@ -1105,15 +1105,20 @@ async function doSendWhatsapp(payload: {
     const components = Array.isArray(payload.components) && payload.components.length
       ? payload.components
       : (inferredBodyParameters.length ? [{ type: "body", parameters: inferredBodyParameters }] : []);
-    const officialHeaderImageUrl = extractOfficialTemplateHeaderImage(officialTemplate)
-      || await fetchOfficialTemplateHeaderImage(String(payload.template_name), String(lang), apiKey).catch(() => undefined);
+    const officialHeaderMedia = extractOfficialTemplateHeaderMedia(officialTemplate)
+      || await fetchOfficialTemplateHeaderMedia(String(payload.template_name), String(lang), apiKey).catch(() => undefined);
     const requestHeaderImageUrl = imageHeaderFromComponents(components);
-    const rawHeaderImageUrl = officialHeaderImageUrl || (isMetaTemplateMediaUrl(requestHeaderImageUrl) ? requestHeaderImageUrl : undefined);
-    if (requestHeaderImageUrl && !rawHeaderImageUrl) {
+    const requestedHeaderMedia = requestHeaderImageUrl && isMetaTemplateMediaUrl(requestHeaderImageUrl)
+      ? { type: "image" as const, url: requestHeaderImageUrl }
+      : undefined;
+    const rawHeaderMedia = officialHeaderMedia || requestedHeaderMedia;
+    if (requestHeaderImageUrl && !rawHeaderMedia) {
       throw new Error("Template com imagem recebeu uma URL que não é a mídia oficial do Meta. Sincronize o template oficial antes de enviar.");
     }
-    const headerImageUrl = rawHeaderImageUrl ? await ensurePublicMediaUrl(rawHeaderImageUrl, String(payload.template_name)) : undefined;
-    const templateComponents = replaceHeaderImageInComponents(components, headerImageUrl);
+    const headerMedia = rawHeaderMedia
+      ? { ...rawHeaderMedia, url: await ensurePublicMediaUrl(rawHeaderMedia.url, String(payload.template_name)) }
+      : undefined;
+    const templateComponents = replaceHeaderMediaInComponents(components, headerMedia);
     if (isForeignWhatsappPhone(payload.phone)) {
       try {
         const directResult = await directMetaTemplateSend({
@@ -1158,7 +1163,7 @@ async function doSendWhatsapp(payload: {
       ...(fallbackBody ? { body: fallbackBody } : {}),
       ...(templateComponents.length ? { components: templateComponents } : {}),
       ...(params.length ? { template_params: params, templateParams: params, parameters: params } : {}),
-      ...(headerImageUrl ? { header_image_url: headerImageUrl, headerImageUrl } : {}),
+      ...(headerMedia?.type === "image" ? { header_image_url: headerMedia.url, headerImageUrl: headerMedia.url } : {}),
     };
     const legacyPayload: Record<string, unknown> = {
       phone: recipientPhone,
@@ -1179,7 +1184,7 @@ async function doSendWhatsapp(payload: {
       template_params: params,
       templateParams: params,
       components: templateComponents,
-      ...(headerImageUrl ? { header_image_url: headerImageUrl, headerImageUrl } : {}),
+      ...(headerMedia?.type === "image" ? { header_image_url: headerMedia.url, headerImageUrl: headerMedia.url } : {}),
       template: { name: payload.template_name, language: { code: lang, policy: "deterministic" }, components: templateComponents },
     };
     const variablePayload: Record<string, unknown> = {
@@ -1200,7 +1205,7 @@ async function doSendWhatsapp(payload: {
         ? Object.fromEntries(paramNames.map((name, i) => [name, textFromUnknown(params[i] ?? "Cliente")]))
         : { body_text: params.map(textFromUnknown).filter(Boolean) },
       ...(templateComponents.length ? { components: templateComponents } : {}),
-      ...(headerImageUrl ? { header_image_url: headerImageUrl, headerImageUrl } : {}),
+      ...(headerMedia?.type === "image" ? { header_image_url: headerMedia.url, headerImageUrl: headerMedia.url } : {}),
     };
     // Tenta endpoints específicos de template. NÃO faz fallback para /whatsapp-send (texto puro),
     // pois isso enviaria sem imagem/botões/formatação do template — exatamente o bug que estamos corrigindo.
@@ -1217,7 +1222,7 @@ async function doSendWhatsapp(payload: {
       template: payload.template_name,
       lang,
       params,
-      header_source: officialHeaderImageUrl ? "official_template" : (headerImageUrl ? "meta_request_payload" : "none"),
+      header_source: officialHeaderMedia ? `official_template_${officialHeaderMedia.type}` : (headerMedia ? `meta_request_${headerMedia.type}` : "none"),
       ok: templateResult.ok,
       status: templateResult.status,
       attempts: (templateResult as { attempts?: Array<{ status: number; body: unknown }> }).attempts?.map((a) => ({ status: a.status, body: a.body })),
