@@ -108,22 +108,30 @@ Deno.serve(async (req) => {
       const groupName = String(body.group_name || '').slice(0, 200) || null;
       const groupJid = String(body.group_jid || groupName || 'web').slice(0, 200);
       const contacts: any[] = Array.isArray(body.contacts) ? body.contacts : [];
-      const rows = contacts
-        .map((c) => ({
+      const dedup = new Map<string, any>();
+      for (const c of contacts) {
+        const phone = digits(c?.phone || c?.number || c);
+        if (phone.length < 10 || phone.length > 15) continue;
+        const name = c?.name ? String(c.name).slice(0, 200) : null;
+        const prev = dedup.get(phone);
+        if (prev && !name) continue;
+        dedup.set(phone, {
           user_id: userId,
           group_jid: groupJid,
           group_name: groupName,
-          phone: digits(c?.phone || c?.number || c),
-          name: c?.name ? String(c.name).slice(0, 200) : null,
+          phone,
+          name: name || prev?.name || null,
           source: 'extension',
-        }))
-        .filter((r) => r.phone.length >= 10);
+        });
+      }
+      const rows = Array.from(dedup.values());
       if (!rows.length) return json({ imported: 0, message: 'Nenhum telefone válido recebido' });
       const { error } = await admin
         .from('whatsapp_group_contacts')
         .upsert(rows, { onConflict: 'user_id,group_jid,phone', ignoreDuplicates: true });
       if (error) return json({ error: error.message }, 500);
       return json({ imported: rows.length });
+
     }
 
     // ---- Ações que exigem Evolution --------------------------------------

@@ -120,17 +120,41 @@
     throw new Error('Grupo não encontrado na lista');
   }
 
+  function expectedMemberCount() {
+    const rx = /(\d[\d.\s]*)\s*(membros|participantes|members)/i;
+    const el = Array.from(document.querySelectorAll('span,div,h2'))
+      .find((e) => e.children.length <= 2 && rx.test(norm(e.textContent)));
+    if (!el) return 0;
+    const m = norm(el.textContent).match(rx);
+    return m ? parseInt(m[1].replace(/\D/g, ''), 10) || 0 : 0;
+  }
+
+  function findSeeAll() {
+    // "Ver tudo", "Ver tudo (mais 980)", "Ver todos", "See all", "View all"
+    return Array.from(document.querySelectorAll('div[role="button"],button,span,li,div'))
+      .find((el) => el.children.length <= 3
+        && /^(ver tudo|ver todos|see all|view all)(\s*\(.*\))?$/i.test(norm(el.textContent))) || null;
+  }
+
   async function openParticipants() {
     // abre "Dados do grupo"
     const header = document.querySelector('#main header');
     clickEl(header?.querySelector('span[title]') || header);
-    await sleep(1400);
+    await sleep(1600);
 
-    // clica em "Ver tudo" / "xx membros"
-    const drawer = document.querySelector('[data-testid="drawer-right"], #app > div > div > span > div, [role="dialog"]') || document;
-    const seeAll = byText(document, /^(ver tudo|ver todos|see all)$/i) || byText(document, /\d+\s+(membros|participantes|members)/i);
-    if (seeAll) { clickEl(seeAll.closest('div[role="button"],button,li') || seeAll); await sleep(1400); }
-    return drawer;
+    // clica em "Ver tudo (mais N)" — pode aparecer com atraso
+    for (let i = 0; i < 8; i++) {
+      const seeAll = findSeeAll();
+      if (seeAll) {
+        clickEl(seeAll.closest('div[role="button"],button,li') || seeAll);
+        await sleep(1600);
+        break;
+      }
+      const membersRow = byText(document, /\d+\s*(membros|participantes|members)/i);
+      if (i === 3 && membersRow) { clickEl(membersRow.closest('div[role="button"],button,li') || membersRow); await sleep(1400); }
+      await sleep(400);
+    }
+    return document.querySelector('[data-testid="drawer-right"], [role="dialog"]') || document;
   }
 
   function membersContainer() {
@@ -147,6 +171,15 @@
     const pick = (scrollables.length ? scrollables : candidates)
       .sort((a, b) => a.querySelectorAll('div').length - b.querySelectorAll('div').length)[0];
     return pick || null;
+  }
+
+  function scrollerOf(container) {
+    let el = container;
+    for (let i = 0; i < 6 && el; i++) {
+      if (el.scrollHeight > el.clientHeight + 40) return el;
+      el = el.parentElement;
+    }
+    return container;
   }
 
   function harvest(container, map) {
@@ -167,30 +200,70 @@
         .map((l) => l.replace(/^~\s*/, ''))
         .find((l) => l && !isPhoneLike(l) && !ADMIN_RX.test(l) && !YOU_RX.test(l) && !/^\d+$/.test(l)) || '';
       const prev = map.get(digits);
+      if (prev && !name) return; // mantém o nome já capturado, sem duplicar
       map.set(digits, name || prev || '');
     });
   }
 
   async function collectMembers(statusEl) {
     const map = new Map();
-    let container = membersContainer();
+    let container = await waitFor(membersContainer, 8000);
     if (!container) throw new Error('Lista de participantes não encontrada — abra "Ver tudo"');
+    const expected = expectedMemberCount();
     harvest(container, map);
-    let last = -1;
-    for (let i = 0; i < 400; i++) {
+
+    let stable = 0;
+    let lastSize = 0;
+    for (let i = 0; i < 1200; i++) {
       container = membersContainer() || container;
-      const scroller = container.scrollHeight > container.clientHeight + 40
-        ? container
-        : container.closest('div[style*="overflow"]') || container;
-      scroller.scrollTop = scroller.scrollTop + scroller.clientHeight * 0.8;
-      await sleep(240);
+      const scroller = scrollerOf(container);
+      const before = scroller.scrollTop;
+      scroller.scrollTop = before + Math.max(240, scroller.clientHeight * 0.7);
+      await sleep(230);
       harvest(container, map);
-      statusEl.textContent = `Coletando... ${map.size} membros`;
-      if (scroller.scrollTop === last) break;
-      last = scroller.scrollTop;
+      statusEl.textContent = expected
+        ? `Coletando... ${map.size}/${expected} membros`
+        : `Coletando... ${map.size} membros`;
+
+      const atBottom = scroller.scrollTop === before
+        || scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 5;
+      const grew = map.size > lastSize;
+      lastSize = map.size;
+
+      if (grew) { stable = 0; continue; }
+      if (atBottom) {
+        stable += 1;
+        // aguarda carregamento virtualizado antes de desistir
+        await sleep(500);
+        harvest(container, map);
+        if (map.size > lastSize) { lastSize = map.size; stable = 0; continue; }
+        if (stable >= 4) break;
+      } else {
+        stable = 0;
+      }
     }
+
+    // segunda passada de cima para baixo (lista virtualizada) para garantir 100%
+    const scroller = scrollerOf(membersContainer() || container);
+    scroller.scrollTop = 0;
+    await sleep(400);
+    for (let i = 0; i < 600; i++) {
+      const c = membersContainer() || container;
+      harvest(c, map);
+      const s = scrollerOf(c);
+      const before = s.scrollTop;
+      s.scrollTop = before + Math.max(200, s.clientHeight * 0.5);
+      await sleep(160);
+      statusEl.textContent = expected
+        ? `Revisando... ${map.size}/${expected} membros`
+        : `Revisando... ${map.size} membros`;
+      if (s.scrollTop === before && s.scrollTop + s.clientHeight >= s.scrollHeight - 5) break;
+      if (expected && map.size >= expected) break;
+    }
+
     return Array.from(map, ([phone, name]) => ({ phone, name }));
   }
+
 
   async function getToken() {
     const stored = await new Promise((r) => chrome.storage.local.get(['sgExtractToken'], (v) => r(v.sgExtractToken)));
