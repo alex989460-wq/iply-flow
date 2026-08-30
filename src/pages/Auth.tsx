@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { Mail, Lock, User, Loader2, AlertCircle, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, User, Loader2, AlertCircle, Eye, EyeOff, ShieldCheck, KeyRound } from 'lucide-react';
 import { z } from 'zod';
 import logoSg from '@/assets/logo-sg.png';
 import { supabase } from '@/integrations/supabase/client';
@@ -25,6 +25,11 @@ const signupSchema = loginSchema.extend({
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
+  const [refCode, setRefCode] = useState('');
+  const [refReseller, setRefReseller] = useState<string | null>(null);
+  const [refChecking, setRefChecking] = useState(false);
+  const [refError, setRefError] = useState<string | null>(null);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -49,6 +54,41 @@ export default function Auth() {
       .then(({ data }) => setTwoFactorEnabled(Boolean(data?.twoFactorEnabled)))
       .catch(() => setTwoFactorEnabled(false));
   }, []);
+
+  // Valida um código de afiliação (digitado ou vindo do link ?ref=CODIGO)
+  const resolveRefCode = async (raw: string) => {
+    const code = raw.trim().toUpperCase();
+    setRefReseller(null);
+    setRefError(null);
+    if (!code) return;
+    setRefChecking(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('affiliate-signup', {
+        body: { action: 'resolve', code },
+      });
+      if (error || data?.success === false) {
+        setRefError(data?.error || 'Código de afiliação inválido');
+        return;
+      }
+      setRefReseller(data?.reseller_name || 'Revendedor');
+    } catch {
+      setRefError('Não foi possível validar o código agora.');
+    } finally {
+      setRefChecking(false);
+    }
+  };
+
+  // Link de afiliação: /auth?ref=CODIGO já abre o formulário de cadastro
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = (params.get('ref') || params.get('codigo') || params.get('code') || '').trim().toUpperCase();
+    if (!ref) return;
+    setRefCode(ref);
+    setIsLogin(false);
+    resolveRefCode(ref);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   // Widget visível desde o carregamento da página (não só após preencher o formulário).
   useEffect(() => {
@@ -233,24 +273,55 @@ export default function Auth() {
           navigate('/dashboard');
         }
       } else {
-        const { error, userId } = await signUp(email, password, fullName);
-        if (error) {
+        // Auto-cadastro só é permitido com o código/link de afiliação de um revendedor.
+        const code = refCode.trim().toUpperCase();
+        if (!code) {
           toast({
-            title: 'Erro ao criar conta',
-            description: error.message.includes('already registered')
-              ? 'Este email já está cadastrado'
-              : error.message,
+            title: 'Código obrigatório',
+            description: 'Informe o código de cadastro do seu revendedor.',
             variant: 'destructive',
           });
-        } else {
-          await provisionCrmOficial(userId);
+          return;
+        }
+        const { data, error } = await supabase.functions.invoke('affiliate-signup', {
+          body: { action: 'signup', code, full_name: fullName, email, password },
+        });
+        if (error || data?.success === false) {
+          toast({
+            title: 'Erro ao criar conta',
+            description: data?.error || error?.message || 'Tente novamente.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        if (data?.requires_email_confirmation) {
+          setOtpPurpose('activation');
+          setOtpCode('');
+          setTwoFactorStep(true);
           toast({
             title: 'Conta criada!',
-            description: 'Você tem 7 dias de teste. Após isso, precisará de ativação.',
+            description: `Enviamos um código de ativação para ${email}.`,
           });
-          navigate('/dashboard');
+          return;
         }
+        const result = await signIn(email, password);
+        if (result.error) {
+          toast({
+            title: 'Conta criada!',
+            description: 'Faça login com seu e-mail e senha.',
+          });
+          setIsLogin(true);
+          return;
+        }
+        const { data: { user: newUser } } = await supabase.auth.getUser();
+        await provisionCrmOficial(newUser?.id, { silent: true });
+        toast({
+          title: 'Conta criada!',
+          description: `Você tem ${data?.trial_days ?? 7} dias de teste vinculado a ${data?.reseller_name || 'seu revendedor'}.`,
+        });
+        navigate('/dashboard');
       }
+
     } finally {
       setLoading(false);
     }
@@ -405,6 +476,39 @@ export default function Auth() {
           <form onSubmit={handleSubmit} className="space-y-5">
             {!isLogin && (
               <div className="space-y-2">
+                <Label htmlFor="refCode" className="text-foreground text-sm font-medium">
+                  Código do revendedor
+                </Label>
+                <div className="relative">
+                  <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <Input
+                    id="refCode"
+                    placeholder="EX: A1B2C3D4"
+                    value={refCode}
+                    onChange={(e) => { setRefCode(e.target.value.toUpperCase()); setRefReseller(null); setRefError(null); }}
+                    onBlur={(e) => resolveRefCode(e.target.value)}
+                    className="pl-12 h-12 uppercase tracking-[0.2em] font-mono bg-secondary/50 border-border/50 rounded-xl"
+                  />
+                </div>
+                {refChecking && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Loader2 className="w-3 h-3 animate-spin" /> Validando código…
+                  </p>
+                )}
+                {refReseller && !refChecking && (
+                  <p className="text-xs text-emerald-500">Vinculado a {refReseller}</p>
+                )}
+                {refError && !refChecking && (
+                  <p className="text-destructive text-sm flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    {refError}
+                  </p>
+                )}
+              </div>
+            )}
+            {!isLogin && (
+
+              <div className="space-y-2">
                 <Label htmlFor="fullName" className="text-foreground text-sm font-medium">
                   Nome Completo
                 </Label>
@@ -511,13 +615,25 @@ export default function Auth() {
           </form>
           )}
 
-          {!isLogin && !twoFactorStep && (
-            <div className="mt-4 p-3 bg-destructive/10 border border-destructive/20 rounded-xl">
-              <p className="text-xs text-destructive text-center">
-                A criação direta de contas está desativada. Entre em contato com um administrador ou revendedor para obter seu acesso.
-              </p>
+          {!twoFactorStep && (
+            <div className="mt-5 text-center">
+              <button
+                type="button"
+                onClick={() => { setIsLogin(!isLogin); setErrors({}); }}
+                className="text-sm text-amber-500 hover:underline"
+              >
+                {isLogin
+                  ? 'Tem um código de revendedor? Criar minha conta'
+                  : 'Já tenho conta — voltar para o login'}
+              </button>
+              {!isLogin && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  O cadastro só é liberado com o código ou link de afiliação de um revendedor.
+                </p>
+              )}
             </div>
           )}
+
         </div>
         
         {/* Footer */}

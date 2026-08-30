@@ -35,6 +35,8 @@ import { Navigate } from "react-router-dom";
 import { z } from "zod";
 import { cn } from "@/lib/utils";
 import TrialDaysCard from "@/components/settings/TrialDaysCard";
+import AffiliateLinkCard from "@/components/settings/AffiliateLinkCard";
+
 
 
 interface ResellerAccess {
@@ -733,6 +735,9 @@ export default function Resellers() {
         </div>
 
         {isAdmin && <TrialDaysCard />}
+
+        <AffiliateLinkCard />
+
 
         {myAccess && (
           <div className="rounded-xl border border-border/60 bg-card p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
