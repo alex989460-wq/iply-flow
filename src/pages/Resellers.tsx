@@ -734,6 +734,9 @@ export default function Resellers() {
 
         {isAdmin && <TrialDaysCard />}
 
+        <AffiliateLinkCard />
+
+
         {myAccess && (
           <div className="rounded-xl border border-border/60 bg-card p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="flex items-start gap-3">
