@@ -476,6 +476,39 @@ export default function Auth() {
           <form onSubmit={handleSubmit} className="space-y-5">
             {!isLogin && (
               <div className="space-y-2">
+                <Label htmlFor="refCode" className="text-foreground text-sm font-medium">
+                  Código do revendedor
+                </Label>
+                <div className="relative">
+                  <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <Input
+                    id="refCode"
+                    placeholder="EX: A1B2C3D4"
+                    value={refCode}
+                    onChange={(e) => { setRefCode(e.target.value.toUpperCase()); setRefReseller(null); setRefError(null); }}
+                    onBlur={(e) => resolveRefCode(e.target.value)}
+                    className="pl-12 h-12 uppercase tracking-[0.2em] font-mono bg-secondary/50 border-border/50 rounded-xl"
+                  />
+                </div>
+                {refChecking && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Loader2 className="w-3 h-3 animate-spin" /> Validando código…
+                  </p>
+                )}
+                {refReseller && !refChecking && (
+                  <p className="text-xs text-emerald-500">Vinculado a {refReseller}</p>
+                )}
+                {refError && !refChecking && (
+                  <p className="text-destructive text-sm flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    {refError}
+                  </p>
+                )}
+              </div>
+            )}
+            {!isLogin && (
+
+              <div className="space-y-2">
                 <Label htmlFor="fullName" className="text-foreground text-sm font-medium">
                   Nome Completo
                 </Label>
