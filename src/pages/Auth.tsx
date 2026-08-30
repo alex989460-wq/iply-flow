@@ -25,6 +25,11 @@ const signupSchema = loginSchema.extend({
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
+  const [refCode, setRefCode] = useState('');
+  const [refReseller, setRefReseller] = useState<string | null>(null);
+  const [refChecking, setRefChecking] = useState(false);
+  const [refError, setRefError] = useState<string | null>(null);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
