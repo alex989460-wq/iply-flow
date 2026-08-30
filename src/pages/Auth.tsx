@@ -582,13 +582,25 @@ export default function Auth() {
           </form>
           )}
 
-          {!isLogin && !twoFactorStep && (
-            <div className="mt-4 p-3 bg-destructive/10 border border-destructive/20 rounded-xl">
-              <p className="text-xs text-destructive text-center">
-                A criação direta de contas está desativada. Entre em contato com um administrador ou revendedor para obter seu acesso.
-              </p>
+          {!twoFactorStep && (
+            <div className="mt-5 text-center">
+              <button
+                type="button"
+                onClick={() => { setIsLogin(!isLogin); setErrors({}); }}
+                className="text-sm text-amber-500 hover:underline"
+              >
+                {isLogin
+                  ? 'Tem um código de revendedor? Criar minha conta'
+                  : 'Já tenho conta — voltar para o login'}
+              </button>
+              {!isLogin && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  O cadastro só é liberado com o código ou link de afiliação de um revendedor.
+                </p>
+              )}
             </div>
           )}
+
         </div>
         
         {/* Footer */}
