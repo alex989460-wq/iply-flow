@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { Mail, Lock, User, Loader2, AlertCircle, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, User, Loader2, AlertCircle, Eye, EyeOff, ShieldCheck, KeyRound } from 'lucide-react';
 import { z } from 'zod';
 import logoSg from '@/assets/logo-sg.png';
 import { supabase } from '@/integrations/supabase/client';
