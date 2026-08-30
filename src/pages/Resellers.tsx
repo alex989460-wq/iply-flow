@@ -35,6 +35,8 @@ import { Navigate } from "react-router-dom";
 import { z } from "zod";
 import { cn } from "@/lib/utils";
 import TrialDaysCard from "@/components/settings/TrialDaysCard";
+import AffiliateLinkCard from "@/components/settings/AffiliateLinkCard";
+
 
 
 interface ResellerAccess {
