@@ -273,24 +273,55 @@ export default function Auth() {
           navigate('/dashboard');
         }
       } else {
-        const { error, userId } = await signUp(email, password, fullName);
-        if (error) {
+        // Auto-cadastro só é permitido com o código/link de afiliação de um revendedor.
+        const code = refCode.trim().toUpperCase();
+        if (!code) {
           toast({
-            title: 'Erro ao criar conta',
-            description: error.message.includes('already registered')
-              ? 'Este email já está cadastrado'
-              : error.message,
+            title: 'Código obrigatório',
+            description: 'Informe o código de cadastro do seu revendedor.',
             variant: 'destructive',
           });
-        } else {
-          await provisionCrmOficial(userId);
+          return;
+        }
+        const { data, error } = await supabase.functions.invoke('affiliate-signup', {
+          body: { action: 'signup', code, full_name: fullName, email, password },
+        });
+        if (error || data?.success === false) {
+          toast({
+            title: 'Erro ao criar conta',
+            description: data?.error || error?.message || 'Tente novamente.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        if (data?.requires_email_confirmation) {
+          setOtpPurpose('activation');
+          setOtpCode('');
+          setTwoFactorStep(true);
           toast({
             title: 'Conta criada!',
-            description: 'Você tem 7 dias de teste. Após isso, precisará de ativação.',
+            description: `Enviamos um código de ativação para ${email}.`,
           });
-          navigate('/dashboard');
+          return;
         }
+        const result = await signIn(email, password);
+        if (result.error) {
+          toast({
+            title: 'Conta criada!',
+            description: 'Faça login com seu e-mail e senha.',
+          });
+          setIsLogin(true);
+          return;
+        }
+        const { data: { user: newUser } } = await supabase.auth.getUser();
+        await provisionCrmOficial(newUser?.id, { silent: true });
+        toast({
+          title: 'Conta criada!',
+          description: `Você tem ${data?.trial_days ?? 7} dias de teste vinculado a ${data?.reseller_name || 'seu revendedor'}.`,
+        });
+        navigate('/dashboard');
       }
+
     } finally {
       setLoading(false);
     }
