@@ -55,6 +55,41 @@ export default function Auth() {
       .catch(() => setTwoFactorEnabled(false));
   }, []);
 
+  // Valida um código de afiliação (digitado ou vindo do link ?ref=CODIGO)
+  const resolveRefCode = async (raw: string) => {
+    const code = raw.trim().toUpperCase();
+    setRefReseller(null);
+    setRefError(null);
+    if (!code) return;
+    setRefChecking(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('affiliate-signup', {
+        body: { action: 'resolve', code },
+      });
+      if (error || data?.success === false) {
+        setRefError(data?.error || 'Código de afiliação inválido');
+        return;
+      }
+      setRefReseller(data?.reseller_name || 'Revendedor');
+    } catch {
+      setRefError('Não foi possível validar o código agora.');
+    } finally {
+      setRefChecking(false);
+    }
+  };
+
+  // Link de afiliação: /auth?ref=CODIGO já abre o formulário de cadastro
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = (params.get('ref') || params.get('codigo') || params.get('code') || '').trim().toUpperCase();
+    if (!ref) return;
+    setRefCode(ref);
+    setIsLogin(false);
+    resolveRefCode(ref);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+
   // Widget visível desde o carregamento da página (não só após preencher o formulário).
   useEffect(() => {
     if (!turnstile.enabled || twoFactorStep) return;
