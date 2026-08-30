@@ -3110,6 +3110,7 @@ export type Database = {
       reseller_access: {
         Row: {
           access_expires_at: string
+          affiliate_code: string | null
           created_at: string
           credits: number
           email: string
@@ -3124,6 +3125,7 @@ export type Database = {
         }
         Insert: {
           access_expires_at?: string
+          affiliate_code?: string | null
           created_at?: string
           credits?: number
           email: string
@@ -3138,6 +3140,7 @@ export type Database = {
         }
         Update: {
           access_expires_at?: string
+          affiliate_code?: string | null
           created_at?: string
           credits?: number
           email?: string
@@ -4094,6 +4097,7 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      gen_affiliate_code: { Args: never; Returns: string }
       get_dashboard_stats_optimized: { Args: never; Returns: Json }
       get_email_tracking: {
         Args: { _days?: number; _limit?: number }
