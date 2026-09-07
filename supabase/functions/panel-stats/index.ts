@@ -318,7 +318,7 @@ Deno.serve(async (req) => {
           const user = String((cfg as any)?.rush_username || "").trim();
           const pass = String((cfg as any)?.rush_password || "").trim();
           const token = String((cfg as any)?.rush_token || "").trim();
-          const base = normBase((cfg as any)?.rush_base_url || "https://api-new.painel.ai");
+          const base = normBase((cfg as any)?.rush_base_url || "https://api-new.paineloffice.click");
           if (!user || !pass || !token) throw new Error("Credenciais da Rush não configuradas.");
           
           const auth = `user=${user}&pass=${pass}&token=${token}`;

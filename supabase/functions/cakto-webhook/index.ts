@@ -1178,7 +1178,7 @@ serve(async (req) => {
                     username: newCustomer.username, months: newMonthsNum, customer_id: newCustomer.id,
                     rush_username: resellerApiSettings.rush_username, rush_password: resellerApiSettings.rush_password,
                     rush_token: resellerApiSettings.rush_token,
-                    rush_base_url: (resellerApiSettings.rush_base_url || '').replace(/\/+$/, '') || 'https://api-new.painel.ai',
+                    rush_base_url: (resellerApiSettings.rush_base_url || '').replace(/\/+$/, '') || 'https://api-new.paineloffice.click',
                     screens: newCustomer.screens || 1,
                   }),
                 });
@@ -3166,7 +3166,7 @@ serve(async (req) => {
           const rushUsername = resellerApiSettings?.rush_username || '';
           const rushPassword = resellerApiSettings?.rush_password || '';
           const rushToken = resellerApiSettings?.rush_token || '';
-          const rushBaseUrl = (resellerApiSettings?.rush_base_url || '').replace(/\/+$/, '') || 'https://api-new.painel.ai';
+          const rushBaseUrl = (resellerApiSettings?.rush_base_url || '').replace(/\/+$/, '') || 'https://api-new.paineloffice.click';
           if (rushUsername && rushPassword && rushToken) {
             console.log(`[Cakto] Usando credenciais Rush do revendedor`);
             const rushDaysToMonths: Record<number, number> = { 30: 1, 60: 2, 90: 3, 120: 4, 150: 5, 180: 6, 360: 12, 365: 12 };

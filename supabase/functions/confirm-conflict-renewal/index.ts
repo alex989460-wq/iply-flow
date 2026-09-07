@@ -494,7 +494,7 @@ serve(async (req) => {
           const rushUsername = resellerApiSettings?.rush_username || '';
           const rushPassword = resellerApiSettings?.rush_password || '';
           const rushToken = resellerApiSettings?.rush_token || '';
-          const rushBaseUrl = (resellerApiSettings?.rush_base_url || '').replace(/\/+$/, '') || 'https://api-new.painel.ai';
+          const rushBaseUrl = (resellerApiSettings?.rush_base_url || '').replace(/\/+$/, '') || 'https://api-new.paineloffice.click';
           if (rushUsername && rushPassword && rushToken) {
             for (const username of allUsernames) {
               try {

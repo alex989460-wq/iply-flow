@@ -747,7 +747,7 @@ export default function ResellerApiSettings() {
               <ol className="list-decimal ml-4 mt-1 space-y-1 text-sm">
                 <li>Use o <strong>usuário</strong> e <strong>senha</strong> da sua revenda Rush</li>
                 <li>Cole o <strong>Token de Autorização</strong> fornecido pelo painel</li>
-                <li>A URL base padrão é <code>https://api-new.painel.ai</code></li>
+                <li>A URL base padrão é <code>https://api-new.paineloffice.click</code></li>
               </ol>
             </AlertDescription>
           </Alert>
@@ -816,10 +816,10 @@ export default function ResellerApiSettings() {
               id="rush_url"
               value={settings.rush_base_url}
               onChange={(e) => setSettings({ ...settings, rush_base_url: e.target.value })}
-              placeholder="https://api-new.painel.ai"
+              placeholder="https://api-new.paineloffice.click"
             />
             <p className="text-xs text-muted-foreground">
-              Padrão: https://api-new.painel.ai
+              Padrão: https://api-new.paineloffice.click
             </p>
           </div>
         </CardContent>

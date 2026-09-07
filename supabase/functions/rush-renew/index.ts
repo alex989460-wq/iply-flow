@@ -7,7 +7,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cakto-webhook-secret',
 };
 
-const DEFAULT_BASE_URL = 'https://api-new.painel.ai';
+const DEFAULT_BASE_URL = 'https://api-new.paineloffice.click';
+
+const normalizeRushBase = (url: string) =>
+  String(url || '').trim().replace(/\/+$/, '').replace('api-new.painel.ai', 'api-new.paineloffice.click').replace('api.painel.ai', 'api-new.paineloffice.click') || DEFAULT_BASE_URL;
 
 function buildUsernameVariants(rawUsername: string): string[] {
   const base = String(rawUsername || '').trim();
@@ -106,7 +109,7 @@ serve(async (req) => {
     let rUsername = rush_username || '';
     let rPassword = rush_password || '';
     let rToken = rush_token || '';
-    let rBaseUrl = (rush_base_url || '').replace(/\/+$/, '') || DEFAULT_BASE_URL;
+    let rBaseUrl = normalizeRushBase(rush_base_url);
 
     // If not passed, try to load from reseller settings
     if (!rUsername && customer_id) {
@@ -134,7 +137,7 @@ serve(async (req) => {
             rUsername = apiSettings.rush_username;
             rPassword = apiSettings.rush_password;
             rToken = apiSettings.rush_token;
-            rBaseUrl = (apiSettings.rush_base_url || '').replace(/\/+$/, '') || DEFAULT_BASE_URL;
+            rBaseUrl = normalizeRushBase(apiSettings.rush_base_url);
             console.log('[Rush] Usando credenciais do revendedor');
           }
         }
