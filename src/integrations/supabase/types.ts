@@ -3586,6 +3586,78 @@ export type Database = {
         }
         Relationships: []
       }
+      tasks: {
+        Row: {
+          checklist: Json
+          color: string | null
+          completed_at: string | null
+          created_at: string
+          description: string | null
+          due_at: string | null
+          id: string
+          last_notified_at: string | null
+          notify_phone: string | null
+          notify_push: boolean
+          notify_whatsapp: boolean
+          owner_id: string
+          position: number
+          priority: string
+          recurrence: string
+          remind_at: string | null
+          remind_before_minutes: number
+          status: string
+          tags: string[]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          checklist?: Json
+          color?: string | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          due_at?: string | null
+          id?: string
+          last_notified_at?: string | null
+          notify_phone?: string | null
+          notify_push?: boolean
+          notify_whatsapp?: boolean
+          owner_id: string
+          position?: number
+          priority?: string
+          recurrence?: string
+          remind_at?: string | null
+          remind_before_minutes?: number
+          status?: string
+          tags?: string[]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          checklist?: Json
+          color?: string | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          due_at?: string | null
+          id?: string
+          last_notified_at?: string | null
+          notify_phone?: string | null
+          notify_push?: boolean
+          notify_whatsapp?: boolean
+          owner_id?: string
+          position?: number
+          priority?: string
+          recurrence?: string
+          remind_at?: string | null
+          remind_before_minutes?: number
+          status?: string
+          tags?: string[]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tutorials: {
         Row: {
           category: string
