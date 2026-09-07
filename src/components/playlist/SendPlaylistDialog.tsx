@@ -95,6 +95,7 @@ export default function SendPlaylistDialog({
   const [loadingCaptcha, setLoadingCaptcha] = useState(false);
 
   const [templateId, setTemplateId] = useState<string>('');
+  const [minimized, setMinimized] = useState(false);
 
   const needsCaptcha = tab === 'bobplayer' || tab === 'iboplayer';
 
