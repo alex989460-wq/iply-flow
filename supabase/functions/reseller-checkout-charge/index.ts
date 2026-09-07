@@ -8,6 +8,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { buildCredentials, createCharge, getQrCode, newTxid } from "../_shared/efi-client.ts";
 import { createPixPayment } from "../_shared/mercadopago-client.ts";
+import { getReferralSettings, getReferralBalance } from "../_shared/referral.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",

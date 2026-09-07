@@ -10,6 +10,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { resolvePanel } from "../_shared/panel-router.ts";
 import { reportScreensMismatch } from "../_shared/screens-mismatch.ts";
+import { settleReferralOnPayment, consumeReferralCredit } from "../_shared/referral.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -475,6 +476,31 @@ Deno.serve(async (req) => {
           });
           await triggerExternalRenewal(admin, cid, srcTag);
         }
+      }
+
+      // ---- Programa de indicação: consome crédito usado e libera recompensa ----
+      try {
+        const metaRef: any = charge.metadata || {};
+        if (Number(metaRef.referral_credit || 0) > 0 && metaRef.referral_customer_id) {
+          await consumeReferralCredit(admin, {
+            ownerId: charge.owner_id,
+            customerId: String(metaRef.referral_customer_id),
+            amount: Number(metaRef.referral_credit),
+            txid,
+          });
+        }
+        const settleIds: string[] = Array.isArray(metaRef.customer_ids) && metaRef.customer_ids.length
+          ? metaRef.customer_ids
+          : (charge.customer_id ? [charge.customer_id] : []);
+        for (const cid of settleIds) {
+          await settleReferralOnPayment(admin, {
+            ownerId: charge.owner_id,
+            customerId: String(cid),
+            amount: dbAmount / Math.max(1, settleIds.length),
+          });
+        }
+      } catch (refErr) {
+        console.error("[efi-webhook] referral error", refErr);
       }
 
       const meta2: any = charge.metadata || {};
