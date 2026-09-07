@@ -329,31 +329,34 @@ export default function SendPlaylistDialog({
   );
 
   const captchaField = (brand: string) => (
-    <div className="space-y-1.5">
-      <Label>Captcha do {brand}</Label>
+    <div className="space-y-1.5 rounded-xl border border-border/60 bg-muted/20 p-3">
+      <Label>Código de verificação do {brand}</Label>
       <div className="flex items-center gap-2">
-        <div className="h-[60px] w-[140px] shrink-0 rounded-lg border border-border/60 bg-muted/40 overflow-hidden flex items-center justify-center [&>svg]:h-full [&>svg]:w-full">
+        <div className="h-[62px] w-[150px] shrink-0 rounded-lg border border-border/60 bg-background overflow-hidden flex items-center justify-center [&>svg]:h-full [&>svg]:w-full">
           {loadingCaptcha ? (
             <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
           ) : captchaSvg ? (
             <div className="h-full w-full [&>svg]:h-full [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: captchaSvg }} />
           ) : (
-            <span className="text-[11px] text-muted-foreground">sem captcha</span>
+            <span className="text-[11px] text-muted-foreground">sem código</span>
           )}
         </div>
-        <Button type="button" size="icon" variant="outline" onClick={() => loadCaptcha(tab as any)} disabled={loadingCaptcha}>
+        <Button type="button" size="icon" variant="outline" onClick={() => loadCaptcha(tab as any)} disabled={loadingCaptcha} title="Gerar novo código">
           <RefreshCw className={loadingCaptcha ? 'w-4 h-4 animate-spin' : 'w-4 h-4'} />
         </Button>
         <Input
           value={captcha}
-          onChange={(e) => setCaptcha(e.target.value)}
+          onChange={(e) => setCaptcha(e.target.value.replace(/\s+/g, ''))}
           placeholder="digite o código"
-          className="font-mono uppercase"
-          autoCapitalize="characters"
+          className="font-mono tracking-widest"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
         />
       </div>
       <p className="text-[11px] text-muted-foreground">
-        O {brand} exige captcha a cada envio. Se falhar, gere um novo e tente de novo.
+        Digite exatamente como aparece (respeitando maiúsculas e minúsculas). O código expira rápido — ele é renovado
+        automaticamente a cada 90 segundos e sempre que um envio falha.
       </p>
     </div>
   );
