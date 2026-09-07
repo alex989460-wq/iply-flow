@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -31,6 +31,8 @@ const COUNTRIES = [
 export default function ResellerNewCustomerCheckout() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const refCode = (searchParams.get('ref') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   const [ddi, setDdi] = useState('55');
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
@@ -79,6 +81,7 @@ export default function ResellerNewCustomerCheckout() {
           phone: fullPhone,
           username: username.trim(),
           server_id: serverId || null,
+          ref: refCode || undefined,
         }),
       });
       const j = await res.json();
