@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { ListPlus, Send, Loader2, RefreshCw, X, Minus, Maximize2 } from 'lucide-react';
+import { ListPlus, Send, Loader2, RefreshCw, X, Minus, Maximize2, Cloud, Tv, Play, Cast, MonitorPlay, Sparkle } from 'lucide-react';
 import { getErrorMessage } from '@/lib/error-message';
 
 export type PlaylistTemplate = {
@@ -407,13 +407,24 @@ export default function SendPlaylistDialog({
 
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-3">
           <Tabs value={tab} onValueChange={(v) => setTab(v as ProviderTab)}>
-            <TabsList className="grid grid-cols-3 sm:grid-cols-6 h-auto w-full gap-1 p-1">
-              <TabsTrigger value="clouddy" className="text-[11px] px-1 py-1.5">Clouddy</TabsTrigger>
-              <TabsTrigger value="ibopro" className="text-[11px] px-1 py-1.5">IBO Pro</TabsTrigger>
-              <TabsTrigger value="iboplayer" className="text-[11px] px-1 py-1.5">IBO Player</TabsTrigger>
-              <TabsTrigger value="duplecast" className="text-[11px] px-1 py-1.5">Duplecast</TabsTrigger>
-              <TabsTrigger value="bobplayer" className="text-[11px] px-1 py-1.5">Bob Player</TabsTrigger>
-              <TabsTrigger value="smartersmax" className="text-[11px] px-1 py-1.5">Smarters Max</TabsTrigger>
+            <TabsList className="grid grid-cols-3 h-auto w-full gap-2 p-2 bg-muted/40 rounded-xl">
+              {([
+                { value: 'clouddy', label: 'Clouddy', icon: Cloud },
+                { value: 'ibopro', label: 'IBO Pro', icon: Tv },
+                { value: 'iboplayer', label: 'IBO Player', icon: Play },
+                { value: 'duplecast', label: 'Duplecast', icon: Cast },
+                { value: 'bobplayer', label: 'Bob Player', icon: MonitorPlay },
+                { value: 'smartersmax', label: 'Smarters Max', icon: Sparkle },
+              ] as const).map((app) => (
+                <TabsTrigger
+                  key={app.value}
+                  value={app.value}
+                  className="flex flex-col items-center justify-center gap-1 rounded-lg px-2 py-2.5 text-[11px] font-medium leading-tight data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md transition-all"
+                >
+                  <app.icon className="w-4 h-4 shrink-0" />
+                  <span className="truncate w-full text-center">{app.label}</span>
+                </TabsTrigger>
+              ))}
             </TabsList>
 
             <TabsContent value="clouddy" className="space-y-3 pt-3">
