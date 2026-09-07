@@ -7,7 +7,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cakto-webhook-secret',
 };
 
-const DEFAULT_BASE_URL = 'https://api-new.painel.ai';
+const DEFAULT_BASE_URL = 'https://api-new.paineloffice.click';
 
 function buildUsernameVariants(rawUsername: string): string[] {
   const base = String(rawUsername || '').trim();

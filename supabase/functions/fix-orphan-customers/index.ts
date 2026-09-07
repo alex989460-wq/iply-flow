@@ -116,7 +116,7 @@ serve(async (req) => {
     const rUser = apiSettings?.rush_username;
     const rPass = apiSettings?.rush_password;
     const rToken = apiSettings?.rush_token;
-    const rBase = (apiSettings?.rush_base_url || '').replace(/\/+$/, '') || 'https://api-new.painel.ai';
+    const rBase = (apiSettings?.rush_base_url || '').replace(/\/+$/, '') || 'https://api-new.paineloffice.click';
     
     if (rUser && rPass && rToken) {
       const authParams = `username=${encodeURIComponent(rUser)}&password=${encodeURIComponent(rPass)}&token=${encodeURIComponent(rToken)}`;

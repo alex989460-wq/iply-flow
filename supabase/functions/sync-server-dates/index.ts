@@ -182,7 +182,7 @@ async function handleRush(supabaseAdmin: any, apiSettings: any, action: string, 
   const rUser = apiSettings?.rush_username;
   const rPass = apiSettings?.rush_password;
   const rToken = apiSettings?.rush_token;
-  const rBase = (apiSettings?.rush_base_url || '').replace(/\/+$/, '') || 'https://api-new.painel.ai';
+  const rBase = (apiSettings?.rush_base_url || '').replace(/\/+$/, '') || 'https://api-new.paineloffice.click';
 
   if (!rUser || !rPass || !rToken) {
     return new Response(JSON.stringify({ error: 'Credenciais Rush não configuradas' }), { status: 400, headers: jsonHeaders });
