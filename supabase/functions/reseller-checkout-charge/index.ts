@@ -8,6 +8,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { buildCredentials, createCharge, getQrCode, newTxid } from "../_shared/efi-client.ts";
 import { createPixPayment } from "../_shared/mercadopago-client.ts";
+import { getReferralSettings, getReferralBalance } from "../_shared/referral.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -236,6 +237,24 @@ Deno.serve(async (req) => {
       amount = applied.final;
     }
 
+    // ---- crédito do programa de indicação (opcional) ----
+    // O crédito só é debitado quando o pagamento é confirmado (no webhook).
+    let referralCredit = 0;
+    const referralCustomerId = customers[0]?.id || null;
+    if (body.use_credit && referralCustomerId) {
+      const rs = await getReferralSettings(admin, ownerId);
+      if (rs.enabled) {
+        const balance = await getReferralBalance(admin, referralCustomerId);
+        const maxByPercent = Math.round(amount * (Number(rs.max_discount_percent || 50) / 100) * 100) / 100;
+        referralCredit = Math.max(0, Math.min(balance, maxByPercent, Math.round((amount - 0.01) * 100) / 100));
+        referralCredit = Math.round(referralCredit * 100) / 100;
+        if (referralCredit > 0) {
+          amount = Math.round((amount - referralCredit) * 100) / 100;
+          discountValue = Math.round((discountValue + referralCredit) * 100) / 100;
+        }
+      }
+    }
+
     const chargeMetadata = {
       source: "reseller_checkout",
       slug,
@@ -247,7 +266,10 @@ Deno.serve(async (req) => {
       screens: customers.map((c: any) => c.screens || 1),
       coupon_code: appliedCoupon?.code || null,
       discount: discountValue || 0,
+      referral_credit: referralCredit || 0,
+      referral_customer_id: referralCredit > 0 ? referralCustomerId : null,
     };
+
 
     const bumpCoupon = async () => {
       if (!appliedCoupon) return;

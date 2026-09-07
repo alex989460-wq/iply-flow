@@ -98,6 +98,33 @@ Deno.serve(async (req) => {
         customerId = customer.id;
       }
 
+      // ---- programa de indicação: vincula quem indicou (somente 1ª vez) ----
+      try {
+        const refCode = String(body.ref || body.referral_code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        if (refCode && customerId) {
+          const { data: cur } = await admin.from("customers")
+            .select("id, referred_by").eq("id", customerId).maybeSingle();
+          if (cur && !cur.referred_by) {
+            const { data: referrer } = await admin.from("customers")
+              .select("id").eq("created_by", st.user_id).eq("referral_code", refCode).maybeSingle();
+            if (referrer && referrer.id !== customerId) {
+              await admin.from("customers").update({ referred_by: referrer.id }).eq("id", customerId);
+              await admin.from("referrals").upsert({
+                owner_id: st.user_id,
+                referrer_customer_id: referrer.id,
+                referee_customer_id: customerId,
+                referee_name: name,
+                referee_phone: phone,
+                status: "pending",
+              }, { onConflict: "referee_customer_id" });
+            }
+          }
+        }
+      } catch (refErr) {
+        console.error("[reseller-checkout-data] referral link error", refErr);
+      }
+
+
       const { data: pending } = await admin.from("pending_new_customers")
         .select("id")
         .eq("owner_id", st.user_id)
