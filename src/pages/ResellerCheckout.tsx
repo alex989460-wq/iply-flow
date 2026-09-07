@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Loader2, Check, Phone, QrCode, ArrowLeft, Copy, Sparkles, ShieldCheck, Tv, User as UserIcon, AlertTriangle, Server, Smartphone, ChevronRight, AlertCircle, Plus } from 'lucide-react';
+import { Loader2, Check, Phone, QrCode, ArrowLeft, Copy, Sparkles, ShieldCheck, Tv, User as UserIcon, AlertTriangle, Server, Smartphone, ChevronRight, AlertCircle, Plus, Gift } from 'lucide-react';
 import { toast } from 'sonner';
 import pixLogo from '@/assets/pix-logo.png.asset.json';
 import cardLogo from '@/assets/card-logo.png.asset.json';
@@ -131,6 +131,12 @@ function ResellerCheckoutInner() {
 
   const [registeredCid, setRegisteredCid] = useState<string | null>(null);
 
+  // ---- Programa de indicação ----
+  const refCode = (searchParams.get('ref') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const [refInfo, setRefInfo] = useState<{ referrer_name: string; referee_discount: number; reward_amount: number; headline?: string | null } | null>(null);
+  const [referral, setReferral] = useState<any | null>(null);
+  const [useCredit, setUseCredit] = useState(true);
+
   useEffect(() => {
     const cid = searchParams.get('cid');
     if (cid) setRegisteredCid(cid);
@@ -156,6 +162,39 @@ function ResellerCheckoutInner() {
       } finally { setLoading(false); }
     })();
   }, [slug]);
+
+  // Resolve o código de indicação recebido pelo link (?ref=CODIGO)
+  useEffect(() => {
+    if (!slug || !refCode) return;
+    (async () => {
+      try {
+        const res = await fetch(`${FN_BASE}/referral-program`, {
+          method: 'POST',
+          headers: { apikey: ANON, Authorization: `Bearer ${ANON}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'resolve', slug, code: refCode }),
+        });
+        const j = await res.json();
+        if (res.ok && j?.ok && j?.referrer_name) setRefInfo(j);
+      } catch { /* silencioso */ }
+    })();
+  }, [slug, refCode]);
+
+  // Carrega saldo/código de indicação da conta selecionada
+  useEffect(() => {
+    const cid = selectedIds[0];
+    if (!slug || !cid) { setReferral(null); return; }
+    (async () => {
+      try {
+        const res = await fetch(`${FN_BASE}/referral-program`, {
+          method: 'POST',
+          headers: { apikey: ANON, Authorization: `Bearer ${ANON}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'panel', slug, customer_id: cid }),
+        });
+        const j = await res.json();
+        setReferral(res.ok && j?.ok && j?.enabled ? j : null);
+      } catch { setReferral(null); }
+    })();
+  }, [slug, selectedIds]);
 
   // Poll Pix
   useEffect(() => {
@@ -293,6 +332,7 @@ function ResellerCheckoutInner() {
           action: 'create', slug, plan_id: plan.id, method,
           customer_ids: selectedIds,
           coupon_code: coupon.trim() || undefined,
+          use_credit: useCredit && Number(referral?.balance || 0) > 0,
         }),
       });
       const j = await res.json();
@@ -383,6 +423,21 @@ function ResellerCheckoutInner() {
         <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[900px] h-[900px] rounded-full blur-3xl" style={{ background: `radial-gradient(closest-side, ${brand}22, transparent 70%)` }} />
       </div>
 
+      {refInfo && (
+        <div className="relative max-w-6xl mx-auto px-4 pt-6">
+          <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-5 py-4 flex items-start gap-3">
+            <Gift className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-bold text-emerald-300">Você foi indicado por {refInfo.referrer_name}</p>
+              <p className="text-white/70">
+                {refInfo.headline || 'Faça sua assinatura e depois indique amigos para ganhar desconto também.'}
+                {Number(refInfo.referee_discount) > 0 && ` Você tem ${fmtBRL(refInfo.referee_discount)} de boas-vindas na primeira compra.`}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="relative pt-8 pb-4 px-4 flex items-center justify-between max-w-6xl mx-auto">
         <div className="flex-1" />
@@ -395,7 +450,7 @@ function ResellerCheckoutInner() {
         </div>
           <div className="hidden sm:flex items-center gap-2">
             <Link
-              to={`/r/${slug}/registrar`}
+              to={`/r/${slug}/registrar${refCode ? `?ref=${refCode}` : ''}`}
               className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold tracking-wide rounded-full border border-white/15 bg-white/[0.03] hover:bg-white/[0.08] transition-all hover:border-[var(--brand)]"
             >
               <UserIcon className="w-4 h-4" style={{ color: brand }} /> NOVO CLIENTE
@@ -421,7 +476,7 @@ function ResellerCheckoutInner() {
           <p className="text-white/50 text-sm">{data.subheadline || 'Assista onde e quando quiser. Cancele a qualquer momento.'}</p>
           <div className="sm:hidden flex flex-col gap-2 items-center">
             <Link
-              to={`/r/${slug}/registrar`}
+              to={`/r/${slug}/registrar${refCode ? `?ref=${refCode}` : ''}`}
               className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold tracking-wide rounded-full border border-white/15 bg-white/[0.03]"
             >
               <UserIcon className="w-4 h-4" style={{ color: brand }} /> NOVO CLIENTE
@@ -622,6 +677,39 @@ function ResellerCheckoutInner() {
                   </p>
                 )}
               </div>
+              {referral && (
+                <div className="rounded-lg border border-emerald-400/25 bg-emerald-500/[0.07] p-3 space-y-2">
+                  <p className="text-xs font-bold text-emerald-300 tracking-wide flex items-center gap-2">
+                    <Gift className="w-3.5 h-3.5" /> PROGRAMA DE INDICAÇÃO
+                  </p>
+                  {Number(referral.balance) > 0 ? (
+                    <label className="flex items-start gap-2 text-sm cursor-pointer">
+                      <input type="checkbox" checked={useCredit} onChange={(e) => setUseCredit(e.target.checked)} className="mt-1 accent-emerald-400" />
+                      <span className="text-white/80">
+                        Usar meu saldo de <b className="text-emerald-300">{fmtBRL(referral.balance)}</b> neste pagamento
+                        <span className="block text-[11px] text-white/50">
+                          Desconto máximo de {referral.max_discount_percent}% do valor.
+                        </span>
+                      </span>
+                    </label>
+                  ) : (
+                    <p className="text-xs text-white/60">
+                      Indique amigos e ganhe {fmtBRL(referral.reward_amount)} de desconto por indicação que pagar.
+                    </p>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <input readOnly value={`${window.location.origin}/r/${slug}?ref=${referral.code}`}
+                      className="flex-1 h-9 rounded-lg bg-black/30 border border-white/10 px-3 text-xs text-white/70" />
+                    <Button type="button" variant="outline"
+                      onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/r/${slug}?ref=${referral.code}`); toast.success('Link de indicação copiado!'); }}
+                      className="h-9 bg-transparent border-white/15 text-white hover:bg-white/5">
+                      <Copy className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                  {referral.terms && <p className="text-[11px] text-white/45">{referral.terms}</p>}
+                </div>
+              )}
+
               <p className="text-sm text-white/80 font-semibold pt-1">Escolha a forma de pagamento:</p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -769,7 +857,7 @@ function ResellerCheckoutInner() {
             
             <div className="grid grid-cols-1 gap-3 pt-2">
               <Link 
-                to={`/r/${slug}/registrar`}
+                to={`/r/${slug}/registrar${refCode ? `?ref=${refCode}` : ''}`}
                 className="w-full h-12 flex items-center justify-center gap-2 font-bold text-white rounded-xl shadow-lg transition-transform active:scale-[0.98]"
                 style={{ background: brand }}
               >
