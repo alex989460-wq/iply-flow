@@ -124,6 +124,16 @@ export default function SendPlaylistDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, tab]);
 
+  // O captcha expira no servidor; renova sozinho a cada 90s enquanto o painel está aberto
+  useEffect(() => {
+    if (!open || !needsCaptcha || minimized) return;
+    const id = setInterval(() => {
+      if (!sending) loadCaptcha(tab as any);
+    }, 90_000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, tab, needsCaptcha, minimized, sending]);
+
   const { data: templates = [] } = useQuery({
     queryKey: ['playlist-templates'],
     queryFn: async () => {
