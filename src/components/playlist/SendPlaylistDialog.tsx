@@ -361,20 +361,49 @@ export default function SendPlaylistDialog({
     </div>
   );
 
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="w-full sm:max-w-md p-0 flex flex-col gap-0"
+  if (!open) return null;
+
+  if (minimized) {
+    return (
+      <button
+        type="button"
+        onClick={() => setMinimized(false)}
+        className="fixed bottom-4 right-4 z-40 flex items-center gap-2 rounded-full border border-border/60 bg-card/95 px-4 py-2 text-xs font-medium text-foreground shadow-lg backdrop-blur-xl hover:bg-card"
       >
-        <SheetHeader className="px-4 py-3 border-b border-border/60 text-left">
-          <SheetTitle className="flex items-center gap-2 text-base">
-            <ListPlus className="w-4 h-4" /> Enviar lista para o app
-          </SheetTitle>
-          <SheetDescription className="text-xs">
-            Cole a lista pronta e envie direto para o app do cliente.
-          </SheetDescription>
-        </SheetHeader>
+        <ListPlus className="w-4 h-4 text-primary" /> Enviar lista
+        <Maximize2 className="w-3.5 h-3.5 text-muted-foreground" />
+      </button>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        'fixed z-40 flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 shadow-2xl backdrop-blur-xl',
+        'inset-x-2 bottom-2 top-16 sm:inset-x-auto sm:right-4 sm:top-20 sm:bottom-4 sm:w-[420px]',
+      )}
+    >
+      <div className="flex items-start justify-between gap-2 border-b border-border/60 bg-gradient-to-r from-primary/10 to-transparent px-4 py-3">
+        <div className="min-w-0">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/15 text-primary">
+              <ListPlus className="w-4 h-4" />
+            </span>
+            Enviar lista para o app
+          </h3>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            O chat continua liberado — você pode copiar dados enquanto preenche.
+          </p>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => setMinimized(true)} title="Minimizar">
+            <Minus className="w-4 h-4" />
+          </Button>
+          <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => onOpenChange(false)} title="Fechar">
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
 
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-3">
           <Tabs value={tab} onValueChange={(v) => setTab(v as ProviderTab)}>
