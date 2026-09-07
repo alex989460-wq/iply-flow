@@ -332,7 +332,7 @@ Deno.serve(async (req) => {
 
           for (const p of ["/reseller/info", "/credits/info", "/iptv/credits", "/p2p/credits"]) {
             try {
-              const r = await fetch(`${base}${p}?${auth}`, { headers: { Accept: "application/json" } });
+              const r = await fetch(`${base}${p}?${auth}`, { headers: { Accept: "application/json", Authorization: `Bearer ${token}` } });
               const t = await r.text();
               if (!r.ok) { lastErr = `HTTP ${r.status} em ${p}`; continue; }
               let b: any = null;
@@ -349,7 +349,7 @@ Deno.serve(async (req) => {
           let online: number | null = null;
           for (const p of ["/iptv/online", "/p2p/online", "/iptv/list?online=1&per_page=1"]) {
             try {
-              const r = await fetch(`${base}${p.includes("?") ? `${p}&` : `${p}?`}${auth}`, { headers: { Accept: "application/json" } });
+              const r = await fetch(`${base}${p.includes("?") ? `${p}&` : `${p}?`}${auth}`, { headers: { Accept: "application/json", Authorization: `Bearer ${token}` } });
               if (!r.ok) continue;
               const b = await r.json();
               online = pickNumber(b?.online, b?.total, b?.count, Array.isArray(b?.items) ? b.items.length : null, Array.isArray(b) ? b.length : null);

@@ -166,7 +166,7 @@ serve(async (req) => {
       for (const candidate of usernameCandidates) {
         const searchUrl = `${rBaseUrl}/${tryType}/list?${authParams}&search=${encodeURIComponent(candidate)}`;
         console.log(`[Rush] Buscando em ${tryType} com search=${candidate}`);
-        const listResp = await fetch(searchUrl, { headers: { 'Accept': 'application/json' } });
+        const listResp = await fetch(searchUrl, { headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${rToken}` } });
 
         if (listResp.ok) {
           const listData = await listResp.json();
@@ -218,6 +218,7 @@ serve(async (req) => {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        'Authorization': `Bearer ${rToken}`,
       },
       body: JSON.stringify(extendBody),
     });
