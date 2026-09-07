@@ -479,13 +479,12 @@ export default function SendPlaylistDialog({
           </Tabs>
         </div>
 
-        <div className="border-t border-border/60 p-3">
-          <Button className="w-full" onClick={handleSend} disabled={sending || !canSend}>
-            {sending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
-            Enviar lista
-          </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
+      <div className="border-t border-border/60 bg-background/60 p-3">
+        <Button className="w-full h-10 rounded-xl" onClick={handleSend} disabled={sending || !canSend}>
+          {sending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+          Enviar lista
+        </Button>
+      </div>
+    </div>
   );
 }
