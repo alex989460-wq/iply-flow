@@ -6,9 +6,10 @@ import ResellerCheckoutCard from '@/components/settings/ResellerCheckoutCard';
 import DiscountCouponsCard from '@/components/settings/DiscountCouponsCard';
 import EmailTrackingCard from '@/components/settings/EmailTrackingCard';
 import CaktoSettingsCard from '@/components/settings/CaktoSettingsCard';
+import ReferralProgramCard from '@/components/settings/ReferralProgramCard';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Receipt, MessageSquare, Wallet, ShoppingCart, Ticket, Mail, Smartphone, ShieldCheck, Zap } from 'lucide-react';
+import { Receipt, MessageSquare, Wallet, ShoppingCart, Ticket, Mail, Smartphone, ShieldCheck, Zap, Gift } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const TABS = [
@@ -17,6 +18,7 @@ const TABS = [
   { value: 'checkout', label: 'Link Único', icon: ShoppingCart, hint: 'Página do revendedor' },
   { value: 'coupons', label: 'Cupons', icon: Ticket, hint: 'Promoções e descontos' },
   { value: 'email', label: 'E-mail', icon: Mail, hint: 'Faturas por e-mail' },
+  { value: 'referral', label: 'Indicação', icon: Gift, hint: 'Indique e ganhe' },
   { value: 'cakto', label: 'Cakto', icon: Zap, hint: 'Integração Cakto' },
 ];
 
@@ -116,6 +118,12 @@ export default function BillingSettings() {
                   {t.value === 'email' && (
                     <div className="animate-in fade-in duration-700">
                       <EmailTrackingCard />
+                    </div>
+                  )}
+
+                  {t.value === 'referral' && (
+                    <div className="animate-in fade-in duration-700">
+                      <ReferralProgramCard />
                     </div>
                   )}
 
