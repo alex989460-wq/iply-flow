@@ -193,7 +193,7 @@ async function handleRush(supabaseAdmin: any, apiSettings: any, action: string, 
   if (action === 'probe') {
     const samples: any = {};
     for (const type of ['iptv', 'p2p']) {
-      const resp = await fetch(`${rBase}/${type}/list?${authParams}`, { headers: { 'Accept': 'application/json' } });
+      const resp = await fetch(`${rBase}/${type}/list?${authParams}`, { headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${rToken}` } });
       if (resp.ok) {
         const data = await resp.json();
         const items = data.items || data.data || (Array.isArray(data) ? data : []);
@@ -213,7 +213,7 @@ async function handleRush(supabaseAdmin: any, apiSettings: any, action: string, 
   for (const type of typesToSync) {
     // First fetch page 1 to get totalPages
     const firstUrl = `${rBase}/${type}/list?${authParams}&page=1`;
-    const firstResp = await fetch(firstUrl, { headers: { 'Accept': 'application/json' } });
+    const firstResp = await fetch(firstUrl, { headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${rToken}` } });
     if (!firstResp.ok) { await firstResp.text(); continue; }
     const firstData = await firstResp.json();
     const firstItems = firstData.items || firstData.data || (Array.isArray(firstData) ? firstData : []);
@@ -232,7 +232,7 @@ async function handleRush(supabaseAdmin: any, apiSettings: any, action: string, 
       const promises = [];
       for (let p = batchStart; p <= batchEnd; p++) {
         promises.push(
-          fetch(`${rBase}/${type}/list?${authParams}&page=${p}`, { headers: { 'Accept': 'application/json' } })
+          fetch(`${rBase}/${type}/list?${authParams}&page=${p}`, { headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${rToken}` } })
             .then(async (r) => {
               if (!r.ok) { await r.text(); return []; }
               const d = await r.json();

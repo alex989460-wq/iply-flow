@@ -111,7 +111,7 @@ Deno.serve(async (req) => {
         let page = 1;
         let hasMore = true;
         while (hasMore) {
-          const res = await fetch(`${rBase}/${type}/list?${authParams}&page=${page}`);
+          const res = await fetch(`${rBase}/${type}/list?${authParams}&page=${page}`, { headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${apiSettings.rush_token}` } });
           const data = await res.json();
           const users = data.data || data.users || data;
           if (!Array.isArray(users) || users.length === 0) { hasMore = false; break; }
