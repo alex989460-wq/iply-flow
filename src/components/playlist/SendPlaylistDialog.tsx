@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { ListPlus, Send, Loader2, RefreshCw } from 'lucide-react';
+import { ListPlus, Send, Loader2, RefreshCw, X, Minus, Maximize2 } from 'lucide-react';
 import { getErrorMessage } from '@/lib/error-message';
 
 export type PlaylistTemplate = {
@@ -95,6 +95,7 @@ export default function SendPlaylistDialog({
   const [loadingCaptcha, setLoadingCaptcha] = useState(false);
 
   const [templateId, setTemplateId] = useState<string>('');
+  const [minimized, setMinimized] = useState(false);
 
   const needsCaptcha = tab === 'bobplayer' || tab === 'iboplayer';
 
@@ -122,6 +123,16 @@ export default function SendPlaylistDialog({
     if (open && needsCaptcha) loadCaptcha(tab as any);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, tab]);
+
+  // O captcha expira no servidor; renova sozinho a cada 90s enquanto o painel está aberto
+  useEffect(() => {
+    if (!open || !needsCaptcha || minimized) return;
+    const id = setInterval(() => {
+      if (!sending) loadCaptcha(tab as any);
+    }, 90_000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, tab, needsCaptcha, minimized, sending]);
 
   const { data: templates = [] } = useQuery({
     queryKey: ['playlist-templates'],
@@ -318,49 +329,81 @@ export default function SendPlaylistDialog({
   );
 
   const captchaField = (brand: string) => (
-    <div className="space-y-1.5">
-      <Label>Captcha do {brand}</Label>
+    <div className="space-y-1.5 rounded-xl border border-border/60 bg-muted/20 p-3">
+      <Label>Código de verificação do {brand}</Label>
       <div className="flex items-center gap-2">
-        <div className="h-[60px] w-[140px] shrink-0 rounded-lg border border-border/60 bg-muted/40 overflow-hidden flex items-center justify-center [&>svg]:h-full [&>svg]:w-full">
+        <div className="h-[62px] w-[150px] shrink-0 rounded-lg border border-border/60 bg-background overflow-hidden flex items-center justify-center [&>svg]:h-full [&>svg]:w-full">
           {loadingCaptcha ? (
             <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
           ) : captchaSvg ? (
             <div className="h-full w-full [&>svg]:h-full [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: captchaSvg }} />
           ) : (
-            <span className="text-[11px] text-muted-foreground">sem captcha</span>
+            <span className="text-[11px] text-muted-foreground">sem código</span>
           )}
         </div>
-        <Button type="button" size="icon" variant="outline" onClick={() => loadCaptcha(tab as any)} disabled={loadingCaptcha}>
+        <Button type="button" size="icon" variant="outline" onClick={() => loadCaptcha(tab as any)} disabled={loadingCaptcha} title="Gerar novo código">
           <RefreshCw className={loadingCaptcha ? 'w-4 h-4 animate-spin' : 'w-4 h-4'} />
         </Button>
         <Input
           value={captcha}
-          onChange={(e) => setCaptcha(e.target.value)}
+          onChange={(e) => setCaptcha(e.target.value.replace(/\s+/g, ''))}
           placeholder="digite o código"
-          className="font-mono uppercase"
-          autoCapitalize="characters"
+          className="font-mono tracking-widest"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
         />
       </div>
       <p className="text-[11px] text-muted-foreground">
-        O {brand} exige captcha a cada envio. Se falhar, gere um novo e tente de novo.
+        Digite exatamente como aparece (respeitando maiúsculas e minúsculas). O código expira rápido — ele é renovado
+        automaticamente a cada 90 segundos e sempre que um envio falha.
       </p>
     </div>
   );
 
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="w-full sm:max-w-md p-0 flex flex-col gap-0"
+  if (!open) return null;
+
+  if (minimized) {
+    return (
+      <button
+        type="button"
+        onClick={() => setMinimized(false)}
+        className="fixed bottom-4 right-4 z-40 flex items-center gap-2 rounded-full border border-border/60 bg-card/95 px-4 py-2 text-xs font-medium text-foreground shadow-lg backdrop-blur-xl hover:bg-card"
       >
-        <SheetHeader className="px-4 py-3 border-b border-border/60 text-left">
-          <SheetTitle className="flex items-center gap-2 text-base">
-            <ListPlus className="w-4 h-4" /> Enviar lista para o app
-          </SheetTitle>
-          <SheetDescription className="text-xs">
-            Cole a lista pronta e envie direto para o app do cliente.
-          </SheetDescription>
-        </SheetHeader>
+        <ListPlus className="w-4 h-4 text-primary" /> Enviar lista
+        <Maximize2 className="w-3.5 h-3.5 text-muted-foreground" />
+      </button>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        'fixed z-40 flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 shadow-2xl backdrop-blur-xl',
+        'inset-x-2 bottom-2 top-16 sm:inset-x-auto sm:right-4 sm:top-20 sm:bottom-4 sm:w-[420px]',
+      )}
+    >
+      <div className="flex items-start justify-between gap-2 border-b border-border/60 bg-gradient-to-r from-primary/10 to-transparent px-4 py-3">
+        <div className="min-w-0">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/15 text-primary">
+              <ListPlus className="w-4 h-4" />
+            </span>
+            Enviar lista para o app
+          </h3>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            O chat continua liberado — você pode copiar dados enquanto preenche.
+          </p>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => setMinimized(true)} title="Minimizar">
+            <Minus className="w-4 h-4" />
+          </Button>
+          <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => onOpenChange(false)} title="Fechar">
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
 
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-3">
           <Tabs value={tab} onValueChange={(v) => setTab(v as ProviderTab)}>
@@ -436,13 +479,12 @@ export default function SendPlaylistDialog({
           </Tabs>
         </div>
 
-        <div className="border-t border-border/60 p-3">
-          <Button className="w-full" onClick={handleSend} disabled={sending || !canSend}>
-            {sending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
-            Enviar lista
-          </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
+      <div className="border-t border-border/60 bg-background/60 p-3">
+        <Button className="w-full h-10 rounded-xl" onClick={handleSend} disabled={sending || !canSend}>
+          {sending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+          Enviar lista
+        </Button>
+      </div>
+    </div>
   );
 }
