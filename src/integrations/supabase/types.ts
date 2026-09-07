@@ -1374,6 +1374,8 @@ export type Database = {
           password: string | null
           phone: string
           plan_id: string | null
+          referral_code: string | null
+          referred_by: string | null
           screens: number
           server_id: string | null
           start_date: string
@@ -1395,6 +1397,8 @@ export type Database = {
           password?: string | null
           phone: string
           plan_id?: string | null
+          referral_code?: string | null
+          referred_by?: string | null
           screens?: number
           server_id?: string | null
           start_date?: string
@@ -1416,6 +1420,8 @@ export type Database = {
           password?: string | null
           phone?: string
           plan_id?: string | null
+          referral_code?: string | null
+          referred_by?: string | null
           screens?: number
           server_id?: string | null
           start_date?: string
@@ -3106,6 +3112,162 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      referral_credits: {
+        Row: {
+          amount: number
+          created_at: string
+          customer_id: string
+          expires_at: string | null
+          id: string
+          kind: string
+          note: string | null
+          owner_id: string
+          referral_id: string | null
+          txid: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          customer_id: string
+          expires_at?: string | null
+          id?: string
+          kind?: string
+          note?: string | null
+          owner_id: string
+          referral_id?: string | null
+          txid?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          customer_id?: string
+          expires_at?: string | null
+          id?: string
+          kind?: string
+          note?: string | null
+          owner_id?: string
+          referral_id?: string | null
+          txid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_credits_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_credits_referral_id_fkey"
+            columns: ["referral_id"]
+            isOneToOne: false
+            referencedRelation: "referrals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referral_settings: {
+        Row: {
+          created_at: string
+          credit_expire_days: number
+          enabled: boolean
+          headline: string | null
+          max_discount_percent: number
+          max_rewards_per_month: number
+          min_order_amount: number
+          owner_id: string
+          referee_discount: number
+          reward_amount: number
+          terms: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          credit_expire_days?: number
+          enabled?: boolean
+          headline?: string | null
+          max_discount_percent?: number
+          max_rewards_per_month?: number
+          min_order_amount?: number
+          owner_id: string
+          referee_discount?: number
+          reward_amount?: number
+          terms?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          credit_expire_days?: number
+          enabled?: boolean
+          headline?: string | null
+          max_discount_percent?: number
+          max_rewards_per_month?: number
+          min_order_amount?: number
+          owner_id?: string
+          referee_discount?: number
+          reward_amount?: number
+          terms?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      referrals: {
+        Row: {
+          created_at: string
+          id: string
+          owner_id: string
+          qualified_at: string | null
+          referee_customer_id: string | null
+          referee_name: string | null
+          referee_phone: string | null
+          referrer_customer_id: string
+          reward_amount: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          owner_id: string
+          qualified_at?: string | null
+          referee_customer_id?: string | null
+          referee_name?: string | null
+          referee_phone?: string | null
+          referrer_customer_id: string
+          reward_amount?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          owner_id?: string
+          qualified_at?: string | null
+          referee_customer_id?: string | null
+          referee_name?: string | null
+          referee_phone?: string | null
+          referrer_customer_id?: string
+          reward_amount?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referrals_referee_customer_id_fkey"
+            columns: ["referee_customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_referrer_customer_id_fkey"
+            columns: ["referrer_customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       reseller_access: {
         Row: {
