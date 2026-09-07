@@ -55,6 +55,7 @@ import CostCalculator from "./pages/CostCalculator";
 import LeadCapture from "./pages/LeadCapture";
 import AiTraining from "./pages/AiTraining";
 import Tutorials from "./pages/Tutorials";
+import Tasks from "./pages/Tasks";
 import GroupExtractor from "./pages/GroupExtractor";
 import Unsubscribe from "./pages/Unsubscribe";
 import EmbedChatbots from "./pages/EmbedChatbots";
@@ -136,6 +137,7 @@ function AppRoutes() {
       <Route path="/chat" element={<ProtectedRoute><UnifiedChat /></ProtectedRoute>} />
       <Route path="/cost-calculator" element={<ProtectedRoute><CostCalculator /></ProtectedRoute>} />
       <Route path="/lead-capture" element={<ProtectedRoute><LeadCapture /></ProtectedRoute>} />
+      <Route path="/tarefas" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
 
 
 
