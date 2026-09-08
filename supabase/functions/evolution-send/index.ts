@@ -529,10 +529,16 @@ Deno.serve(async (req) => {
     const apiKey = String(settings.api_key || '').trim();
     // Allow the caller to explicitly choose the instance (individual billing dialog,
     // multi-instance accounts). Falls back to the configured default instance.
-    const instance = String(body?.instance || settings.instance_name || '').trim();
+    let instance = String(body?.instance || settings.instance_name || '').trim();
     if (!baseUrl || !apiKey) {
       return jsonResponse({ error: 'Informe URL Base e API Key em Configurações → Evolution.' }, 200);
     }
+
+    // Autocorreção: se a conexão salva estiver morta, usa a conexão viva do mesmo número.
+    if (!body?.instance && instance && ['send', 'send-media', 'send-text'].includes(String(action || ''))) {
+      instance = await healInstanceName(admin, user.id, baseUrl, apiKey, instance);
+    }
+
 
     // SERVER-SIDE UPLOAD FALLBACK — when the client cannot upload directly to storage
     // (browser extension blocking the storage domain, corporate firewall, RLS issue, etc.)
