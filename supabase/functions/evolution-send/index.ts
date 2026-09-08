@@ -341,6 +341,70 @@ function evolutionSubscribeEvents(events: string[]) {
   return events.includes('ALL') ? DEFAULT_WEBHOOK_EVENTS : events;
 }
 
+// Quando a conexão salva morre (o número foi reconectado gerando outra conexão
+// no servidor), os envios falham com "Connection Closed" mesmo o servidor
+// reportando "open". Aqui trocamos automaticamente para a conexão viva do
+// MESMO número e salvamos a correção.
+const healedInstanceCache = new Map<string, { name: string; at: number }>();
+
+async function healInstanceName(
+  admin: any,
+  userId: string,
+  baseUrl: string,
+  apiKey: string,
+  instance: string,
+): Promise<string> {
+  if (!instance) return instance;
+  const cacheKey = `${userId}:${instance}`;
+  const cached = healedInstanceCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < 5 * 60 * 1000) return cached.name;
+
+  const r = await fetchJson(`${baseUrl}/instance/fetchInstances`, {
+    headers: evolutionHeaders(apiKey),
+  }).catch(() => null);
+  const rows = Array.isArray(r?.data?.data) ? r?.data?.data : Array.isArray(r?.data) ? r?.data : [];
+  if (!rows.length) return instance;
+
+  const nameOf = (it: any) => String(it?.name || it?.instanceName || it?.instance?.instanceName || '');
+  const statusOf = (it: any) =>
+    String(it?.connectionStatus || it?.status || it?.state || it?.instance?.state || '').toLowerCase();
+  const wanted = instance.toLowerCase();
+  const current = rows.find((it: any) => nameOf(it).toLowerCase() === wanted || String(it?.id || '').toLowerCase() === wanted);
+  if (!current) return instance;
+  if (statusOf(current) === 'open') {
+    // conexão configurada continua viva — mas se existir uma mais recente do
+    // mesmo número, ela é a que o usuário realmente escaneou por último.
+    const owner = String(current?.ownerJid || '');
+    const newer = rows
+      .filter((it: any) => String(it?.ownerJid || '') === owner && nameOf(it) !== nameOf(current) && statusOf(it) === 'open')
+      .sort((a: any, b: any) => new Date(b?.updatedAt || b?.createdAt || 0).getTime() - new Date(a?.updatedAt || a?.createdAt || 0).getTime())[0];
+    const currentAt = new Date(current?.updatedAt || current?.createdAt || 0).getTime();
+    const newerAt = newer ? new Date(newer?.updatedAt || newer?.createdAt || 0).getTime() : 0;
+    if (!newer || newerAt <= currentAt) {
+      healedInstanceCache.set(cacheKey, { name: instance, at: Date.now() });
+      return instance;
+    }
+    const pickedName = nameOf(newer);
+    healedInstanceCache.set(cacheKey, { name: pickedName, at: Date.now() });
+    return pickedName;
+  }
+
+  const owner = String(current?.ownerJid || '');
+  const replacement = rows
+    .filter((it: any) => owner && String(it?.ownerJid || '') === owner && statusOf(it) === 'open')
+    .sort((a: any, b: any) => new Date(b?.updatedAt || b?.createdAt || 0).getTime() - new Date(a?.updatedAt || a?.createdAt || 0).getTime())[0];
+  if (!replacement) return instance;
+
+  const newName = nameOf(replacement);
+  if (!newName || newName === instance) return instance;
+  try {
+    await admin.from('evolution_settings').update({ instance_name: newName, updated_at: new Date().toISOString() }).eq('user_id', userId);
+  } catch (_e) { /* segue mesmo se não conseguir salvar */ }
+  healedInstanceCache.set(cacheKey, { name: newName, at: Date.now() });
+  console.log(`[evolution-send] conexão ${instance} inativa; usando ${newName} (mesmo número)`);
+  return newName;
+}
+
 async function resolveGoInstanceId(baseUrl: string, apiKey: string, instance: string) {
   if (isUuid(instance)) return instance;
   const r = await fetchJson(`${baseUrl}/instance/all`, {
@@ -465,10 +529,16 @@ Deno.serve(async (req) => {
     const apiKey = String(settings.api_key || '').trim();
     // Allow the caller to explicitly choose the instance (individual billing dialog,
     // multi-instance accounts). Falls back to the configured default instance.
-    const instance = String(body?.instance || settings.instance_name || '').trim();
+    let instance = String(body?.instance || settings.instance_name || '').trim();
     if (!baseUrl || !apiKey) {
       return jsonResponse({ error: 'Informe URL Base e API Key em Configurações → Evolution.' }, 200);
     }
+
+    // Autocorreção: se a conexão salva estiver morta, usa a conexão viva do mesmo número.
+    if (!body?.instance && instance && ['send', 'send-media', 'send-text'].includes(String(action || ''))) {
+      instance = await healInstanceName(admin, user.id, baseUrl, apiKey, instance);
+    }
+
 
     // SERVER-SIDE UPLOAD FALLBACK — when the client cannot upload directly to storage
     // (browser extension blocking the storage domain, corporate firewall, RLS issue, etc.)
