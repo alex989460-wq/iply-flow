@@ -1009,15 +1009,24 @@ Deno.serve(async (req) => {
       // justamente os clientes que ainda faltava cobrar.
       const customerIdsToday = (customers || []).map((c: any) => c.id);
       const existingLogs: any[] = [];
-      for (let i = 0; i < customerIdsToday.length; i += 150) {
-        const chunk = customerIdsToday.slice(i, i + 150);
-        const { data: logsChunk } = await supabase
-          .from('billing_logs')
-          .select('customer_id, billing_type, message, whatsapp_status')
-          .in('customer_id', chunk)
-          .gte('sent_at', `${today}T00:00:00`)
-          .lte('sent_at', `${today}T23:59:59`);
-        if (logsChunk?.length) existingLogs.push(...logsChunk);
+      for (let i = 0; i < customerIdsToday.length; i += 40) {
+        const chunk = customerIdsToday.slice(i, i + 40);
+        // Alguns clientes acumulam centenas de tentativas no mesmo dia, então é
+        // preciso paginar: sem isso o corte de 1000 linhas escondia clientes.
+        let from = 0;
+        while (true) {
+          const { data: logsChunk } = await supabase
+            .from('billing_logs')
+            .select('customer_id, billing_type, message, whatsapp_status')
+            .in('customer_id', chunk)
+            .gte('sent_at', `${today}T00:00:00`)
+            .lte('sent_at', `${today}T23:59:59`)
+            .range(from, from + 999);
+          if (logsChunk?.length) existingLogs.push(...logsChunk);
+          if (!logsChunk || logsChunk.length < 1000) break;
+          from += 1000;
+          if (from > 20000) break;
+        }
       }
 
       const processedByType: Record<string, { customerIds: Set<string>; phones: Set<string> }> = {
