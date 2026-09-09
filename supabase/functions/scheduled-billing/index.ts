@@ -1004,11 +1004,21 @@ Deno.serve(async (req) => {
 
       console.log(`[Scheduled CRM Oficial] Found ${customers?.length || 0} customers for user ${schedule.user_id}`);
 
-      const { data: existingLogs } = await supabase
-        .from('billing_logs')
-        .select('customer_id, billing_type, message, whatsapp_status')
-        .gte('sent_at', `${today}T00:00:00`)
-        .lte('sent_at', `${today}T23:59:59`);
+      // Só interessam os logs dos clientes deste revendedor. Sem esse filtro a
+      // consulta trazia os logs de todo mundo e o limite de 1000 linhas cortava
+      // justamente os clientes que ainda faltava cobrar.
+      const customerIdsToday = (customers || []).map((c: any) => c.id);
+      const existingLogs: any[] = [];
+      for (let i = 0; i < customerIdsToday.length; i += 150) {
+        const chunk = customerIdsToday.slice(i, i + 150);
+        const { data: logsChunk } = await supabase
+          .from('billing_logs')
+          .select('customer_id, billing_type, message, whatsapp_status')
+          .in('customer_id', chunk)
+          .gte('sent_at', `${today}T00:00:00`)
+          .lte('sent_at', `${today}T23:59:59`);
+        if (logsChunk?.length) existingLogs.push(...logsChunk);
+      }
 
       const processedByType: Record<string, { customerIds: Set<string>; phones: Set<string> }> = {
         'D-1': { customerIds: new Set(), phones: new Set() },
