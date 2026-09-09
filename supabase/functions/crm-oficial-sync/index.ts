@@ -702,7 +702,20 @@ async function directMetaTemplateSend(args: {
     name: args.templateName,
     language: { code: args.language, policy: "deterministic" },
   };
-  if (Array.isArray(args.components) && args.components.length) template.components = args.components;
+  // A Meta rejeita parâmetros de texto vazios com "#131008 Required parameter
+  // is missing". Substitui qualquer valor em branco por um traço.
+  const sanitizedComponents = (Array.isArray(args.components) ? args.components : []).map((component: any) => {
+    if (!component || !Array.isArray(component?.parameters)) return component;
+    return {
+      ...component,
+      parameters: component.parameters.map((p: any) => (
+        p && String(p?.type || "").toLowerCase() === "text" && !String(p?.text ?? "").trim()
+          ? { ...p, text: "-" }
+          : p
+      )),
+    };
+  });
+  if (sanitizedComponents.length) template.components = sanitizedComponents;
 
   const payload = { messaging_product: "whatsapp", to, type: "template", template };
   const send = await fetch(`https://graph.facebook.com/v21.0/${creds.phone_number_id}/messages`, {
@@ -711,7 +724,11 @@ async function directMetaTemplateSend(args: {
     body: JSON.stringify(payload),
   });
   const graph = await send.json().catch(() => ({}));
-  if (!send.ok) throw new Error(graph?.error?.message || `Meta template HTTP ${send.status}`);
+  if (!send.ok) {
+    console.error("[crm-oficial-sync] payload recusado pela Meta:", JSON.stringify(payload).slice(0, 1500));
+    console.error("[crm-oficial-sync] detalhe Meta:", JSON.stringify(graph?.error || graph).slice(0, 800));
+    throw new Error(graph?.error?.message || `Meta template HTTP ${send.status}`);
+  }
 
   try {
     const contactRows = await crmRest(`contacts?select=id,name,phone&phone=eq.${encodeURIComponent(to)}&limit=1`, accessToken) as any[];
@@ -1188,9 +1205,32 @@ async function doSendWhatsapp(payload: {
         ? { type: "text", parameter_name: name, text: String(params[i] ?? "Cliente") }
         : { type: "text", text: String(params[i] ?? "Cliente") })
       : params.map((p) => ({ type: "text", text: String(p) }));
-    const components = Array.isArray(payload.components) && payload.components.length
+    const requestedComponents = Array.isArray(payload.components) && payload.components.length
       ? payload.components
-      : (inferredBodyParameters.length ? [{ type: "body", parameters: inferredBodyParameters }] : []);
+      : [];
+    // Garante que o BODY vá com a quantidade/nomes exatos exigidos pelo template
+    // aprovado. Quando o chamador manda componentes incompletos (ou nenhum), a
+    // Meta rejeita com #131008 "Required parameter is missing".
+    const requestedBody = requestedComponents.find(
+      (c: any) => String(c?.type || "").toLowerCase() === "body",
+    ) as { parameters?: unknown[] } | undefined;
+    const requestedBodyOk = !!requestedBody
+      && Array.isArray(requestedBody.parameters)
+      && requestedBody.parameters.length === (paramNames.length || (requestedBody.parameters?.length ?? 0));
+    let components: unknown[];
+    if (requestedComponents.length && (paramNames.length === 0 || requestedBodyOk)) {
+      components = requestedComponents;
+    } else if (inferredBodyParameters.length) {
+      components = [
+        ...requestedComponents.filter((c: any) => String(c?.type || "").toLowerCase() !== "body"),
+        { type: "body", parameters: inferredBodyParameters },
+      ];
+      if (requestedComponents.length) {
+        console.log(`[crm-oficial-sync] body do template "${payload.template_name}" reconstruído (${inferredBodyParameters.length} params)`);
+      }
+    } else {
+      components = requestedComponents;
+    }
     const officialHeaderMedia = extractOfficialTemplateHeaderMedia(officialTemplate)
       || await fetchOfficialTemplateHeaderMedia(String(payload.template_name), String(lang), apiKey).catch(() => undefined);
     const requestHeaderImageUrl = imageHeaderFromComponents(components);
