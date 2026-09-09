@@ -303,6 +303,37 @@ async function loadCrmTemplateMetadata(supabase: any, apiKey: string, schedule: 
     console.error('[Scheduled CRM Oficial] Error fetching templates:', e);
   }
 
+  // Fallback: se algum template usado pela cobrança não veio na listagem,
+  // usa a definição aprovada guardada em meta_template_cache. Sem isso o envio
+  // sai sem parâmetros/cabeçalho e a Meta rejeita com #131008.
+  const missing = Object.values(templateNames).filter((name) => {
+    const cfg = templateConfigMap[name];
+    const comps = Array.isArray(cfg?.components) ? cfg.components : [];
+    return !cfg || comps.length === 0;
+  });
+  if (missing.length) {
+    try {
+      const { data: cached } = await supabase
+        .from('meta_template_cache')
+        .select('name, language, definition')
+        .in('name', missing);
+      for (const row of cached || []) {
+        const def = row?.definition;
+        if (!def || !Array.isArray(def?.components) || def.components.length === 0) continue;
+        const approved = String(def?.status || '').toUpperCase() === 'APPROVED';
+        const existing = templateConfigMap[row.name];
+        const existingComps = Array.isArray(existing?.components) ? existing.components : [];
+        if (existingComps.length && !approved) continue;
+        templateConfigMap[row.name] = { ...def, components: def.components };
+        const lang = def?.language || row.language;
+        if (lang) templateLangMap[row.name] = lang;
+        console.log(`[Scheduled CRM Oficial] Template "${row.name}" restaurado do cache (${lang})`);
+      }
+    } catch (e) {
+      console.error('[Scheduled CRM Oficial] Cache fallback falhou:', e);
+    }
+  }
+
   return { templateNames, templateLangMap, templateConfigMap };
 }
 
