@@ -94,7 +94,7 @@ export async function settleReferralOnPayment(
 
     const { data: customer } = await admin
       .from("customers")
-      .select("id, name, referred_by, created_by")
+      .select("id, name, phone, username, referred_by, created_by")
       .eq("id", opts.customerId)
       .maybeSingle();
     if (!customer?.referred_by) return;
