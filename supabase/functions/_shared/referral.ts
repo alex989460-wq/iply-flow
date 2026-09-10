@@ -109,11 +109,23 @@ export async function settleReferralOnPayment(
 
     const { data: referrer } = await admin
       .from("customers")
-      .select("id, name, phone, created_by")
+      .select("id, name, phone, username, created_by")
       .eq("id", customer.referred_by)
       .eq("created_by", opts.ownerId)
       .maybeSingle();
     if (!referrer) return;
+
+    // Bloqueia auto-indicação (mesmo telefone ou mesmo usuário).
+    const tail = (v: unknown) => String(v || "").replace(/\D/g, "").slice(-8);
+    const samePhone = !!tail(referrer.phone) && tail(referrer.phone) === tail((customer as any).phone);
+    const sameUser = !!referrer.username &&
+      String(referrer.username).toLowerCase() === String((customer as any).username || "").toLowerCase();
+    if (samePhone || sameUser) {
+      await admin.from("referrals")
+        .update({ status: "invalid", reward_amount: 0 })
+        .eq("referee_customer_id", customer.id);
+      return;
+    }
 
     const used = await rewardsThisMonth(admin, referrer.id);
     const capped = used >= Number(settings.max_rewards_per_month || 10);
