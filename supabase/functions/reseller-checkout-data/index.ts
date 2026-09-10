@@ -106,8 +106,15 @@ Deno.serve(async (req) => {
             .select("id, referred_by").eq("id", customerId).maybeSingle();
           if (cur && !cur.referred_by) {
             const { data: referrer } = await admin.from("customers")
-              .select("id").eq("created_by", st.user_id).eq("referral_code", refCode).maybeSingle();
-            if (referrer && referrer.id !== customerId) {
+              .select("id, phone, username").eq("created_by", st.user_id).eq("referral_code", refCode).maybeSingle();
+            // Auto-indicação: mesmo cadastro, mesmo telefone ou mesmo usuário não vale.
+            const onlyDigits = (v: unknown) => String(v || "").replace(/\D/g, "").slice(-8);
+            const selfReferral = !!referrer && (
+              referrer.id === customerId ||
+              (!!onlyDigits(referrer.phone) && onlyDigits(referrer.phone) === onlyDigits(phone)) ||
+              String(referrer.username || "").toLowerCase() === String(username || "").toLowerCase()
+            );
+            if (referrer && !selfReferral) {
               await admin.from("customers").update({ referred_by: referrer.id }).eq("id", customerId);
               await admin.from("referrals").upsert({
                 owner_id: st.user_id,
