@@ -436,6 +436,25 @@ export default function ResellerApiSettings() {
     }
   };
 
+  const handleSyncPasswords = async () => {
+    setSyncingPasswords(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('panel-password-manager', {
+        body: { action: 'sync-passwords' },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Falha ao sincronizar senhas');
+      const summary = Object.entries(data.results as Record<string, { total: number; updated: number; error?: string }>)
+        .map(([panel, r]) => `${panel.toUpperCase()}: ${r.updated}/${r.total}${r.error ? ` (erro: ${r.error.slice(0, 40)})` : ''}`)
+        .join(' | ');
+      toast({ title: 'Sincronização concluída', description: summary || 'Nenhum painel configurado.' });
+    } catch (e: any) {
+      toast({ title: 'Erro na sincronização', description: e?.message || 'Não foi possível sincronizar.', variant: 'destructive' });
+    } finally {
+      setSyncingPasswords(false);
+    }
+  };
+
 
   return (
     <div className="space-y-6">
