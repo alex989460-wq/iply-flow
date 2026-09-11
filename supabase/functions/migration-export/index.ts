@@ -10,7 +10,7 @@ const cors = {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
-  const secret = Deno.env.get("MIGRATION_EXPORT_SECRET");
+  const secret = Deno.env.get("MIGRATION_EXPORT_KEY") ?? Deno.env.get("MIGRATION_EXPORT_SECRET");
   if (!secret || req.headers.get("x-migration-secret") !== secret) {
     return new Response(JSON.stringify({ error: "unauthorized" }), {
       status: 401,
