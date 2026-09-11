@@ -1285,8 +1285,8 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
       toast.success(`Senha alterada no painel ${changePasswordPanel.toUpperCase()} e salva.`);
       setChangePasswordPanel('');
       queryClient.invalidateQueries({ queryKey: ['customers'] });
-      const refreshed = await supabase.from('customers').select('*').eq('id', selectedCustomer.id).single();
-      if (refreshed.data) setSelectedCustomer(refreshed.data);
+      const refreshed = await supabase.from('customers').select('*, plans(*), servers(*)').eq('id', selectedCustomer.id).single();
+      if (refreshed.data) setSelectedCustomer(refreshed.data as any);
     } catch (err: any) {
       toast.error(err.message || 'Erro ao alterar senha');
     } finally {
