@@ -1006,6 +1006,18 @@ serve(async (req) => {
           }
           break;
         }
+        case "the_best": {
+          const base = normalizeBaseUrl(settings.the_best_base_url, THE_BEST_DEFAULT);
+          const key = settings.the_best_api_key || Deno.env.get("THE_BEST_API_KEY") || "";
+          const auth = await theBestAuth(base, key, settings.the_best_username || "", settings.the_best_password || "");
+          result = await theBestChangePassword(base, auth, username, newPassword);
+          break;
+        }
+        case "uniplay": {
+          const session = await uniplaySession(admin, ownerId, settings);
+          result = await uniplayChangePassword(session, username, newPassword);
+          break;
+        }
         default:
           return json({ success: false, error: `Painel '${panel}' não suportado para troca de senha.` }, 400);
       }
