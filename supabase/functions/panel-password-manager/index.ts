@@ -670,12 +670,17 @@ async function theBestFindLine(base: string, auth: { token: string | null; apiKe
         headers: theBestHeaders(auth.token, auth.apiKey || null),
         signal: AbortSignal.timeout(12000),
       });
+      const text = await res.text().catch(() => "");
+      console.log(`[TheBest] busca ${v}: ${res.status} ${text.slice(0, 200)}`);
       if (!res.ok) continue;
-      const data = await res.json().catch(() => null);
+      let data: any = null;
+      try { data = JSON.parse(text); } catch { data = null; }
       const list = extractList(data);
       const found = list.find((l: any) => lower.includes(String(l?.username || "").trim().toLowerCase()));
       if (found) return found;
-    } catch { /* tenta próxima variação */ }
+    } catch (e) {
+      console.log(`[TheBest] busca ${v} falhou: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
   return null;
 }
