@@ -73,6 +73,20 @@ Deno.serve(async (req) => {
       return json({ objects: data ?? [] });
     }
 
+    if (action === "buckets") {
+      const { data, error } = await supabase.storage.listBuckets();
+      if (error) throw error;
+      return json({ buckets: data ?? [] });
+    }
+
+    if (action === "storage-urls") {
+      const { data, error } = await supabase.storage
+        .from(body.bucket)
+        .createSignedUrls(body.names ?? [], 7200);
+      if (error) throw error;
+      return json({ urls: data ?? [] });
+    }
+
     if (action === "storage-url") {
       const { data, error } = await supabase.storage
         .from(body.bucket)
