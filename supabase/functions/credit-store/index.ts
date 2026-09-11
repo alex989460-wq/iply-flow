@@ -198,7 +198,7 @@ Deno.serve(async (req) => {
         provider_payment_id: payment.id,
         pix_copia_cola: payment.qrCode || "",
         qrcode_base64: stripDataPrefix(payment.qrCodeBase64 || ""),
-        metadata: { description, source: "credit_order", buyer_id: buyerId, buyer_email: buyerEmail },
+        metadata: { description, source: "credit_order", buyer_id: buyerId, buyer_email: buyerEmail, panel_username: panelUsername, buyer_phone: buyerPhone },
         expires_at: new Date(Date.now() + 86400_000).toISOString(),
       });
       await admin.from("credit_orders").update({ txid }).eq("id", order.id);
@@ -234,7 +234,7 @@ Deno.serve(async (req) => {
       provider: "efi",
       pix_copia_cola: pixCopiaCola,
       qrcode_base64: qrcodeBase64,
-      metadata: { description, source: "credit_order", buyer_id: buyerId, buyer_email: buyerEmail },
+      metadata: { description, source: "credit_order", buyer_id: buyerId, buyer_email: buyerEmail, panel_username: panelUsername, buyer_phone: buyerPhone },
       expires_at: new Date(Date.now() + 86400_000).toISOString(),
     });
     await admin.from("credit_orders").update({ txid }).eq("id", order.id);
