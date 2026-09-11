@@ -62,9 +62,9 @@ export default function PublicCheckout() {
     if (!userId) return;
     const fetchData = async () => {
       try {
-        const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+        const apiBase = import.meta.env.VITE_SUPABASE_URL;
         const resp = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/public-checkout-data?owner_id=${userId}`,
+          `${apiBase}/functions/v1/public-checkout-data?owner_id=${userId}`,
           { headers: { 'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY } }
         );
         const data = await resp.json();
@@ -101,9 +101,9 @@ export default function PublicCheckout() {
     setVerifying(true);
     const handle = setTimeout(async () => {
       try {
-        const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+        const apiBase = import.meta.env.VITE_SUPABASE_URL;
         const resp = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/verify-checkout-username?owner_id=${userId}&username=${encodeURIComponent(u)}`,
+          `${apiBase}/functions/v1/verify-checkout-username?owner_id=${userId}&username=${encodeURIComponent(u)}`,
           { headers: { 'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY } }
         );
         const data = await resp.json();
@@ -202,10 +202,10 @@ export default function PublicCheckout() {
 
       // Call Efí via direct fetch so we can read the error body from the edge function
       // (supabase.functions.invoke swallows non-2xx bodies into a generic message).
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const apiBase = import.meta.env.VITE_SUPABASE_URL;
       const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
       const resp = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/efi-pix-public`,
+        `${apiBase}/functions/v1/efi-pix-public`,
         {
           method: 'POST',
           headers: {
