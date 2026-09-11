@@ -404,7 +404,13 @@ async function vplayConnection(settings: any) {
   const database = String(settings.vplay_mysql_database || "").trim();
   const port = Number(settings.vplay_mysql_port) || 3306;
   if (!host || !user || !password || !database) return null;
-  return await mysql.createConnection({ host, user, password, database, port, connectTimeout: 10000 });
+  try {
+    return await mysql.createConnection({ host, user, password, database, port, connectTimeout: 10000 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(`Não foi possível conectar ao MySQL do VPlay (${host}:${port}): ${msg}`);
+  }
+
 }
 
 async function vplayFindUser(connection: any, username: string) {
@@ -762,7 +768,7 @@ serve(async (req) => {
       return json({ success: true, results });
     }
 
-    return json({ success: false, error: "Ação inválida. Use 'change-password' ou 'sync-passwords'." }, 400);
+    return json({ success: false, error: "Ação inválida. Use 'change-password', 'get-password' ou 'sync-passwords'." }, 400);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[panel-password-manager] error:", err);
