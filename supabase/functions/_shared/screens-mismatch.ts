@@ -66,6 +66,22 @@ export async function reportScreensMismatch(admin: any, params: ScreensMismatchP
     const ownerId = params.customer?.created_by;
     if (!ownerId) return null;
 
+    // O cliente já está cadastrado NESSE mesmo plano (ex.: "Mensal 2 Telas"),
+    // só o campo de telas ficou desatualizado. Nesse caso não é pendência:
+    // apenas sincronizamos o número de telas do cadastro e seguimos.
+    if (params.customer?.id) {
+      const { data: cust } = await admin
+        .from('customers')
+        .select('plan_id, plans:plan_id(plan_name)')
+        .eq('id', params.customer.id)
+        .maybeSingle();
+      const ownPlanScreens = parsePlanScreens((cust as any)?.plans?.plan_name);
+      if (ownPlanScreens && ownPlanScreens >= paidScreens) {
+        await admin.from('customers').update({ screens: paidScreens }).eq('id', params.customer.id);
+        return null;
+      }
+    }
+
     // Evita duplicar a mesma pendência nas últimas 24h.
     if (params.customer?.id) {
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
