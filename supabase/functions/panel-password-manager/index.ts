@@ -629,6 +629,250 @@ async function p2cineFindClientRow(base: string, token: string, username: string
 }
 
 
+// ─── THE BEST ───
+const THE_BEST_DEFAULT = "https://api.painel.best";
+
+function theBestHeaders(token: string | null, apiKey: string | null): Record<string, string> {
+  if (apiKey) return { "Api-Key": apiKey, Accept: "application/json" };
+  return { Authorization: `Bearer ${token}`, Accept: "application/json" };
+}
+
+async function theBestAuth(base: string, apiKey: string, username: string, password: string) {
+  if (apiKey) {
+    try {
+      const probe = await fetch(`${base}/user/`, { headers: theBestHeaders(null, apiKey), signal: AbortSignal.timeout(10000) });
+      if (probe.ok) return { token: null as string | null, apiKey };
+    } catch { /* cai para login */ }
+  }
+  if (!username || !password) throw new Error("Credenciais The Best inválidas (chave rejeitada e sem usuário/senha).");
+  const res = await fetch(`${base}/auth/token/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+    signal: AbortSignal.timeout(12000),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Login The Best falhou (${res.status}): ${text.slice(0, 160)}`);
+  const data = JSON.parse(text || "{}");
+  const token = data.access || data.token || data.access_token;
+  if (!token) throw new Error("Token não encontrado na resposta de login do The Best.");
+  return { token: String(token), apiKey: "" };
+}
+
+async function theBestFindLine(base: string, auth: { token: string | null; apiKey: string }, username: string) {
+  const variants = buildUsernameVariants(username);
+  const lower = variants.map((v) => v.toLowerCase());
+  for (const v of variants) {
+    try {
+      const res = await fetch(`${base}/lines/?search=${encodeURIComponent(v)}&per_page=10`, {
+        headers: theBestHeaders(auth.token, auth.apiKey || null),
+        signal: AbortSignal.timeout(12000),
+      });
+      if (!res.ok) continue;
+      const data = await res.json().catch(() => null);
+      const list = extractList(data);
+      const found = list.find((l: any) => lower.includes(String(l?.username || "").trim().toLowerCase()));
+      if (found) return found;
+    } catch { /* tenta próxima variação */ }
+  }
+  return null;
+}
+
+async function theBestChangePassword(
+  base: string,
+  auth: { token: string | null; apiKey: string },
+  username: string,
+  newPassword: string,
+) {
+  const line = await theBestFindLine(base, auth, username);
+  if (!line) throw new Error(`Usuário "${username}" não encontrado no painel The Best.`);
+  const id = line.id ?? line.line_id;
+  const headers = { ...theBestHeaders(auth.token, auth.apiKey || null), "Content-Type": "application/json" };
+  const attempts = [
+    { url: `${base}/lines/${id}/`, method: "PATCH", body: { password: newPassword } },
+    { url: `${base}/lines/${id}/`, method: "PUT", body: { username: line.username, password: newPassword } },
+    { url: `${base}/lines/${id}/password/`, method: "POST", body: { password: newPassword } },
+  ];
+  let lastError = "";
+  for (const a of attempts) {
+    try {
+      const res = await fetch(a.url, { method: a.method, headers, body: JSON.stringify(a.body), signal: AbortSignal.timeout(12000) });
+      const text = await res.text().catch(() => "");
+      if (res.ok) return { success: true, endpoint: a.url };
+      lastError = `${res.status} ${text.slice(0, 160)}`;
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : String(e);
+    }
+  }
+  throw new Error(`Não foi possível alterar a senha no The Best. Último erro: ${lastError.slice(0, 200)}`);
+}
+
+async function theBestSyncPasswords(base: string, auth: { token: string | null; apiKey: string }) {
+  const out: { username: string; password: string }[] = [];
+  for (let page = 1; page <= 40; page++) {
+    const res = await fetch(`${base}/lines/?page=${page}&per_page=100`, {
+      headers: theBestHeaders(auth.token, auth.apiKey || null),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) break;
+    const list = extractList(await res.json().catch(() => null));
+    if (!list.length) break;
+    for (const l of list) {
+      const u = String(l?.username || "").trim();
+      const p = pickPassword(l);
+      if (u && p) out.push({ username: u, password: p });
+    }
+    if (list.length < 100) break;
+  }
+  return out;
+}
+
+// ─── UNIPLAY ───
+const UNIPLAY_API = "https://gesapioffice.com";
+const UNIPLAY_SITE = "https://searchdefense.top";
+const UNIPLAY_RECAPTCHA_SITEKEY = "6LfTwuwfAAAAAGfw3TatjhOOCP2jNuPqO4U2xske";
+
+function uniplayHeaders(extra: Record<string, string> = {}) {
+  return {
+    Accept: "application/json",
+    Origin: UNIPLAY_SITE,
+    Referer: `${UNIPLAY_SITE}/`,
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36",
+    ...extra,
+  };
+}
+
+async function solveUniplayCaptcha(): Promise<string> {
+  const key = Deno.env.get("TWOCAPTCHA_API_KEY") || "";
+  if (!key) throw new Error("O painel Uniplay exige reCAPTCHA no login. Cadastre a chave do 2Captcha (TWOCAPTCHA_API_KEY) ou reutilize a sessão salva do painel.");
+  const create = await fetch("https://2captcha.com/in.php", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      key,
+      method: "userrecaptcha",
+      googlekey: UNIPLAY_RECAPTCHA_SITEKEY,
+      pageurl: UNIPLAY_SITE,
+      json: "1",
+    }),
+  });
+  const created = await create.json().catch(() => ({}));
+  if (String(created?.status) !== "1") throw new Error(`2Captcha recusou o pedido: ${JSON.stringify(created).slice(0, 160)}`);
+  const id = created.request;
+  for (let i = 0; i < 24; i++) {
+    await new Promise((r) => setTimeout(r, 5000));
+    const res = await fetch(`https://2captcha.com/res.php?key=${encodeURIComponent(key)}&action=get&id=${id}&json=1`);
+    const data = await res.json().catch(() => ({}));
+    if (String(data?.status) === "1") return String(data.request);
+    if (data?.request && data.request !== "CAPCHA_NOT_READY") {
+      throw new Error(`2Captcha falhou: ${data.request}`);
+    }
+  }
+  throw new Error("2Captcha não devolveu o token do reCAPTCHA a tempo.");
+}
+
+async function uniplaySession(admin: any, ownerId: string, settings: any): Promise<{ token: string; cryptPass: string }> {
+  const savedAt = settings.uniplay_session_at ? new Date(settings.uniplay_session_at).getTime() : 0;
+  const fresh = savedAt && Date.now() - savedAt < 20 * 60 * 60 * 1000;
+  if (fresh && settings.uniplay_session_token) {
+    return { token: String(settings.uniplay_session_token), cryptPass: String(settings.uniplay_session_pass || "") };
+  }
+
+  const username = String(settings.uniplay_username || "");
+  const password = String(settings.uniplay_password || "");
+  if (!username || !password) throw new Error("Credenciais Uniplay não configuradas.");
+
+  const code = await solveUniplayCaptcha();
+  const res = await fetch(`${UNIPLAY_API}/api/login`, {
+    method: "POST",
+    headers: uniplayHeaders({ "Content-Type": "application/json;charset=UTF-8" }),
+    body: JSON.stringify({ username, password, code }),
+    signal: AbortSignal.timeout(20000),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Login Uniplay falhou (${res.status}): ${text.slice(0, 160)}`);
+  const data = JSON.parse(text || "{}");
+  const token = String(data.access_token || "");
+  const cryptPass = String(data.crypt_pass || "");
+  if (!token) throw new Error("Login Uniplay não devolveu o token de acesso.");
+
+  if (ownerId && ownerId !== "all") {
+    await admin.from("reseller_api_settings").update({
+      uniplay_session_token: token,
+      uniplay_session_pass: cryptPass,
+      uniplay_session_at: new Date().toISOString(),
+    }).eq("user_id", ownerId);
+  }
+  return { token, cryptPass };
+}
+
+async function uniplayListUsers(session: { token: string; cryptPass: string }) {
+  const out: any[] = [];
+  const urls = [
+    `${UNIPLAY_API}/api/users-iptv?reg_password=${encodeURIComponent(session.cryptPass)}`,
+    `${UNIPLAY_API}/api/users-p2p`,
+  ];
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, {
+        headers: uniplayHeaders({ Authorization: `Bearer ${session.token}` }),
+        signal: AbortSignal.timeout(20000),
+      });
+      if (!res.ok) continue;
+      const list = extractList(await res.json().catch(() => null));
+      for (const u of list) out.push({ ...u, __kind: url.includes("users-p2p") ? "p2p" : "iptv" });
+    } catch { /* ignora painel indisponível */ }
+  }
+  return out;
+}
+
+async function uniplayFindUser(session: { token: string; cryptPass: string }, username: string) {
+  const variants = buildUsernameVariants(username).map((v) => v.toLowerCase());
+  const list = await uniplayListUsers(session);
+  return list.find((u: any) => variants.includes(String(u?.username || u?.login || "").trim().toLowerCase())) || null;
+}
+
+async function uniplayChangePassword(session: { token: string; cryptPass: string }, username: string, newPassword: string) {
+  const user = await uniplayFindUser(session, username);
+  if (!user) throw new Error(`Usuário "${username}" não encontrado no painel Uniplay.`);
+  const kind = user.__kind === "p2p" ? "p2p" : "iptv";
+  const id = user.id ?? user.user_id;
+  const headers = uniplayHeaders({
+    Authorization: `Bearer ${session.token}`,
+    "Content-Type": "application/json;charset=UTF-8",
+  });
+  const attempts = [
+    { method: "PUT", body: { action: 2, password: newPassword } },
+    { method: "PUT", body: { password: newPassword } },
+    { method: "PUT", body: { username: user.username, password: newPassword } },
+  ];
+  let lastError = "";
+  for (const a of attempts) {
+    try {
+      const res = await fetch(`${UNIPLAY_API}/api/users-${kind}/${id}`, {
+        method: a.method,
+        headers,
+        body: JSON.stringify(a.body),
+        signal: AbortSignal.timeout(20000),
+      });
+      const text = await res.text().catch(() => "");
+      if (res.ok) {
+        const check = await uniplayFindUser(session, username).catch(() => null);
+        if (!check || String(pickPassword(check) || "") === newPassword || !pickPassword(check)) {
+          return { success: true, kind };
+        }
+        lastError = "o painel aceitou a chamada mas manteve a senha antiga";
+        continue;
+      }
+      lastError = `${res.status} ${text.slice(0, 160)}`;
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : String(e);
+    }
+  }
+  throw new Error(`Não foi possível alterar a senha no Uniplay. Último erro: ${lastError.slice(0, 200)}`);
+}
+
+
 // ─── MAIN ───
 const ChangePasswordSchema = z.object({
   action: z.literal("change-password"),
