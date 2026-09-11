@@ -2070,6 +2070,85 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     Copiar Acesso Completo (M3U/HLS)
                   </Button>
 
+                  {/* Diálogo moderno de senha */}
+                  <Dialog open={pwDialogOpen} onOpenChange={setPwDialogOpen}>
+                    <DialogContent className="max-w-sm rounded-3xl border-border/30 backdrop-blur-xl">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-base">
+                          <div className="p-1.5 rounded-xl bg-primary/15 text-primary">
+                            <Key className="h-4 w-4" />
+                          </div>
+                          Senha no painel
+                        </DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-3">
+                        <div className="p-3 rounded-2xl bg-background/40 border border-border/20">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 mb-1">Usuário</p>
+                          <p className="font-mono text-sm">{selectedCustomer.username || '—'}</p>
+                        </div>
+                        <div className="space-y-1.5">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50">Painel</p>
+                          <Select value={changePasswordPanel} onValueChange={setChangePasswordPanel}>
+                            <SelectTrigger className="h-9 text-xs rounded-xl">
+                              <SelectValue placeholder="Selecione o painel" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl">
+                              <SelectItem value="natv">NATV</SelectItem>
+                              <SelectItem value="natv2">NATV2</SelectItem>
+                              <SelectItem value="rush">Rush</SelectItem>
+                              <SelectItem value="p2cine">P2Cine / kOffice</SelectItem>
+                              <SelectItem value="vplay">VPlay</SelectItem>
+                              <SelectItem value="the_best">The Best</SelectItem>
+                              <SelectItem value="uniplay">Uniplay</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50">Nova senha</p>
+                          <div className="flex gap-2">
+                            <Input
+                              value={newPassword}
+                              onChange={(e) => setNewPassword(e.target.value)}
+                              placeholder="Digite ou gere uma senha"
+                              className="h-9 text-xs rounded-xl font-mono"
+                              type="text"
+                            />
+                            <Button
+                              variant="outline"
+                              className="h-9 px-3 text-xs rounded-xl"
+                              onClick={() => setNewPassword(Math.random().toString(36).slice(2, 10))}
+                            >
+                              Gerar
+                            </Button>
+                          </div>
+                        </div>
+                        <Button
+                          variant="secondary"
+                          className="w-full h-9 text-xs rounded-xl"
+                          onClick={() => handleFetchPassword()}
+                          disabled={isChangingPassword || !changePasswordPanel}
+                        >
+                          {isChangingPassword ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : <Key className="w-3 h-3 mr-1.5" />}
+                          Puxar senha atual do painel
+                        </Button>
+                        <div className="flex gap-2 pt-1">
+                          <Button variant="ghost" className="flex-1 h-10 text-xs rounded-xl" onClick={() => setPwDialogOpen(false)}>
+                            Cancelar
+                          </Button>
+                          <Button
+                            className="flex-1 h-10 text-xs rounded-xl font-bold bg-gradient-to-r from-primary to-primary/80 shadow-lg shadow-primary/20"
+                            onClick={async () => { await handleChangePassword(); setPwDialogOpen(false); }}
+                            disabled={!newPassword || !changePasswordPanel || isChangingPassword}
+                          >
+                            {isChangingPassword ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : <CheckCircle className="w-3 h-3 mr-1.5" />}
+                            Alterar senha
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+
+
 
                   {/* Renewal success message */}
                   {renewalMessage && (
