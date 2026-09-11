@@ -98,6 +98,10 @@ export default function Customers() {
   const [customAmount, setCustomAmount] = useState('');
   const [sendConfirmationMessage, setSendConfirmationMessage] = useState(true);
   const [editingCustomer, setEditingCustomer] = useState<any | null>(null);
+  const [changePasswordCustomer, setChangePasswordCustomer] = useState<any | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [changePasswordPanel, setChangePasswordPanel] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   
