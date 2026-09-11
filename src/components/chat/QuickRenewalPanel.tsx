@@ -1231,13 +1231,28 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
   const handleCopyFullAccess = async () => {
     const c: any = selectedCustomer;
     if (!c) return;
-    const rawHost = String(c.server?.host || '').trim().replace(/\/+$/, '');
+    let rawHost = String(c.server?.host || '').trim().replace(/\/+$/, '');
+    // Host pode vir como palavra-chave do painel (vplay, natv, etc.) — resolve a URL real
+    if (rawHost && !rawHost.includes('.') ) {
+      const vplay = vplayServers.find(s =>
+        s.server_name?.toLowerCase().includes(rawHost.toLowerCase()) ||
+        rawHost.toLowerCase().includes('vplay')
+      );
+      if (vplay?.integration_url) rawHost = vplay.integration_url.trim().replace(/\/+$/, '');
+    }
+    if (!rawHost && c.server?.server_name?.toLowerCase().includes('vplay') && vplayServers[0]?.integration_url) {
+      rawHost = vplayServers[0].integration_url.trim().replace(/\/+$/, '');
+    }
     const host = rawHost ? (/^https?:\/\//i.test(rawHost) ? rawHost : `http://${rawHost}`) : '';
     const user = String(c.username || '').split(',')[0].trim();
-    const pass = String(c.password || '').trim();
+    let pass = String(c.password || '').trim();
+    if (!pass) {
+      const fetched = await handleFetchPassword(true);
+      if (fetched) pass = fetched;
+    }
     const venc = c.due_date ? format(new Date(`${c.due_date}T12:00:00`), 'dd/MM/yyyy', { locale: ptBR }) : '-';
-    const links = host && user && pass
-      ? `\n\n*Link (M3U)* 👉 ${host}/get.php?username=${user}&password=${pass}&type=m3u_plus&output=ts\n\n*Link (HLS)* 👉 ${host}/get.php?username=${user}&password=${pass}&type=m3u_plus&output=hls`
+    const links = host && user
+      ? `\n\n*Link (M3U)* 👉 ${host}/get.php?username=${user}&password=${pass || 'SENHA'}&type=m3u_plus&output=ts\n\n*Link (HLS)* 👉 ${host}/get.php?username=${user}&password=${pass || 'SENHA'}&type=m3u_plus&output=hls`
       : '';
     const message = `🎬 *DADOS DE ACESSO*\n\n👤 Usuário: ${user || '-'}\n\n🔑 Senha: ${pass || '-'}\n\n🌐 Servidor: ${host || c.server?.server_name || '-'}\n\n📺 Telas: ${c.screens || selectedScreens || 1}\n\n⏰ Vencimento: ${venc}${links}`;
     const ok = await copyText(message);
