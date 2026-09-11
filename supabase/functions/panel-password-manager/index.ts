@@ -521,11 +521,9 @@ serve(async (req) => {
     }
 
     if (action === "change-password") {
-      const username = String(body?.username || "").trim();
-      const newPassword = String(body?.new_password || "").trim();
-      const panel = String(body?.panel || "").toLowerCase();
-      if (!username || !newPassword) return json({ success: false, error: "Username e nova senha são obrigatórios." }, 400);
-      if (newPassword.length < 4) return json({ success: false, error: "A senha deve ter pelo menos 4 caracteres." }, 400);
+      const parsed = ChangePasswordSchema.safeParse(rawBody);
+      if (!parsed.success) return json({ success: false, error: parsed.error.flatten().fieldErrors }, 400);
+      const { username, new_password: newPassword, panel } = parsed.data;
 
       let result: any;
       switch (panel) {
