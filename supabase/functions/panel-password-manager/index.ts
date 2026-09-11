@@ -469,6 +469,12 @@ async function vplaySyncPasswords(connection: any) {
   return out;
 }
 
+// ─── GET PASSWORD (puxar senha existente) ───
+function matchUser(list: { username: string; password: string }[], username: string) {
+  const variants = buildUsernameVariants(username).map((v) => v.toLowerCase());
+  return list.find((u) => variants.includes(String(u.username || "").toLowerCase()));
+}
+
 // ─── MAIN ───
 const ChangePasswordSchema = z.object({
   action: z.literal("change-password"),
@@ -477,10 +483,17 @@ const ChangePasswordSchema = z.object({
   panel: z.enum(["natv", "natv2", "rush", "p2cine", "vplay"]),
 });
 
+const GetPasswordSchema = z.object({
+  action: z.literal("get-password"),
+  username: z.string().min(1),
+  panel: z.enum(["natv", "natv2", "rush", "p2cine", "vplay"]),
+});
+
 const SyncPasswordsSchema = z.object({
   action: z.literal("sync-passwords"),
   owner_id: z.union([z.string().uuid(), z.literal("all")]).optional(),
 });
+
 
 async function isAdmin(client: any) {
   const { data, error } = await client.rpc("is_admin");
