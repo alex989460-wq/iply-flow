@@ -1289,6 +1289,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
     if (!selectedCustomer) return;
     setChangePasswordPanel(detectPanel());
     setNewPassword('');
+    setPwDialogOpen(true);
   };
 
 
