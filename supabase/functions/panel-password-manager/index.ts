@@ -691,7 +691,10 @@ serve(async (req) => {
 
     const rawBody = await req.json().catch(() => ({}));
     const action = String(rawBody?.action || "");
-    const adminNow = isCron ? true : await isAdmin(admin);
+    const adminNow = isCron
+      ? true
+      : !!(await admin.from("user_roles").select("role").eq("user_id", userId).eq("role", "admin").maybeSingle()).data;
+
     const requestedOwner = String(rawBody?.owner_id || "");
     const ownerId = (requestedOwner && adminNow)
       ? requestedOwner
