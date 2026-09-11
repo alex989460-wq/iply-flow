@@ -14,10 +14,19 @@ api() { curl -s --max-time 120 -X POST "$EXPORT_URL" -H "Content-Type: applicati
 
 psqlq() { docker exec -i supabase-db psql -q -U postgres -d postgres "$@"; }
 
-load() { # $1 schema.table  $2 json file
-  docker cp "$2" supabase-db:/batch.json >/dev/null
+cols() { # $1 schema  $2 table -> lista de colunas graváveis
+  docker exec -i supabase-db psql -At -U postgres -d postgres -c \
+    "select string_agg(quote_ident(column_name), ', ' order by ordinal_position)
+     from information_schema.columns
+     where table_schema='$1' and table_name='$2'
+       and is_generated='NEVER' and coalesce(identity_generation,'')<>'ALWAYS'"
+}
+
+load() { # $1 schema  $2 table  $3 json file
+  local C; C=$(cols "$1" "$2")
+  docker cp "$3" supabase-db:/batch.json >/dev/null
   psqlq -v ON_ERROR_STOP=0 -c "set session_replication_role = replica;
-    insert into $1 select * from jsonb_populate_recordset(null::$1, pg_read_file('/batch.json')::jsonb)
+    insert into $1.$2 ($C) select $C from jsonb_populate_recordset(null::$1.$2, pg_read_file('/batch.json')::jsonb)
     on conflict do nothing;" 2>&1 | grep -i "error" || true
 }
 
@@ -29,7 +38,7 @@ for T in users identities mfa_factors; do
       | python3 -c 'import json,sys;print(json.dumps(json.load(sys.stdin).get("rows") or []))' > "$WORK/b.json"
     N=$(python3 -c 'import json;print(len(json.load(open("'"$WORK"'/b.json"))))')
     [ "$N" = "0" ] && break
-    load "auth.$T" "$WORK/b.json"
+    load auth "$T" "$WORK/b.json"
     OFF=$((OFF+N)); [ "$N" -lt "$BATCH" ] && break
   done
   echo "   auth.$T: $OFF"
@@ -38,7 +47,7 @@ done
 echo "==> Tabelas do sistema"
 api '{"action":"tables"}' | python3 -c 'import json,sys
 d=json.load(sys.stdin)["tables"]
-print("\n".join(f"{t[\"table_name\"]} {t[\"row_count\"]}" for t in d))' > "$WORK/tables.txt"
+for t in d: print(t["table_name"], t["row_count"])' > "$WORK/tables.txt"
 
 while read -r TBL CNT; do
   [ -z "$TBL" ] && continue
@@ -49,7 +58,7 @@ while read -r TBL CNT; do
       | python3 -c 'import json,sys;print(json.dumps(json.load(sys.stdin).get("rows") or []))' > "$WORK/b.json"
     N=$(python3 -c 'import json;print(len(json.load(open("'"$WORK"'/b.json"))))')
     [ "$N" = "0" ] && break
-    load "public.$TBL" "$WORK/b.json"
+    load public "$TBL" "$WORK/b.json"
     OFF=$((OFF+N)); [ "$N" -lt "$BATCH" ] && break
   done
   echo "   $TBL: $OFF/$CNT"
