@@ -4,7 +4,7 @@
 Uso: EXPORT_URL=... EXPORT_KEY=... TARGET_URL=... TARGET_KEY=... python3 pull-storage.py
 Reexecutável: pula arquivos já enviados (registro em /var/lib/supergestor-migstorage.done).
 """
-import json, os, sys, urllib.request, urllib.error, threading, queue, time
+import json, os, sys, urllib.request, urllib.error, urllib.parse, threading, queue, time
 
 EXPORT_URL = os.environ["EXPORT_URL"]
 EXPORT_KEY = os.environ["EXPORT_KEY"]
