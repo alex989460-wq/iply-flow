@@ -4073,6 +4073,8 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                     <SelectItem value="rush">Rush</SelectItem>
                     <SelectItem value="p2cine">P2Cine / kOffice</SelectItem>
                     <SelectItem value="vplay">VPlay</SelectItem>
+                    <SelectItem value="the_best">The Best</SelectItem>
+                    <SelectItem value="uniplay">Uniplay</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
