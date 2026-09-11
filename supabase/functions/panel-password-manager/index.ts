@@ -519,6 +519,7 @@ function extractList(data: any): any[] {
 }
 
 // Busca o usuário no NATV usando endpoints de pesquisa e paginação
+// O painel NATV expõe POST /user/search { username } e devolve a lista com senha.
 async function natvFindUserRaw(baseUrl: string, apiKey: string, username: string): Promise<any | null> {
   const normalized = normalizeBaseUrl(baseUrl);
   const bases = new Set<string>([normalized]);
@@ -526,32 +527,30 @@ async function natvFindUserRaw(baseUrl: string, apiKey: string, username: string
   else bases.add(`${normalized}/api`);
 
   const variants = buildUsernameVariants(username).map((v) => v.toLowerCase());
-  const urls: string[] = [];
-  for (const b of bases) {
-    for (const path of ["/users", "/user"]) {
-      for (const v of buildUsernameVariants(username)) {
-        const e = encodeURIComponent(v);
-        urls.push(`${b}${path}?search=${e}`, `${b}${path}?username=${e}`, `${b}${path}?login=${e}`);
-      }
-      for (let page = 1; page <= 10; page++) urls.push(`${b}${path}?page=${page}&per_page=100&limit=100`);
-      urls.push(`${b}${path}`);
-    }
-  }
 
-  for (const url of [...new Set(urls)]) {
-    try {
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!res.ok) continue;
-      const list = extractList(await res.json().catch(() => null));
-      const found = list.find((u: any) => variants.includes(String(u?.username || u?.login || u?.user || "").toLowerCase()));
-      if (found) return found;
-    } catch { /* ignore */ }
+  for (const b of bases) {
+    for (const v of buildUsernameVariants(username)) {
+      try {
+        const res = await fetch(`${b}/user/search`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ username: v }),
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!res.ok) continue;
+        const list = extractList(await res.json().catch(() => null));
+        const found = list.find((u: any) => variants.includes(String(u?.username || u?.login || u?.user || "").toLowerCase()));
+        if (found) return found;
+      } catch { /* ignore */ }
+    }
   }
   return null;
 }
+
 
 // Busca o usuário no Rush (iptv e p2p), tentando pesquisa direta antes da listagem completa
 async function rushFindUserRaw(baseUrl: string, token: string, username: string): Promise<any | null> {
