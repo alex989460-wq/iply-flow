@@ -73,12 +73,16 @@ fi
 
 echo "==> Segredos de integracao"
 MISSING=0
-for k in META_APP_ID META_APP_SECRET META_WEBHOOK_VERIFY_TOKEN CRM_OFICIAL_API_KEY CAKTO_WEBHOOK_SECRET GEMINI_API_KEY TURNSTILE_SECRET_KEY; do
+for k in META_APP_ID META_APP_SECRET CRM_OFICIAL_API_KEY CAKTO_WEBHOOK_SECRET GEMINI_API_KEY TURNSTILE_SECRET_KEY; do
   if ! grep -qE "^${k}=[^[:space:]]" "$BASE/functions.env"; then
     echo "  FALTA: $k"
     MISSING=1
   fi
 done
+# Opcional enquanto webhooks da Meta nao estiverem ativos na VPS
+if ! grep -qE "^META_WEBHOOK_VERIFY_TOKEN=[^[:space:]]" "$BASE/functions.env"; then
+  echo "  PENDENTE: META_WEBHOOK_VERIFY_TOKEN (necessario apenas para webhooks da Meta)"
+fi
 if [ $MISSING -eq 0 ]; then echo "OK — principais segredos presentes"; fi
 
 echo "==> SMTP"
