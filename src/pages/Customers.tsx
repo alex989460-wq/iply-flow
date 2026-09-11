@@ -1132,6 +1132,43 @@ export default function Customers() {
     });
   };
 
+  const openChangePassword = (customer: any) => {
+    setChangePasswordCustomer(customer);
+    const panelType = String(customer.servers?.panel_type || customer.servers?.server_name || '').toLowerCase();
+    let defaultPanel = '';
+    if (panelType.includes('natv')) defaultPanel = 'natv';
+    else if (panelType.includes('rush')) defaultPanel = 'rush';
+    else if (panelType.includes('vplay')) defaultPanel = 'vplay';
+    else if (panelType.includes('p2cine') || panelType.includes('koffice')) defaultPanel = 'p2cine';
+    setChangePasswordPanel(defaultPanel);
+    setNewPassword('');
+  };
+
+  const handleChangePassword = async () => {
+    if (!changePasswordCustomer || !newPassword || !changePasswordPanel) return;
+    setIsChangingPassword(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('panel-password-manager', {
+        body: {
+          action: 'change-password',
+          username: changePasswordCustomer.username,
+          new_password: newPassword,
+          panel: changePasswordPanel,
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Falha ao alterar senha');
+      toast({ title: 'Senha alterada', description: `Senha atualizada no painel ${changePasswordPanel.toUpperCase()} e no sistema.` });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      setChangePasswordCustomer(null);
+      setNewPassword('');
+    } catch (err: any) {
+      toast({ title: 'Erro ao alterar senha', description: err.message || String(err), variant: 'destructive' });
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   // Bulk renew handler
   const handleBulkRenew = async () => {
     if (selectedCustomerIds.size === 0 || !selectedPlanId || isBulkRenewing) return;
