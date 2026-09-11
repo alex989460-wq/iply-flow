@@ -2024,17 +2024,30 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                       </p>
                     </div>
                     {!changePasswordPanel ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full h-8 text-xs rounded-xl"
-                        onClick={openChangePassword}
-                        disabled={!selectedCustomer.username}
-                      >
-                        <Key className="w-3 h-3 mr-1.5" />
-                        Alterar senha do cliente
-                      </Button>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="h-8 text-xs rounded-xl"
+                          onClick={() => handleFetchPassword()}
+                          disabled={!selectedCustomer.username || isChangingPassword}
+                        >
+                          {isChangingPassword ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Key className="w-3 h-3 mr-1" />}
+                          Puxar senha
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs rounded-xl"
+                          onClick={openChangePassword}
+                          disabled={!selectedCustomer.username}
+                        >
+                          <Key className="w-3 h-3 mr-1.5" />
+                          Alterar senha
+                        </Button>
+                      </div>
                     ) : (
+
                       <div className="space-y-2">
                         <Select value={changePasswordPanel} onValueChange={setChangePasswordPanel}>
                           <SelectTrigger className="h-8 text-xs">
