@@ -51,7 +51,7 @@ echo "==> Endpoints"
 HC=$(curl -s -o /dev/null -w "%{http_code}" \
   -H "apikey: $ANON_KEY" \
   -H "Authorization: Bearer $ANON_KEY" \
-  http://127.0.0.1:8000/rest/v1/ || true)
+  "http://127.0.0.1:8000/rest/v1/customers?select=id&limit=1" || true)
 if [ "$HC" != "200" ]; then
   echo "FALHA: REST retornou $HC"
   ERR=1
