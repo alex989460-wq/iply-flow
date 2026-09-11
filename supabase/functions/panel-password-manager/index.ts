@@ -855,17 +855,30 @@ serve(async (req) => {
         const base = normalizeBaseUrl(settings[`${prefix}_base_url`] || Deno.env.get(prefix.toUpperCase() + "_BASE_URL") || "");
         const bases = new Set([base, base.endsWith("/api") ? base.replace(/\/api$/, "") : `${base}/api`]);
         for (const b of bases) {
-          for (const p of ["/users", "/user", "/user/list", "/users/list", "/user/info", "/clients"]) {
-            const url = `${b}${p}?search=${encodeURIComponent(username)}`;
+          const attempts: { url: string; init: RequestInit }[] = [
+            { url: `${b}/user`, init: { method: "POST", body: JSON.stringify({ username }) } },
+            { url: `${b}/user/info`, init: { method: "POST", body: JSON.stringify({ username }) } },
+            { url: `${b}/user/get`, init: { method: "POST", body: JSON.stringify({ username }) } },
+            { url: `${b}/user/search`, init: { method: "POST", body: JSON.stringify({ username }) } },
+            { url: `${b}/user/${encodeURIComponent(username)}`, init: { method: "GET" } },
+            { url: `${b}/user/status`, init: { method: "POST", body: JSON.stringify({ username }) } },
+            { url: `${b}/user/activation`, init: { method: "GET" } },
+          ];
+          for (const a of attempts) {
             try {
-              const res = await fetch(url, { headers: { Authorization: `Bearer ${key}`, Accept: "application/json" }, signal: AbortSignal.timeout(8000) });
+              const res = await fetch(a.url, {
+                ...a.init,
+                headers: { Authorization: `Bearer ${key}`, Accept: "application/json", "Content-Type": "application/json" },
+                signal: AbortSignal.timeout(8000),
+              });
               const body = (await res.text()).slice(0, 300);
-              out.push({ url: url.replace(base, "<base>"), status: res.status, body });
+              out.push({ url: a.url.replace(base, "<base>"), method: a.init.method, status: res.status, body });
             } catch (e) {
-              out.push({ url: url.replace(base, "<base>"), error: String(e).slice(0, 120) });
+              out.push({ url: a.url.replace(base, "<base>"), error: String(e).slice(0, 120) });
             }
           }
         }
+
       }
       if (panel === "rush") {
         const token = await rushAuth(settings.rush_base_url, settings.rush_username, settings.rush_password, settings.rush_token);
