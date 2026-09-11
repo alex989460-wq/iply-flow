@@ -711,6 +711,11 @@ serve(async (req) => {
       if (!parsed.success) return json({ success: false, error: parsed.error.flatten().fieldErrors }, 400);
       const { username, new_password: newPassword, panel } = parsed.data;
 
+      const formatError = validatePanelPassword(panel, newPassword);
+      if (formatError) return json({ success: false, error: formatError }, 400);
+
+
+
       let result: any;
       switch (panel) {
         case "natv": {
