@@ -176,6 +176,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
   const [changePasswordPanel, setChangePasswordPanel] = useState<string>('');
   const [newPassword, setNewPassword] = useState<string>('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [pwDialogOpen, setPwDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 
   // Fetch vplay servers
