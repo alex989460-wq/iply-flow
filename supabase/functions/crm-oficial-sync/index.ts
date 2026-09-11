@@ -1061,6 +1061,23 @@ function toPublicHttpsUrl(url: string) {
   }
 }
 
+// A Meta só aceita link http(s) público. Handles opacos ("4::aW1h..."),
+// hosts internos (api-gw, kong, localhost) ou caminhos soltos são rejeitados
+// com "(#100) ... is not a valid URI".
+function isUsableMediaLink(url?: string) {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    if (!/^https?:$/.test(parsed.protocol)) return false;
+    const host = parsed.hostname.toLowerCase();
+    if (!host.includes(".")) return false;
+    if (/^(localhost|127\.|0\.0\.0\.0|api-gw|kong|supabase)/.test(host)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function ensurePublicMediaUrl(url: string, label = "media") {
   if (!/scontent\.whatsapp\.net|lookaside\.fbsbx\.com/i.test(url)) return url;
 
