@@ -41,7 +41,7 @@ import { useToast } from '@/hooks/use-toast';
 import { 
   Plus, Pencil, Trash2, Loader2, Users, RefreshCw, Search, CalendarIcon,
   Upload, Phone, FileText, Download, MessageSquare, AlertTriangle, Send, Copy, Check, ArrowRightLeft,
-  ArrowUpDown, ArrowUp, ArrowDown, Shield
+  ArrowUpDown, ArrowUp, ArrowDown, Shield, Key
 } from 'lucide-react';
 import ServerMigrationModal from '@/components/customers/ServerMigrationModal';
 import {
