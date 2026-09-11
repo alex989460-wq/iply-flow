@@ -54,6 +54,16 @@ Deno.serve(async (req) => {
       return json({ rows: data ?? [] });
     }
 
+    if (action === "auth-rows") {
+      const { data, error } = await supabase.rpc("migration_dump_auth", {
+        p_table: body.table,
+        p_offset: body.offset ?? 0,
+        p_limit: Math.min(body.limit ?? 1000, 5000),
+      });
+      if (error) throw error;
+      return json({ rows: data ?? [] });
+    }
+
     if (action === "storage-list") {
       const { data, error } = await supabase.rpc("migration_list_objects", {
         p_offset: body.offset ?? 0,
