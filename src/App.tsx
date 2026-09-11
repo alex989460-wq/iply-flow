@@ -57,6 +57,7 @@ import AiTraining from "./pages/AiTraining";
 import Tutorials from "./pages/Tutorials";
 import Tasks from "./pages/Tasks";
 import CreditStore from "./pages/CreditStore";
+import CreditCheckout from "./pages/CreditCheckout";
 import GroupExtractor from "./pages/GroupExtractor";
 import Unsubscribe from "./pages/Unsubscribe";
 import EmbedChatbots from "./pages/EmbedChatbots";
@@ -124,6 +125,7 @@ function AppRoutes() {
       <Route path="/confirmar-renovacao" element={<ConflictRenewal />} />
       <Route path="/consulta" element={<ConsultaDue />} />
       <Route path="/checkout/:userId" element={<PublicCheckout />} />
+      <Route path="/c/:slug" element={<CreditCheckout />} />
       <Route path="/r/:slug" element={<ResellerCheckout />} />
       <Route path="/r/:slug/ativar" element={<ResellerActivation />} />
       <Route path="/r/:slug/registrar" element={<ResellerNewCustomerCheckout />} />
