@@ -16,8 +16,8 @@ Ordem de execução:
 9. `CUTOVER.md` — virada de DNS e webhooks, com plano de reversão.
 10. `scripts/backup.sh` — backup automático (instalado pelo `install.sh`).
 
-Nada aqui altera o ambiente atual: os passos 1 a 7 rodam em paralelo, com a
-produção no ar. Só o passo 8 troca o tráfego.
+Nada aqui altera o ambiente atual: os passos 1 a 8 rodam em paralelo, com a
+produção no ar. Só o passo 9 troca o tráfego.
 
 Antes de combinar a virada, rode na VPS:
 
