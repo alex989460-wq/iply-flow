@@ -228,21 +228,47 @@ Deno.serve(async (req) => {
         });
       }
 
+      if (action === "public-identify") {
+        const found = await identifyBuyer({
+          panelUsername: String(body.panel_username || ""),
+          phone: String(body.phone || ""),
+          email: String(body.email || ""),
+        });
+        if (!found) {
+          return json({
+            ok: true,
+            found: false,
+            message: "Não encontramos essa conta. Confira o usuário do painel, o telefone ou o e-mail de acesso.",
+          });
+        }
+        return json({ ok: true, found: true, name: found.full_name || found.email, email: found.email });
+      }
+
       if (action === "public-create-order") {
         const email = String(body.email || "").trim().toLowerCase();
+        const panelUsername = String(body.panel_username || "").trim();
+        const phone = onlyDigits(String(body.phone || ""));
         const serverId = String(body.server_id || "");
         const qty = Math.max(1, Math.round(Number(body.quantity) || 0));
         const provider = String(body.provider || "efi") === "mercadopago" ? "mercadopago" : "efi";
-        if (!email || !serverId || !qty) return json({ error: "parametros_invalidos" }, 400);
+        if (!serverId || !qty) return json({ error: "parametros_invalidos" }, 400);
+        if (!panelUsername) {
+          return json({ error: "usuario_obrigatorio", message: "Informe o usuário do painel para sabermos onde lançar os créditos." }, 400);
+        }
+        if (!email && !phone) {
+          return json({ error: "contato_obrigatorio", message: "Informe o telefone ou o e-mail de acesso." }, 400);
+        }
 
-        const { data: buyer } = await admin
-          .from("reseller_access").select("user_id, email").ilike("email", email).maybeSingle();
+        const buyer = await identifyBuyer({ panelUsername, phone, email });
         if (!buyer?.user_id) {
-          return json({ error: "conta_nao_encontrada", message: "Não encontramos uma conta com esse e-mail. Confira o e-mail de acesso ao painel." }, 400);
+          return json({
+            error: "conta_nao_encontrada",
+            message: "Não encontramos essa conta. Confira o usuário do painel, o telefone ou o e-mail de acesso.",
+          }, 400);
         }
         return await buildOrder({
-          sellerId: seller.user_id, buyerId: buyer.user_id, buyerEmail: buyer.email || email,
-          serverId, qty, provider,
+          sellerId: seller.user_id, buyerId: buyer.user_id, buyerEmail: buyer.email || email || null,
+          serverId, qty, provider, panelUsername, buyerPhone: phone || null,
         });
       }
 
