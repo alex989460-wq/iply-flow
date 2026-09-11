@@ -48,7 +48,10 @@ FN_COUNT=$(ls -1 "$BASE/supabase/volumes/functions" | wc -l)
 echo "  funcoes publicadas: $FN_COUNT"
 
 echo "==> Endpoints"
-HC=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/rest/v1/?apikey="$ANON_KEY" || true)
+HC=$(curl -s -o /dev/null -w "%{http_code}" \
+  -H "apikey: $ANON_KEY" \
+  -H "Authorization: Bearer $ANON_KEY" \
+  http://127.0.0.1:8000/rest/v1/ || true)
 if [ "$HC" != "200" ]; then
   echo "FALHA: REST retornou $HC"
   ERR=1
