@@ -4022,6 +4022,67 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
           </DialogContent>
         </Dialog>
 
+        {/* Change Password Dialog */}
+        <Dialog open={!!changePasswordCustomer} onOpenChange={() => { setChangePasswordCustomer(null); setNewPassword(''); }}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Alterar senha no painel</DialogTitle>
+              <DialogDescription>
+                {changePasswordCustomer ? (
+                  <>Cliente: <strong>{changePasswordCustomer.name}</strong> — usuário: <code className="text-xs bg-muted px-1 rounded">{changePasswordCustomer.username}</code></>
+                ) : 'Selecione um cliente para alterar a senha.'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label>Painel</Label>
+                <Select value={changePasswordPanel} onValueChange={setChangePasswordPanel}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o painel" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="natv">NATV</SelectItem>
+                    <SelectItem value="natv2">NATV2</SelectItem>
+                    <SelectItem value="rush">Rush</SelectItem>
+                    <SelectItem value="p2cine">P2Cine / kOffice</SelectItem>
+                    <SelectItem value="vplay">VPlay</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Nova senha</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Digite a nova senha"
+                    type="text"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setNewPassword(Math.random().toString(36).slice(2, 10))}
+                  >
+                    Gerar
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => { setChangePasswordCustomer(null); setNewPassword(''); }}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleChangePassword}
+                disabled={!newPassword || !changePasswordPanel || isChangingPassword}
+              >
+                {isChangingPassword ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Key className="w-4 h-4 mr-2" />}
+                Alterar senha
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Server Migration Modal */}
         <ServerMigrationModal
           open={isServerMigrationOpen}
