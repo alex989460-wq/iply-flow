@@ -549,6 +549,7 @@ async function rushFindUserRaw(baseUrl: string, token: string, username: string)
   const normalized = normalizeBaseUrl(baseUrl);
   const variants = buildUsernameVariants(username).map((v) => v.toLowerCase());
 
+  // 1) pesquisa direta (rápida) nos dois sistemas
   for (const type of ["iptv", "p2p"]) {
     for (const v of buildUsernameVariants(username)) {
       const url = `${normalized}/${type}/list?token=${encodeURIComponent(token)}&search=${encodeURIComponent(v)}`;
@@ -563,13 +564,17 @@ async function rushFindUserRaw(baseUrl: string, token: string, username: string)
         if (found) return found;
       } catch { /* ignore */ }
     }
+  }
 
+  // 2) só então a listagem completa (lenta)
+  for (const type of ["iptv", "p2p"]) {
     try {
       const users = await rushListUsers(normalized, token, type);
       const found = users.find((u: any) => variants.includes(String(u?.username || u?.login || "").toLowerCase()));
       if (found) return found;
     } catch { /* ignore */ }
   }
+
   return null;
 }
 
