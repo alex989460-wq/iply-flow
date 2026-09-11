@@ -1294,6 +1294,33 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
     }
   };
 
+  const handleFetchPassword = async () => {
+    if (!selectedCustomer || !changePasswordPanel) return;
+    setIsChangingPassword(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('panel-password-manager', {
+        body: {
+          action: 'get-password',
+          username: selectedCustomer.username,
+          panel: changePasswordPanel,
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Falha ao puxar senha');
+      setNewPassword(data.password);
+      toast.success(`Senha atual no painel: ${data.password}`);
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      const refreshed = await supabase.from('customers').select('*, plans(*), servers(*)').eq('id', selectedCustomer.id).single();
+      if (refreshed.data) setSelectedCustomer(refreshed.data as any);
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao puxar senha');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+
+
   const getStatusBadge = (status: string, dueDate?: string) => {
     // Check if customer is overdue (regardless of status)
     const isOverdue = dueDate ? isCustomerOverdue(dueDate) : false;

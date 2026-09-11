@@ -1169,6 +1169,31 @@ export default function Customers() {
     }
   };
 
+  const handleFetchPassword = async () => {
+    if (!changePasswordCustomer || !changePasswordPanel) return;
+    setIsChangingPassword(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('panel-password-manager', {
+        body: {
+          action: 'get-password',
+          username: changePasswordCustomer.username,
+          panel: changePasswordPanel,
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Falha ao puxar senha');
+      setNewPassword(data.password);
+      toast({ title: 'Senha atual encontrada', description: `Senha do painel: ${data.password}` });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+    } catch (err: any) {
+      toast({ title: 'Erro ao puxar senha', description: err.message || String(err), variant: 'destructive' });
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+
+
   // Bulk renew handler
   const handleBulkRenew = async () => {
     if (selectedCustomerIds.size === 0 || !selectedPlanId || isBulkRenewing) return;
