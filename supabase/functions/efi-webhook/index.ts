@@ -195,8 +195,76 @@ Deno.serve(async (req) => {
         metadata: { ...(charge.metadata || {}), endToEndId },
       }).eq("id", charge.id);
 
+      // Compra de créditos do revendedor: credita automaticamente na conta dele.
+      if (charge.pending_kind === "credit_order" && charge.pending_id) {
+        const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+        const SRK = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        const { data: order } = await admin
+          .from("credit_orders").select("*").eq("id", charge.pending_id).maybeSingle();
+
+        if (order && order.status !== "delivered") {
+          let deliveryError: string | null = null;
+          try {
+            const { data: access } = await admin
+              .from("reseller_access").select("id, credits, email, full_name")
+              .eq("user_id", order.buyer_id).maybeSingle();
+            if (!access) throw new Error("revendedor_sem_acesso");
+            const { error: upErr } = await admin
+              .from("reseller_access")
+              .update({ credits: Number(access.credits || 0) + Number(order.quantity || 0) })
+              .eq("id", access.id);
+            if (upErr) throw upErr;
+
+            await admin.from("credit_orders").update({
+              status: "delivered",
+              paid_at: new Date().toISOString(),
+              delivered_at: new Date().toISOString(),
+              delivery_error: null,
+              updated_at: new Date().toISOString(),
+            }).eq("id", order.id);
+
+            // Aviso ao admin vendedor.
+            try {
+              const [{ data: zap }, { data: billing }] = await Promise.all([
+                admin.from("zap_responder_settings").select("selected_department_id").eq("user_id", order.seller_id).maybeSingle(),
+                admin.from("billing_settings").select("notification_phone, meta_phone_number_id").eq("user_id", order.seller_id).maybeSingle(),
+              ]);
+              const notifPhone = (billing as any)?.notification_phone;
+              if (zap?.selected_department_id && notifPhone) {
+                const msg = `💳 *Compra de créditos paga*\n\n👤 Revendedor: *${access.full_name || access.email}*\n🖥️ Servidor: *${order.server_name || "-"}*\n🔢 Créditos: *${order.quantity}*\n💰 Total: *R$ ${Number(order.total).toFixed(2)}*\n\n✅ Créditos lançados automaticamente.`;
+                await fetch(`${SUPABASE_URL}/functions/v1/crm-oficial-sync`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SRK}` },
+                  body: JSON.stringify({
+                    action: "enviar-mensagem",
+                    department_id: zap.selected_department_id,
+                    number: notifPhone,
+                    text: msg,
+                    user_id: order.seller_id,
+                    phone_number_id: (billing as any)?.meta_phone_number_id || undefined,
+                  }),
+                });
+              }
+            } catch (nerr) {
+              console.error("[efi-webhook] credit order notify", nerr);
+            }
+          } catch (e) {
+            deliveryError = e instanceof Error ? e.message : String(e);
+            await admin.from("credit_orders").update({
+              status: "paid",
+              paid_at: new Date().toISOString(),
+              delivery_error: deliveryError,
+              updated_at: new Date().toISOString(),
+            }).eq("id", order.id);
+          }
+        }
+        processed++;
+        continue;
+      }
+
       // If tied to a pending new customer, materialize the customer + payment.
       if (charge.pending_kind === "new_customer" && charge.pending_id) {
+
         const { data: pending } = await admin
           .from("pending_new_customers")
           .select("*")
