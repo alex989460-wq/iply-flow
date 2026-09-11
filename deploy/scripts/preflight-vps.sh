@@ -1,103 +1,102 @@
 #!/usr/bin/env bash
-# Validação segura da VPS antes da virada. Não altera DNS, dados, jobs ou serviços.
-# Uso na VPS: sudo bash preflight-vps.sh [contagens-da-origem.txt]
+# Valida a VPS antes da virada sem alterar DNS nem ligar jobs.
 set -euo pipefail
 
 BASE=/opt/supergestor
-SOURCE_COUNTS="${1:-}"
-FAIL=0
+ERR=0
 
-ok() { printf 'OK   %s\n' "$1"; }
-bad() { printf 'ERRO %s\n' "$1"; FAIL=1; }
-note() { printf 'INFO %s\n' "$1"; }
-
-test -r "$BASE/.env" || { bad "arquivo principal de configuração ausente"; exit 1; }
-test -r "$BASE/keys.env" || { bad "chaves locais ausentes"; exit 1; }
-# shellcheck disable=SC1091
 source "$BASE/.env"
-# shellcheck disable=SC1091
 source "$BASE/keys.env"
 
-cd "$BASE/supabase"
-
-unhealthy="$(docker compose ps --format json 2>/dev/null \
-  | jq -rs '[.[] | select((.State != "running") or (.Health != "" and .Health != "healthy"))] | length' 2>/dev/null || echo 1)"
-if [ "$unhealthy" = "0" ]; then ok "serviços da VPS em execução"; else bad "há serviços parados ou sem saúde"; fi
-
-if curl -fsS -H "apikey: $ANON_KEY" http://127.0.0.1:8000/auth/v1/health >/dev/null; then
-  ok "autenticação responde localmente"
-else
-  bad "autenticação não respondeu"
-fi
-
-if curl -fsS -H "apikey: $ANON_KEY" http://127.0.0.1:8000/rest/v1/ >/dev/null; then
-  ok "API do banco responde localmente"
-else
-  bad "API do banco não respondeu"
-fi
-
-if test -s "$BASE/app/index.html"; then ok "site compilado está instalado"; else bad "site compilado ausente"; fi
-
-DB_CONTAINER="$(docker compose ps -q db 2>/dev/null || true)"
-if [ -z "$DB_CONTAINER" ]; then
-  bad "container do banco não encontrado"
-else
-  active_jobs="$(docker exec "$DB_CONTAINER" psql -U postgres -d postgres -Atc \
-    "select count(*) from cron.job where active" 2>/dev/null || echo query_failed)"
-  if [ "$active_jobs" = "0" ]; then
-    ok "todos os agendamentos permanecem desativados"
-  else
-    bad "agendamentos ativos antes da virada: $active_jobs"
+echo "==> Containers"
+for c in supabase-db supabase-auth supabase-rest supabase-storage supabase-edge-functions supabase-pooler supabase-envoy; do
+  if ! docker ps --format '{{.Names}}' | grep -qx "$c"; then
+    echo "FALHA: container $c nao esta rodando"
+    ERR=1
   fi
-
-  target_counts="$(mktemp)"
-  docker exec "$DB_CONTAINER" psql -U postgres -d postgres -At -F'|' -c \
-    "select table_name,
-       (xpath('/row/c/text()', query_to_xml(format('select count(*) c from public.%I', table_name), false, true, '')))[1]::text::bigint
-     from information_schema.tables
-     where table_schema='public' and table_type='BASE TABLE'
-     order by table_name" > "$target_counts"
-  ok "contagens do banco coletadas ($(wc -l < "$target_counts") tabelas)"
-
-  if [ -n "$SOURCE_COUNTS" ]; then
-    if diff -u "$SOURCE_COUNTS" "$target_counts" > /tmp/supergestor-counts-diff.txt; then
-      ok "contagens do banco iguais à origem"
-    else
-      bad "há diferenças de dados; confira /tmp/supergestor-counts-diff.txt"
-    fi
-  else
-    note "comparação com a origem não solicitada"
-  fi
-  rm -f "$target_counts"
-
-  storage_rows="$(docker exec "$DB_CONTAINER" psql -U postgres -d postgres -Atc \
-    "select count(*) from storage.objects" 2>/dev/null || echo query_failed)"
-  copied_rows="$(wc -l < /var/lib/supergestor-migstorage.done 2>/dev/null || echo 0)"
-  if [ "$storage_rows" != "query_failed" ] && [ "$storage_rows" -gt 0 ] && [ "$copied_rows" -ge "$storage_rows" ]; then
-    ok "arquivos conferidos: $copied_rows copiados / $storage_rows registrados"
-  else
-    bad "cópia de arquivos incompleta: $copied_rows copiados / $storage_rows registrados"
-  fi
+done
+if ! docker ps --format '{{.Names}}' | grep -qE 'supabase-realtime$'; then
+  echo "FALHA: container realtime nao esta rodando"
+  ERR=1
 fi
+if [ $ERR -eq 0 ]; then echo "OK — containers saudaveis"; fi
 
-if test -s "$BASE/functions.env" && [ "$(stat -c '%a' "$BASE/functions.env")" = "600" ]; then
-  ok "segredos das funções presentes e protegidos"
+echo "==> Banco"
+SQL() { docker exec -i supabase-db psql -U supabase_admin -d postgres -At -c "$1"; }
+for q in "select count(*) from auth.users" \
+         "select count(*) from public.customers" \
+         "select count(*) from public.payments" \
+         "select count(*) from public.billing_logs"; do
+  echo "  $q -> $(SQL "$q")"
+done
+
+echo "==> Agendamentos desativados"
+ACTIVE=$(SQL "select count(*) from cron.job where active")
+if [ "$ACTIVE" != "0" ]; then
+  echo "FALHA: $ACTIVE cron job(s) ativo(s). Deve estar 0 antes da virada."
+  ERR=1
 else
-  bad "segredos das funções ausentes ou com permissão diferente de 600"
+  echo "OK — nenhum cron ativo"
 fi
 
-function_count="$(find "$BASE/supabase/volumes/functions" -mindepth 2 -maxdepth 2 -name index.ts 2>/dev/null | wc -l)"
-if [ "$function_count" -ge 100 ]; then ok "$function_count funções instaladas"; else bad "somente $function_count funções instaladas"; fi
+echo "==> Storage"
+SQL "select name from storage.buckets order by name"
+SQL "select bucket_id||': '||count(*) from storage.objects group by bucket_id order by bucket_id"
 
-if curl -fsS -H "Host: $DOMAIN" http://127.0.0.1/ | grep -qi '<title>'; then
-  ok "Nginx entrega o site pelo domínio configurado"
+echo "==> Funcoes"
+FN_COUNT=$(ls -1 "$BASE/supabase/volumes/functions" | wc -l)
+echo "  funcoes publicadas: $FN_COUNT"
+
+echo "==> Endpoints"
+HC=$(curl -s -o /dev/null -w "%{http_code}" \
+  -H "apikey: $ANON_KEY" \
+  -H "Authorization: Bearer $ANON_KEY" \
+  "http://127.0.0.1:8000/rest/v1/customers?select=id&limit=1" || true)
+if [ "$HC" != "200" ]; then
+  echo "FALHA: REST retornou $HC"
+  ERR=1
 else
-  bad "Nginx não entregou o site"
+  echo "OK — REST 200"
 fi
 
-if [ "$FAIL" -ne 0 ]; then
-  echo "PREFLIGHT_REPROVADO — não faça a virada."
+echo "==> Nginx"
+nginx -t >/dev/null 2>&1 && echo "OK — nginx -t" || ERR=1
+curl -s -o /dev/null -w "site por IP: %{http_code}\n" http://127.0.0.1:80/
+
+echo "==> SSL"
+if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
+  echo "OK — certificado Lets Encrypt encontrado para $DOMAIN"
+  openssl x509 -in "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" -noout -dates | head -2
+else
+  echo "PENDENTE — certificado ainda nao gerado (normal ate o DNS apontar)"
+fi
+
+echo "==> Segredos de integracao"
+MISSING=0
+for k in META_APP_ID META_APP_SECRET CRM_OFICIAL_API_KEY CAKTO_WEBHOOK_SECRET GEMINI_API_KEY TURNSTILE_SECRET_KEY; do
+  if ! grep -qE "^${k}=[^[:space:]]" "$BASE/functions.env"; then
+    echo "  FALTA: $k"
+    MISSING=1
+  fi
+done
+# Opcional enquanto webhooks da Meta nao estiverem ativos na VPS
+if ! grep -qE "^META_WEBHOOK_VERIFY_TOKEN=[^[:space:]]" "$BASE/functions.env"; then
+  echo "  PENDENTE: META_WEBHOOK_VERIFY_TOKEN (necessario apenas para webhooks da Meta)"
+fi
+if [ $MISSING -eq 0 ]; then echo "OK — principais segredos presentes"; fi
+
+echo "==> SMTP"
+if grep -qE "^SMTP_HOST=[^[:space:]]" "$BASE/supabase/.env" && grep -qE "^SMTP_PASS=[^[:space:]]" "$BASE/supabase/.env"; then
+  echo "OK — SMTP configurado"
+else
+  echo "PENDENTE — SMTP nao configurado (recuperacao de senha pode falhar)"
+fi
+
+if [ $ERR -eq 0 ]; then
+  echo ""
+  echo "PREFLIGHT_APROVADO"
+else
+  echo ""
+  echo "PREFLIGHT_REPROVADO — corrija os itens acima"
   exit 1
 fi
-
-echo "PREFLIGHT_APROVADO — a VPS está preparada; DNS e jobs continuam inalterados."

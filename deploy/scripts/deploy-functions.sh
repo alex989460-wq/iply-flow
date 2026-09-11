@@ -9,7 +9,15 @@ BASE=/opt/supergestor
 source "$BASE/.env"
 
 echo "==> Copiando funções"
-rsync -a --delete "$REPO/supabase/functions/" "$BASE/supabase/volumes/functions/"
+# Preserva o entrypoint padrão do Edge Runtime (main, hello, deno.jsonc)
+rsync -a --delete --exclude=main --exclude=hello --exclude=deno.jsonc "$REPO/supabase/functions/" "$BASE/supabase/volumes/functions/"
+# Se por algum motivo o entrypoint sumiu, restaura o do repositório de backup
+if [ ! -f "$BASE/supabase/volumes/functions/deno.jsonc" ]; then
+  cp "$REPO/deploy/supabase-runtime/deno.jsonc" "$BASE/supabase/volumes/functions/deno.jsonc" 2>/dev/null || true
+fi
+if [ ! -f "$BASE/supabase/volumes/functions/main/index.ts" ]; then
+  cp "$REPO/deploy/supabase-runtime/main/index.ts" "$BASE/supabase/volumes/functions/main/index.ts" 2>/dev/null || true
+fi
 
 echo "==> Carregando segredos das funções"
 # As chaves ficam em $BASE/functions.env (veja SECRETS.md)
