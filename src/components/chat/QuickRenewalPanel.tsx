@@ -173,6 +173,9 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
   const [editedDueDate, setEditedDueDate] = useState<string>('');
   const [activateOnServer, setActivateOnServer] = useState<boolean>(true);
   const [deleteConfirmText, setDeleteConfirmText] = useState<string>('');
+  const [changePasswordPanel, setChangePasswordPanel] = useState<string>('');
+  const [newPassword, setNewPassword] = useState<string>('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const queryClient = useQueryClient();
 
   // Fetch vplay servers
