@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { MetaLogo } from "@/components/ui/meta-logo";
-import whatsappLogo from "@/assets/whatsapp-logo.png.asset.json";
+import whatsappLogo from "@/assets/whatsapp-logo.png";
 
 function formatPhoneDisplay(raw?: string | null) {
   const digits = String(raw || "").replace(/\D/g, "");
@@ -1000,7 +1000,7 @@ export default function Resellers() {
                                     className="gap-1.5 text-[10px] font-medium"
                                     title="API não oficial (WhatsApp)"
                                   >
-                                    <img src={whatsappLogo.url} alt="WhatsApp" className="h-3.5 w-3.5 object-contain" />
+                                    <img src={whatsappLogo} alt="WhatsApp" className="h-3.5 w-3.5 object-contain" />
                                     <span className="tabular-nums">
                                       {[c.label || c.instance, formatPhoneDisplay(c.phone)].filter(Boolean).join(' · ')}
                                     </span>

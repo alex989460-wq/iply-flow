@@ -6,11 +6,11 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Loader2, Check, Phone, QrCode, ArrowLeft, Copy, Sparkles, ShieldCheck, Tv, User as UserIcon, AlertTriangle, Server, Smartphone, ChevronRight, AlertCircle, Plus, Gift } from 'lucide-react';
 import { toast } from 'sonner';
-import pixLogo from '@/assets/pix-logo.png.asset.json';
-import cardLogo from '@/assets/card-logo.png.asset.json';
-import efiLogo from '@/assets/efi-logo.png.asset.json';
-import mpLogo from '@/assets/mercadopago-logo.png.asset.json';
-import caktoLogo from '@/assets/cakto-logo.png.asset.json';
+import pixLogo from '@/assets/pix-logo.png';
+import cardLogo from '@/assets/card-logo.png';
+import efiLogo from '@/assets/efi-logo.png';
+import mpLogo from '@/assets/mercadopago-logo.png';
+import caktoLogo from '@/assets/cakto-logo.png';
 import { PageErrorBoundary } from '@/components/PageErrorBoundary';
 
 interface Plan {
@@ -720,7 +720,7 @@ function ResellerCheckoutInner() {
                       {creating ? <Loader2 className="w-6 h-6 animate-spin text-emerald-500" /> : <img src={pixLogo?.url || ''} alt="Pix" className="w-9 h-9" />}
                     </div>
                     <p className="font-bold text-sm tracking-wide">PIX INSTANTÂNEO</p>
-                    <p className="text-[10px] text-white/50 -mt-1 flex items-center gap-1 justify-center"><img src={efiLogo.url} alt="Efí" className="w-3.5 h-3.5 rounded-[3px]" /> Efí — aprovação imediata</p>
+                    <p className="text-[10px] text-white/50 -mt-1 flex items-center gap-1 justify-center"><img src={efiLogo} alt="Efí" className="w-3.5 h-3.5 rounded-[3px]" /> Efí — aprovação imediata</p>
                     <p className="text-xl font-extrabold">{fmtBRL(couponInfo ? couponInfo.amount : (pixTotal || group.pix.price))}</p>
                   </button>
                 )}
@@ -731,7 +731,7 @@ function ResellerCheckoutInner() {
                       {creating ? <Loader2 className="w-6 h-6 animate-spin text-cyan-500" /> : <img src={mpLogo?.url || ''} alt="Mercado Pago" className="w-9 h-9" />}
                     </div>
                     <p className="font-bold text-sm tracking-wide">PIX MERCADO PAGO</p>
-                    <p className="text-[10px] text-white/50 -mt-1 flex items-center gap-1 justify-center"><img src={pixLogo.url} alt="Pix" className="w-3.5 h-3.5" /> Aprovação imediata</p>
+                    <p className="text-[10px] text-white/50 -mt-1 flex items-center gap-1 justify-center"><img src={pixLogo} alt="Pix" className="w-3.5 h-3.5" /> Aprovação imediata</p>
                     <p className="text-xl font-extrabold">{fmtBRL(couponInfo ? couponInfo.amount : (pixTotal || group.pix.price))}</p>
                   </button>
                 )}

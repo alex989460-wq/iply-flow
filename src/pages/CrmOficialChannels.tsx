@@ -11,7 +11,7 @@ import AddChannelEmbedDialog from '@/components/crm/AddChannelEmbedDialog';
 import { ProviderBadge } from '@/components/ui/provider-badge';
 import { MetaLogo } from '@/components/ui/meta-logo';
 import logoSg from '@/assets/logo-sg.png';
-import whatsappLogo from '@/assets/whatsapp-logo.png.asset.json';
+import whatsappLogo from '@/assets/whatsapp-logo.png';
 
 
 interface WhatsAppChannel {
@@ -331,7 +331,7 @@ export default function CrmOficialChannels() {
                   )}
                   <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-background/90 to-transparent" />
                   <div className="absolute bottom-3 left-3 flex items-center gap-1.5 bg-background/80 backdrop-blur-md rounded-full px-2.5 py-1 border border-border/60">
-                    {isOfficial ? <MetaLogo className="w-4 h-4" /> : <img src={whatsappLogo.url} alt="WhatsApp" className="w-4 h-4 object-contain" />}
+                    {isOfficial ? <MetaLogo className="w-4 h-4" /> : <img src={whatsappLogo} alt="WhatsApp" className="w-4 h-4 object-contain" />}
                     <span className="text-[10px] font-semibold">
                       {isOfficial ? 'API Oficial (Meta)' : 'Não oficial (QR Code)'}
                     </span>
@@ -348,7 +348,7 @@ export default function CrmOficialChannels() {
                         <ProviderBadge provider="meta" />
                       ) : (
                         <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                          <img src={whatsappLogo.url} alt="WhatsApp" className="w-3.5 h-3.5 object-contain" /> WhatsApp não oficial
+                          <img src={whatsappLogo} alt="WhatsApp" className="w-3.5 h-3.5 object-contain" /> WhatsApp não oficial
                         </span>
                       )}
                       <span className={cn(
@@ -404,7 +404,7 @@ export default function CrmOficialChannels() {
                     )}
                     {!isPrimary && !isOfficial && (
                       <Button size="sm" variant="outline" className="flex-1 gap-1.5" disabled>
-                        <img src={whatsappLogo.url} alt="WhatsApp" className="w-4 h-4 object-contain" />
+                        <img src={whatsappLogo} alt="WhatsApp" className="w-4 h-4 object-contain" />
                         Canal não oficial
                       </Button>
                     )}

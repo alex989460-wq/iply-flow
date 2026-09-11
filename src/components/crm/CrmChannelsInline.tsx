@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Loader2, RefreshCw, Star, ExternalLink, Plus, Zap, Settings } from 'lucide-react';
 import { MetaLogo } from '@/components/ui/meta-logo';
-import whatsappLogo from '@/assets/whatsapp-logo.png.asset.json';
+import whatsappLogo from '@/assets/whatsapp-logo.png';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -271,7 +271,7 @@ export default function CrmChannelsInline() {
                   <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-background border border-border grid place-items-center overflow-hidden">
                     {ch.official
                       ? <MetaLogo className="w-3 h-3" />
-                      : <img src={whatsappLogo.url} alt="WhatsApp" className="w-3.5 h-3.5 object-contain" />}
+                      : <img src={whatsappLogo} alt="WhatsApp" className="w-3.5 h-3.5 object-contain" />}
                   </span>
                 </div>
                 <div className="min-w-0">
@@ -303,7 +303,7 @@ export default function CrmChannelsInline() {
             )}>
               {ch.official
                 ? <><MetaLogo className="w-3.5 h-3.5" /> API Oficial (Meta)</>
-                : <><img src={whatsappLogo.url} alt="WhatsApp" className="w-3.5 h-3.5 object-contain" /> WhatsApp não oficial</>}
+                : <><img src={whatsappLogo} alt="WhatsApp" className="w-3.5 h-3.5 object-contain" /> WhatsApp não oficial</>}
             </span>
 
             <div className="grid grid-cols-2 gap-2">

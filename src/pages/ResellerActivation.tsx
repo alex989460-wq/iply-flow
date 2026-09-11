@@ -5,8 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, ArrowLeft, Check, ChevronRight, Smartphone, QrCode, ShieldCheck, Copy, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
-import pixLogo from '@/assets/pix-logo.png.asset.json';
-import cardLogo from '@/assets/card-logo.png.asset.json';
+import pixLogo from '@/assets/pix-logo.png';
+import cardLogo from '@/assets/card-logo.png';
 
 const FN_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 const ANON = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -298,7 +298,7 @@ export default function ResellerActivation() {
                     <button onClick={() => submit('pix')} disabled={creating}
                       className="group rounded-xl border border-white/10 bg-gradient-to-br from-emerald-500/[0.06] to-transparent hover:border-emerald-400/70 hover:from-emerald-500/[0.12] p-5 flex flex-col items-center gap-2 transition-all disabled:opacity-50 hover:-translate-y-0.5 hover:shadow-[0_0_25px_-6px_rgba(16,185,129,0.6)]">
                       <div className="w-14 h-14 rounded-xl bg-white flex items-center justify-center">
-                        {creating ? <Loader2 className="w-6 h-6 animate-spin text-emerald-500" /> : <img src={pixLogo.url} alt="Pix" className="w-9 h-9" />}
+                        {creating ? <Loader2 className="w-6 h-6 animate-spin text-emerald-500" /> : <img src={pixLogo} alt="Pix" className="w-9 h-9" />}
                       </div>
                       <p className="font-bold text-sm">PIX INSTANTÂNEO</p>
                       <p className="text-xl font-extrabold">{fmtBRL(currentPrice)}</p>
@@ -308,7 +308,7 @@ export default function ResellerActivation() {
                     <button onClick={() => submit('cakto')} disabled={creating}
                       className="group rounded-xl border border-white/10 bg-gradient-to-br from-sky-500/[0.06] to-transparent hover:border-sky-400/70 hover:from-sky-500/[0.12] p-5 flex flex-col items-center gap-2 transition-all disabled:opacity-50 hover:-translate-y-0.5">
                       <div className="w-14 h-14 rounded-xl bg-white flex items-center justify-center">
-                        <img src={cardLogo.url} alt="Cartão" className="w-9 h-9" />
+                        <img src={cardLogo} alt="Cartão" className="w-9 h-9" />
                       </div>
                       <p className="font-bold text-sm">CARTÃO / CAKTO</p>
                       <p className="text-xl font-extrabold">{fmtBRL(currentPrice)}</p>
