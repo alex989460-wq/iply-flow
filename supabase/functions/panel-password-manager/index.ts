@@ -398,11 +398,12 @@ async function p2cineSyncPasswords(base: string, token: string, resellerId?: str
 
 // ─── VPLAY ───
 async function vplayConnection(settings: any) {
-  const host = String(settings.vplay_mysql_host || "").trim();
-  const user = String(settings.vplay_mysql_user || "").trim();
-  const password = String(settings.vplay_mysql_password || "");
-  const database = String(settings.vplay_mysql_database || "").trim();
-  const port = Number(settings.vplay_mysql_port) || 3306;
+  const host = String(settings.vplay_mysql_host || Deno.env.get("VPLAY_MYSQL_HOST") || "").trim();
+  const user = String(settings.vplay_mysql_user || Deno.env.get("VPLAY_MYSQL_USER") || "").trim();
+  const password = String(settings.vplay_mysql_password || Deno.env.get("VPLAY_MYSQL_PASSWORD") || "");
+  const database = String(settings.vplay_mysql_database || Deno.env.get("VPLAY_MYSQL_DATABASE") || "").trim();
+  const port = Number(settings.vplay_mysql_port || Deno.env.get("VPLAY_MYSQL_PORT")) || 3306;
+
   if (!host || !user || !password || !database) return null;
   try {
     return await mysql.createConnection({ host, user, password, database, port, connectTimeout: 10000 });
