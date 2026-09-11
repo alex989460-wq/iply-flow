@@ -9,12 +9,16 @@ source "$BASE/.env"
 source "$BASE/keys.env"
 
 echo "==> Containers"
-for c in supabase-db supabase-auth supabase-rest supabase-storage supabase-edge-functions supabase-realtime supabase-pooler supabase-envoy; do
+for c in supabase-db supabase-auth supabase-rest supabase-storage supabase-edge-functions supabase-pooler supabase-envoy; do
   if ! docker ps --format '{{.Names}}' | grep -qx "$c"; then
     echo "FALHA: container $c nao esta rodando"
     ERR=1
   fi
 done
+if ! docker ps --format '{{.Names}}' | grep -qE 'supabase-realtime$'; then
+  echo "FALHA: container realtime nao esta rodando"
+  ERR=1
+fi
 if [ $ERR -eq 0 ]; then echo "OK — containers saudaveis"; fi
 
 echo "==> Banco"
