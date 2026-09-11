@@ -1298,20 +1298,26 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
     }
   };
 
-  const handleFetchPassword = async () => {
-    if (!selectedCustomer || !changePasswordPanel) return;
+  const handleFetchPassword = async (panelOverride?: string) => {
+    const panel = panelOverride || changePasswordPanel || detectPanel();
+    if (!selectedCustomer || !panel) {
+      toast.error('Selecione o painel do cliente para puxar a senha.');
+      return;
+    }
+    setChangePasswordPanel(panel);
     setIsChangingPassword(true);
     try {
       const { data, error } = await supabase.functions.invoke('panel-password-manager', {
         body: {
           action: 'get-password',
           username: selectedCustomer.username,
-          panel: changePasswordPanel,
+          panel,
         },
       });
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || 'Falha ao puxar senha');
       setNewPassword(data.password);
+
       toast.success(`Senha atual no painel: ${data.password}`);
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       const refreshed = await supabase.from('customers').select('*, plans(*), servers(*)').eq('id', selectedCustomer.id).single();
