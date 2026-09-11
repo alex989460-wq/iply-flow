@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import metaLogo from '@/assets/meta-logo.webp.asset.json';
+import metaLogo from '@/assets/meta-logo.webp';
 
 /**
  * Official Meta infinity logo (image from Meta press kit).
@@ -8,7 +8,7 @@ import metaLogo from '@/assets/meta-logo.webp.asset.json';
 export function MetaLogo({ className }: { className?: string }) {
   return (
     <img
-      src={metaLogo.url}
+      src={metaLogo}
       alt="Meta"
       className={cn('inline-block object-contain select-none', className)}
       draggable={false}
