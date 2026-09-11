@@ -1262,6 +1262,8 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
     if (panelType.includes('rush')) return 'rush';
     if (panelType.includes('vplay')) return 'vplay';
     if (panelType.includes('p2cine') || panelType.includes('koffice')) return 'p2cine';
+    if (panelType.includes('best')) return 'the_best';
+    if (panelType.includes('uniplay') || panelType.includes('searchdefense')) return 'uniplay';
     return '';
   };
 
@@ -2059,6 +2061,8 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                             <SelectItem value="rush">Rush</SelectItem>
                             <SelectItem value="p2cine">P2Cine / kOffice</SelectItem>
                             <SelectItem value="vplay">VPlay</SelectItem>
+                            <SelectItem value="the_best">The Best</SelectItem>
+                            <SelectItem value="uniplay">Uniplay</SelectItem>
                           </SelectContent>
                         </Select>
                         <div className="flex gap-2">

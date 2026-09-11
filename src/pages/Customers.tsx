@@ -1140,6 +1140,8 @@ export default function Customers() {
     else if (panelType.includes('rush')) defaultPanel = 'rush';
     else if (panelType.includes('vplay')) defaultPanel = 'vplay';
     else if (panelType.includes('p2cine') || panelType.includes('koffice')) defaultPanel = 'p2cine';
+    else if (panelType.includes('best')) defaultPanel = 'the_best';
+    else if (panelType.includes('uniplay') || panelType.includes('searchdefense')) defaultPanel = 'uniplay';
     setChangePasswordPanel(defaultPanel);
     setNewPassword('');
   };
@@ -4071,6 +4073,8 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                     <SelectItem value="rush">Rush</SelectItem>
                     <SelectItem value="p2cine">P2Cine / kOffice</SelectItem>
                     <SelectItem value="vplay">VPlay</SelectItem>
+                    <SelectItem value="the_best">The Best</SelectItem>
+                    <SelectItem value="uniplay">Uniplay</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
