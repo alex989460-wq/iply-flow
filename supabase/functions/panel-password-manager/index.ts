@@ -581,6 +581,12 @@ serve(async (req) => {
     }
 
     if (action === "sync-passwords") {
+      const parsed = SyncPasswordsSchema.safeParse(rawBody);
+      if (!parsed.success) return json({ success: false, error: parsed.error.flatten().fieldErrors }, 400);
+      if (parsed.data.owner_id === "all" && !adminNow) {
+        return json({ success: false, error: "Apenas administradores podem sincronizar todos os revendedores." }, 403);
+      }
+
       const results: Record<string, { total: number; updated: number; error?: string }> = {};
       const owners = ownerId === "all"
         ? (await admin.from("reseller_api_settings").select("user_id")).data?.map((s: any) => s.user_id) || []
