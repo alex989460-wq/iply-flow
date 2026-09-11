@@ -1087,6 +1087,26 @@ serve(async (req) => {
           }
           break;
         }
+        case "the_best": {
+          const base = normalizeBaseUrl(settings.the_best_base_url, THE_BEST_DEFAULT);
+          const key = settings.the_best_api_key || Deno.env.get("THE_BEST_API_KEY") || "";
+          const auth = await theBestAuth(base, key, settings.the_best_username || "", settings.the_best_password || "");
+          const line = await theBestFindLine(base, auth, username);
+          if (!line) return json({ success: false, error: `Usuário "${username}" não encontrado no painel The Best.` }, 404);
+          const pwd = pickPassword(line);
+          if (!pwd) return json({ success: false, error: `O painel The Best não devolve a senha desse usuário. Use "Alterar senha" para definir uma nova.` }, 404);
+          found = { username, password: pwd };
+          break;
+        }
+        case "uniplay": {
+          const session = await uniplaySession(admin, ownerId, settings);
+          const raw = await uniplayFindUser(session, username);
+          if (!raw) return json({ success: false, error: `Usuário "${username}" não encontrado no painel Uniplay.` }, 404);
+          const pwd = pickPassword(raw);
+          if (!pwd) return json({ success: false, error: `O painel Uniplay não devolve a senha desse usuário. Use "Alterar senha" para definir uma nova.` }, 404);
+          found = { username, password: pwd };
+          break;
+        }
       }
 
       if (!found || !found.password) {
