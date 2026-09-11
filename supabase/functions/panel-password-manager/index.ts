@@ -608,6 +608,61 @@ serve(async (req) => {
       return json({ success: true, panel, result, updated_customer_ids: updatedIds });
     }
 
+    if (action === "get-password") {
+      const parsed = GetPasswordSchema.safeParse(rawBody);
+      if (!parsed.success) return json({ success: false, error: parsed.error.flatten().fieldErrors }, 400);
+      const { username, panel } = parsed.data;
+
+      let found: { username: string; password: string } | undefined;
+      switch (panel) {
+        case "natv":
+        case "natv2": {
+          const prefix = panel === "natv" ? "natv" : "natv2";
+          const key = settings[`${prefix}_api_key`] || Deno.env.get(prefix.toUpperCase() + "_API_KEY") || "";
+          const base = settings[`${prefix}_base_url`] || Deno.env.get(prefix.toUpperCase() + "_BASE_URL") || "";
+          if (!key || !base) return json({ success: false, error: `Credenciais ${prefix.toUpperCase()} não configuradas.` }, 400);
+          found = matchUser(await natvSyncPasswords(base, key), username);
+          break;
+        }
+        case "rush": {
+          const { rush_username: rUser, rush_password: rPass, rush_token: rToken, rush_base_url: rBase } = settings;
+          if (!rUser || !rPass || !rToken || !rBase) return json({ success: false, error: "Credenciais Rush não configuradas." }, 400);
+          const token = await rushAuth(rBase, rUser, rPass, rToken);
+          found = matchUser(await rushSyncPasswords(rBase, token), username);
+          break;
+        }
+        case "p2cine": {
+          const { p2cine_username: pUser, p2cine_api_key: pKey, p2cine_base_url: pBase } = settings;
+          if (!pUser || !pKey || !pBase) return json({ success: false, error: "Credenciais P2Cine não configuradas." }, 400);
+          const login = await p2cineApiLogin(pBase, pUser, pKey);
+          found = matchUser(await p2cineSyncPasswords(pBase, login.token, login.uid), username);
+          break;
+        }
+        case "vplay": {
+          const connection = await vplayConnection(settings);
+          if (!connection) return json({ success: false, error: "Credenciais MySQL do VPlay não configuradas." }, 400);
+          try {
+            const row = await vplayFindUser(connection, username);
+            if (row) {
+              found = { username, password: String(row.row.password ?? "") };
+            }
+          } finally {
+            await connection.end().catch(() => undefined);
+          }
+          break;
+        }
+      }
+
+      if (!found || !found.password) {
+        return json({ success: false, error: `Senha de "${username}" não encontrada no painel selecionado.` }, 404);
+      }
+
+      const updatedIds = await updateCustomerPassword(admin, ownerId, username, found.password);
+      return json({ success: true, panel, password: found.password, updated_customer_ids: updatedIds });
+    }
+
+
+
     if (action === "sync-passwords") {
       const parsed = SyncPasswordsSchema.safeParse(rawBody);
       if (!parsed.success) return json({ success: false, error: parsed.error.flatten().fieldErrors }, 400);
