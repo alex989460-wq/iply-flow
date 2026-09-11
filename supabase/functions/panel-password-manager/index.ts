@@ -482,6 +482,157 @@ function matchUser(list: { username: string; password: string }[], username: str
   return list.find((u) => variants.includes(String(u.username || "").toLowerCase()));
 }
 
+// Regras de formato de senha aceitas por cada painel
+const PASSWORD_RULES: Record<string, { min: number; max: number; regex: RegExp; hint: string }> = {
+  natv: { min: 6, max: 20, regex: /^[A-Za-z0-9]+$/, hint: "NATV aceita apenas letras e números, de 6 a 20 caracteres." },
+  natv2: { min: 6, max: 20, regex: /^[A-Za-z0-9]+$/, hint: "NATV² aceita apenas letras e números, de 6 a 20 caracteres." },
+  rush: { min: 6, max: 20, regex: /^[A-Za-z0-9]+$/, hint: "Rush aceita apenas letras e números, de 6 a 20 caracteres." },
+  p2cine: { min: 4, max: 20, regex: /^[A-Za-z0-9._-]+$/, hint: "P2Cine aceita letras, números, ponto, hífen e underline, de 4 a 20 caracteres." },
+  vplay: { min: 4, max: 32, regex: /^[A-Za-z0-9._-]+$/, hint: "VPlay aceita letras, números, ponto, hífen e underline, de 4 a 32 caracteres." },
+};
+
+function validatePanelPassword(panel: string, password: string): string | null {
+  const rule = PASSWORD_RULES[panel];
+  if (!rule) return null;
+  if (password.length < rule.min || password.length > rule.max || !rule.regex.test(password)) return rule.hint;
+  return null;
+}
+
+function pickPassword(obj: any): string {
+  if (!obj || typeof obj !== "object") return "";
+  const keys = ["password", "senha", "pass", "user_password", "plain_password", "password_plain", "pwd"];
+  for (const k of keys) {
+    const v = obj[k];
+    if (v !== undefined && v !== null && String(v).trim()) return String(v).trim();
+  }
+  return "";
+}
+
+function extractList(data: any): any[] {
+  if (Array.isArray(data)) return data;
+  if (!data || typeof data !== "object") return [];
+  for (const k of ["data", "users", "items", "results", "rows", "lines"]) {
+    if (Array.isArray(data[k])) return data[k];
+    if (data[k] && Array.isArray(data[k]?.data)) return data[k].data;
+  }
+  return [];
+}
+
+// Busca o usuário no NATV usando endpoints de pesquisa e paginação
+async function natvFindUserRaw(baseUrl: string, apiKey: string, username: string): Promise<any | null> {
+  const normalized = normalizeBaseUrl(baseUrl);
+  const bases = new Set<string>([normalized]);
+  if (normalized.endsWith("/api")) bases.add(normalized.replace(/\/api$/, ""));
+  else bases.add(`${normalized}/api`);
+
+  const variants = buildUsernameVariants(username).map((v) => v.toLowerCase());
+  const urls: string[] = [];
+  for (const b of bases) {
+    for (const path of ["/users", "/user"]) {
+      for (const v of buildUsernameVariants(username)) {
+        const e = encodeURIComponent(v);
+        urls.push(`${b}${path}?search=${e}`, `${b}${path}?username=${e}`, `${b}${path}?login=${e}`);
+      }
+      for (let page = 1; page <= 10; page++) urls.push(`${b}${path}?page=${page}&per_page=100&limit=100`);
+      urls.push(`${b}${path}`);
+    }
+  }
+
+  for (const url of [...new Set(urls)]) {
+    try {
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) continue;
+      const list = extractList(await res.json().catch(() => null));
+      const found = list.find((u: any) => variants.includes(String(u?.username || u?.login || u?.user || "").toLowerCase()));
+      if (found) return found;
+    } catch { /* ignore */ }
+  }
+  return null;
+}
+
+// Busca o usuário no Rush (iptv e p2p), tentando pesquisa direta antes da listagem completa
+async function rushFindUserRaw(baseUrl: string, token: string, username: string): Promise<any | null> {
+  const normalized = normalizeBaseUrl(baseUrl);
+  const variants = buildUsernameVariants(username).map((v) => v.toLowerCase());
+
+  for (const type of ["iptv", "p2p"]) {
+    for (const v of buildUsernameVariants(username)) {
+      const url = `${normalized}/${type}/list?token=${encodeURIComponent(token)}&search=${encodeURIComponent(v)}`;
+      try {
+        const res = await fetch(url, {
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!res.ok) continue;
+        const list = extractList(await res.json().catch(() => null));
+        const found = list.find((u: any) => variants.includes(String(u?.username || u?.login || "").toLowerCase()));
+        if (found) return found;
+      } catch { /* ignore */ }
+    }
+
+    try {
+      const users = await rushListUsers(normalized, token, type);
+      const found = users.find((u: any) => variants.includes(String(u?.username || u?.login || "").toLowerCase()));
+      if (found) return found;
+    } catch { /* ignore */ }
+  }
+  return null;
+}
+
+// Busca a linha do cliente no P2Cine e tenta extrair a senha
+async function p2cineFindClientRow(base: string, token: string, username: string, resellerId?: string): Promise<{ id: string; password: string } | null> {
+  const variants = buildUsernameVariants(username).map((v) => v.toLowerCase());
+  const form = new URLSearchParams();
+  form.set("draw", "1");
+  form.set("start", "0");
+  form.set("length", "50");
+  form.set("search[value]", username);
+  form.set("search[regex]", "false");
+  form.set("filter_value", "#");
+  form.set("search_column", "login");
+  form.set("reseller_id", String(resellerId || "-1"));
+  for (let i = 0; i < 10; i++) {
+    form.set(`columns[${i}][data]`, String(i));
+    form.set(`columns[${i}][searchable]`, "true");
+    form.set(`columns[${i}][orderable]`, "true");
+    form.set(`columns[${i}][search][value]`, "");
+    form.set(`columns[${i}][search][regex]`, "false");
+  }
+  form.set("order[0][column]", "0");
+  form.set("order[0][dir]", "desc");
+
+  const res = await p2cineApiFetch(`${base}/clients/api/?get_clients&token=${token}`, {
+    method: "POST",
+    headers: {
+      ...browserHeaders,
+      Accept: "application/json, text/javascript, */*; q=0.01",
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+      "X-Requested-With": "XMLHttpRequest",
+      Origin: base,
+      Referer: `${base}/clients/?token=${token}`,
+    },
+    body: form.toString(),
+  });
+
+  const rows = Array.isArray(res.json?.data) ? res.json.data : [];
+  for (const row of rows) {
+    const cells = (row as any[]).map((c) => String(c ?? "").replace(/<[^>]*>/g, "").trim());
+    const loginIdx = cells.findIndex((c) => variants.includes(c.toLowerCase()));
+    if (loginIdx < 0) continue;
+    const id = String(cells[0] || "").trim();
+    // a senha normalmente vem na coluna seguinte ao login
+    const candidate = cells
+      .slice(loginIdx + 1)
+      .find((c) => c && c.length >= 4 && c.length <= 32 && /^[A-Za-z0-9._-]+$/.test(c) && !variants.includes(c.toLowerCase()));
+    return { id, password: candidate || "" };
+  }
+  return null;
+}
+
+
 // ─── MAIN ───
 const ChangePasswordSchema = z.object({
   action: z.literal("change-password"),
