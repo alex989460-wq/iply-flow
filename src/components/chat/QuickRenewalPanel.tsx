@@ -1255,6 +1255,44 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
     else toast.error('Não foi possível copiar automaticamente. Selecione e copie manualmente.');
   };
 
+  const openChangePassword = () => {
+    if (!selectedCustomer) return;
+    const panelType = String(selectedCustomer.server?.panel_type || selectedCustomer.server?.server_name || '').toLowerCase();
+    let defaultPanel = '';
+    if (panelType.includes('natv')) defaultPanel = 'natv';
+    else if (panelType.includes('rush')) defaultPanel = 'rush';
+    else if (panelType.includes('vplay')) defaultPanel = 'vplay';
+    else if (panelType.includes('p2cine') || panelType.includes('koffice')) defaultPanel = 'p2cine';
+    setChangePasswordPanel(defaultPanel);
+    setNewPassword('');
+  };
+
+  const handleChangePassword = async () => {
+    if (!selectedCustomer || !newPassword || !changePasswordPanel) return;
+    setIsChangingPassword(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('panel-password-manager', {
+        body: {
+          action: 'change-password',
+          username: selectedCustomer.username,
+          new_password: newPassword,
+          panel: changePasswordPanel,
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Falha ao alterar senha');
+      toast.success(`Senha alterada no painel ${changePasswordPanel.toUpperCase()} e salva.`);
+      setChangePasswordPanel('');
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      const refreshed = await supabase.from('customers').select('*').eq('id', selectedCustomer.id).single();
+      if (refreshed.data) setSelectedCustomer(refreshed.data);
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao alterar senha');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   const getStatusBadge = (status: string, dueDate?: string) => {
     // Check if customer is overdue (regardless of status)
     const isOverdue = dueDate ? isCustomerOverdue(dueDate) : false;
