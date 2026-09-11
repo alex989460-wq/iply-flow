@@ -2082,7 +2082,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                           variant="secondary"
                           size="sm"
                           className="w-full h-8 text-xs rounded-xl"
-                          onClick={handleFetchPassword}
+                          onClick={() => handleFetchPassword()}
                           disabled={isChangingPassword}
                         >
                           {isChangingPassword ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Key className="w-3 h-3 mr-1" />}
