@@ -1201,6 +1201,44 @@ serve(async (req) => {
           }
         }
 
+        // The Best
+        if (s.the_best_api_key || (s.the_best_username && s.the_best_password)) {
+          try {
+            const base = normalizeBaseUrl(s.the_best_base_url, THE_BEST_DEFAULT);
+            const auth = await theBestAuth(base, s.the_best_api_key || "", s.the_best_username || "", s.the_best_password || "");
+            const users = await theBestSyncPasswords(base, auth);
+            let updated = 0;
+            for (const u of users) {
+              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password);
+              updated += ids.length;
+            }
+            results.the_best = { total: users.length, updated };
+          } catch (e) {
+            results.the_best = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
+          }
+        }
+
+        // Uniplay
+        if (s.uniplay_username && s.uniplay_password) {
+          try {
+            const session = await uniplaySession(admin, currentOwner, s);
+            const users = await uniplayListUsers(session);
+            let updated = 0;
+            let total = 0;
+            for (const u of users) {
+              const name = String(u?.username || "").trim();
+              const pwd = pickPassword(u);
+              if (!name || !pwd) continue;
+              total++;
+              const ids = await updateCustomerPassword(admin, currentOwner, name, pwd);
+              updated += ids.length;
+            }
+            results.uniplay = { total, updated };
+          } catch (e) {
+            results.uniplay = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
+          }
+        }
+
         // VPlay
         const connection = await vplayConnection(s);
         if (connection) {
