@@ -67,3 +67,15 @@ Escolha um horário de baixo movimento (madrugada).
 - [ ] Conferir backups rodando (`/opt/supergestor/backups`).
 - [ ] Configurar cópia dos backups para fora da VPS (`RCLONE_REMOTE`).
 - [ ] Encerrar o ambiente antigo.
+
+## Extensão do WhatsApp Web
+
+A extensão (`extension/`) tem o endereço do servidor fixo em três arquivos:
+`manifest.json`, `background.js` e `wa-extract.js`. Antes da virada, troque o
+endereço antigo por `https://supergestor.top`, gere o `.zip` novamente e
+reinstale nos navegadores que usam o extrator de grupos.
+
+```bash
+grep -rl "fphqfgxfeaylldpxjqan.supabase.co" extension/ \
+  | xargs sed -i 's|https://fphqfgxfeaylldpxjqan.supabase.co|https://supergestor.top|g'
+```
