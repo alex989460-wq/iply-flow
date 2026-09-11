@@ -784,26 +784,44 @@ serve(async (req) => {
           const key = settings[`${prefix}_api_key`] || Deno.env.get(prefix.toUpperCase() + "_API_KEY") || "";
           const base = settings[`${prefix}_base_url`] || Deno.env.get(prefix.toUpperCase() + "_BASE_URL") || "";
           if (!key || !base) return json({ success: false, error: `Credenciais ${prefix.toUpperCase()} não configuradas.` }, 400);
-          found = matchUser(await natvSyncPasswords(base, key), username);
+          const raw = await natvFindUserRaw(base, key, username);
+          if (!raw) return json({ success: false, error: `Usuário "${username}" não encontrado no painel ${prefix.toUpperCase()}.` }, 404);
+          const pwd = pickPassword(raw);
+          if (!pwd) {
+            return json({ success: false, error: `O painel ${prefix.toUpperCase()} não devolve a senha desse usuário. Use "Alterar senha" para definir uma nova.` }, 404);
+          }
+          found = { username, password: pwd };
           break;
         }
         case "rush": {
           const { rush_username: rUser, rush_password: rPass, rush_token: rToken, rush_base_url: rBase } = settings;
           if (!rUser || !rPass || !rToken || !rBase) return json({ success: false, error: "Credenciais Rush não configuradas." }, 400);
           const token = await rushAuth(rBase, rUser, rPass, rToken);
-          found = matchUser(await rushSyncPasswords(rBase, token), username);
+          const raw = await rushFindUserRaw(rBase, token, username);
+          if (!raw) return json({ success: false, error: `Usuário "${username}" não encontrado no painel Rush.` }, 404);
+          const pwd = pickPassword(raw);
+          if (!pwd) {
+            return json({ success: false, error: `O painel Rush não devolve a senha desse usuário. Use "Alterar senha" para definir uma nova.` }, 404);
+          }
+          found = { username, password: pwd };
           break;
         }
         case "p2cine": {
           const { p2cine_username: pUser, p2cine_api_key: pKey, p2cine_base_url: pBase } = settings;
           if (!pUser || !pKey || !pBase) return json({ success: false, error: "Credenciais P2Cine não configuradas." }, 400);
           const login = await p2cineApiLogin(pBase, pUser, pKey);
-          found = matchUser(await p2cineSyncPasswords(pBase, login.token, login.uid), username);
+          const row = await p2cineFindClientRow(pBase, login.token, username, login.uid);
+          if (!row) return json({ success: false, error: `Usuário "${username}" não encontrado no painel P2Cine.` }, 404);
+          if (!row.password) {
+            return json({ success: false, error: `O painel P2Cine não mostra a senha desse usuário. Use "Alterar senha" para definir uma nova.` }, 404);
+          }
+          found = { username, password: row.password };
           break;
         }
         case "vplay": {
           const connection = await vplayConnection(settings);
           if (!connection) return json({ success: false, error: "Credenciais MySQL do VPlay não configuradas." }, 400);
+
           try {
             const row = await vplayFindUser(connection, username);
             if (row) {
