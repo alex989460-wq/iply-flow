@@ -1255,18 +1255,22 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
     else toast.error('Não foi possível copiar automaticamente. Selecione e copie manualmente.');
   };
 
+  const detectPanel = () => {
+    const server = selectedCustomer?.server as any;
+    const panelType = String(server?.panel_type || server?.server_name || '').toLowerCase();
+    if (panelType.includes('natv')) return 'natv';
+    if (panelType.includes('rush')) return 'rush';
+    if (panelType.includes('vplay')) return 'vplay';
+    if (panelType.includes('p2cine') || panelType.includes('koffice')) return 'p2cine';
+    return '';
+  };
+
   const openChangePassword = () => {
     if (!selectedCustomer) return;
-    const server = selectedCustomer.server as any;
-    const panelType = String(server?.panel_type || server?.server_name || '').toLowerCase();
-    let defaultPanel = '';
-    if (panelType.includes('natv')) defaultPanel = 'natv';
-    else if (panelType.includes('rush')) defaultPanel = 'rush';
-    else if (panelType.includes('vplay')) defaultPanel = 'vplay';
-    else if (panelType.includes('p2cine') || panelType.includes('koffice')) defaultPanel = 'p2cine';
-    setChangePasswordPanel(defaultPanel);
+    setChangePasswordPanel(detectPanel());
     setNewPassword('');
   };
+
 
   const handleChangePassword = async () => {
     if (!selectedCustomer || !newPassword || !changePasswordPanel) return;
@@ -1294,20 +1298,26 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
     }
   };
 
-  const handleFetchPassword = async () => {
-    if (!selectedCustomer || !changePasswordPanel) return;
+  const handleFetchPassword = async (panelOverride?: string) => {
+    const panel = panelOverride || changePasswordPanel || detectPanel();
+    if (!selectedCustomer || !panel) {
+      toast.error('Selecione o painel do cliente para puxar a senha.');
+      return;
+    }
+    setChangePasswordPanel(panel);
     setIsChangingPassword(true);
     try {
       const { data, error } = await supabase.functions.invoke('panel-password-manager', {
         body: {
           action: 'get-password',
           username: selectedCustomer.username,
-          panel: changePasswordPanel,
+          panel,
         },
       });
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || 'Falha ao puxar senha');
       setNewPassword(data.password);
+
       toast.success(`Senha atual no painel: ${data.password}`);
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       const refreshed = await supabase.from('customers').select('*, plans(*), servers(*)').eq('id', selectedCustomer.id).single();
@@ -2014,17 +2024,30 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                       </p>
                     </div>
                     {!changePasswordPanel ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full h-8 text-xs rounded-xl"
-                        onClick={openChangePassword}
-                        disabled={!selectedCustomer.username}
-                      >
-                        <Key className="w-3 h-3 mr-1.5" />
-                        Alterar senha do cliente
-                      </Button>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="h-8 text-xs rounded-xl"
+                          onClick={() => handleFetchPassword()}
+                          disabled={!selectedCustomer.username || isChangingPassword}
+                        >
+                          {isChangingPassword ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Key className="w-3 h-3 mr-1" />}
+                          Puxar senha
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs rounded-xl"
+                          onClick={openChangePassword}
+                          disabled={!selectedCustomer.username}
+                        >
+                          <Key className="w-3 h-3 mr-1.5" />
+                          Alterar senha
+                        </Button>
+                      </div>
                     ) : (
+
                       <div className="space-y-2">
                         <Select value={changePasswordPanel} onValueChange={setChangePasswordPanel}>
                           <SelectTrigger className="h-8 text-xs">
@@ -2059,7 +2082,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                           variant="secondary"
                           size="sm"
                           className="w-full h-8 text-xs rounded-xl"
-                          onClick={handleFetchPassword}
+                          onClick={() => handleFetchPassword()}
                           disabled={isChangingPassword}
                         >
                           {isChangingPassword ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Key className="w-3 h-3 mr-1" />}
