@@ -682,6 +682,23 @@ async function theBestFindLine(base: string, auth: { token: string | null; apiKe
       console.log(`[TheBest] busca ${v} falhou: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
+
+  // Sem resultado na busca: varre as primeiras páginas da listagem do painel.
+  for (let page = 1; page <= 10; page++) {
+    try {
+      const res = await fetch(`${base}/lines/?page=${page}&per_page=100`, {
+        headers: theBestHeaders(auth.token, auth.apiKey || null),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) break;
+      const list = extractList(await res.json().catch(() => null));
+      if (page === 1) console.log(`[TheBest] listagem página 1: ${list.length} linhas; exemplos ${list.slice(0, 3).map((l: any) => l?.username).join(",")}`);
+      if (!list.length) break;
+      const found = list.find((l: any) => lower.includes(String(l?.username || "").trim().toLowerCase()));
+      if (found) return found;
+      if (list.length < 100) break;
+    } catch { break; }
+  }
   return null;
 }
 
