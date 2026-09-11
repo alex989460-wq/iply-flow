@@ -276,7 +276,7 @@ Deno.serve(async (req) => {
       const [{ data: myServers }, { data: myTiers }, { data: access }, { data: checkout }] = await Promise.all([
         isAdmin
           ? admin.from("servers").select("id, server_name, host").order("server_name")
-          : admin.from("servers").select("id, server_name, host").eq("owner_id", userId).order("server_name"),
+          : admin.from("servers").select("id, server_name, host").eq("created_by", userId).order("server_name"),
         admin.from("credit_price_tiers").select("*").eq("owner_id", userId).order("min_qty"),
         admin.from("reseller_access").select("credits").eq("user_id", userId).maybeSingle(),
         admin.from("reseller_checkout_settings").select("slug, is_active").eq("user_id", userId).maybeSingle(),
