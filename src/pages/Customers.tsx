@@ -41,7 +41,7 @@ import { useToast } from '@/hooks/use-toast';
 import { 
   Plus, Pencil, Trash2, Loader2, Users, RefreshCw, Search, CalendarIcon,
   Upload, Phone, FileText, Download, MessageSquare, AlertTriangle, Send, Copy, Check, ArrowRightLeft,
-  ArrowUpDown, ArrowUp, ArrowDown, Shield
+  ArrowUpDown, ArrowUp, ArrowDown, Shield, Key
 } from 'lucide-react';
 import ServerMigrationModal from '@/components/customers/ServerMigrationModal';
 import {
@@ -98,6 +98,10 @@ export default function Customers() {
   const [customAmount, setCustomAmount] = useState('');
   const [sendConfirmationMessage, setSendConfirmationMessage] = useState(true);
   const [editingCustomer, setEditingCustomer] = useState<any | null>(null);
+  const [changePasswordCustomer, setChangePasswordCustomer] = useState<any | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [changePasswordPanel, setChangePasswordPanel] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   
@@ -1126,6 +1130,43 @@ export default function Customers() {
       amount, 
       sendMessage: sendConfirmationMessage 
     });
+  };
+
+  const openChangePassword = (customer: any) => {
+    setChangePasswordCustomer(customer);
+    const panelType = String(customer.servers?.panel_type || customer.servers?.server_name || '').toLowerCase();
+    let defaultPanel = '';
+    if (panelType.includes('natv')) defaultPanel = 'natv';
+    else if (panelType.includes('rush')) defaultPanel = 'rush';
+    else if (panelType.includes('vplay')) defaultPanel = 'vplay';
+    else if (panelType.includes('p2cine') || panelType.includes('koffice')) defaultPanel = 'p2cine';
+    setChangePasswordPanel(defaultPanel);
+    setNewPassword('');
+  };
+
+  const handleChangePassword = async () => {
+    if (!changePasswordCustomer || !newPassword || !changePasswordPanel) return;
+    setIsChangingPassword(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('panel-password-manager', {
+        body: {
+          action: 'change-password',
+          username: changePasswordCustomer.username,
+          new_password: newPassword,
+          panel: changePasswordPanel,
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Falha ao alterar senha');
+      toast({ title: 'Senha alterada', description: `Senha atualizada no painel ${changePasswordPanel.toUpperCase()} e no sistema.` });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      setChangePasswordCustomer(null);
+      setNewPassword('');
+    } catch (err: any) {
+      toast({ title: 'Erro ao alterar senha', description: err.message || String(err), variant: 'destructive' });
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   // Bulk renew handler
@@ -3630,6 +3671,16 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                           <Button
                             variant="ghost"
                             size="icon"
+                            className="h-8 w-8 hover:bg-primary/10"
+                            title="Alterar senha no painel"
+                            onClick={() => openChangePassword(customer)}
+                            disabled={!customer.username}
+                          >
+                            <Key className="w-4 h-4 text-primary" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="h-8 w-8 hover:bg-muted"
                             onClick={() => handleEdit(customer)}
                           >
@@ -3966,6 +4017,67 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                   <Send className="w-4 h-4 mr-2" />
                 )}
                 Enviar Cobrança
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Change Password Dialog */}
+        <Dialog open={!!changePasswordCustomer} onOpenChange={() => { setChangePasswordCustomer(null); setNewPassword(''); }}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Alterar senha no painel</DialogTitle>
+              <DialogDescription>
+                {changePasswordCustomer ? (
+                  <>Cliente: <strong>{changePasswordCustomer.name}</strong> — usuário: <code className="text-xs bg-muted px-1 rounded">{changePasswordCustomer.username}</code></>
+                ) : 'Selecione um cliente para alterar a senha.'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label>Painel</Label>
+                <Select value={changePasswordPanel} onValueChange={setChangePasswordPanel}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o painel" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="natv">NATV</SelectItem>
+                    <SelectItem value="natv2">NATV2</SelectItem>
+                    <SelectItem value="rush">Rush</SelectItem>
+                    <SelectItem value="p2cine">P2Cine / kOffice</SelectItem>
+                    <SelectItem value="vplay">VPlay</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Nova senha</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Digite a nova senha"
+                    type="text"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setNewPassword(Math.random().toString(36).slice(2, 10))}
+                  >
+                    Gerar
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => { setChangePasswordCustomer(null); setNewPassword(''); }}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleChangePassword}
+                disabled={!newPassword || !changePasswordPanel || isChangingPassword}
+              >
+                {isChangingPassword ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Key className="w-4 h-4 mr-2" />}
+                Alterar senha
               </Button>
             </div>
           </DialogContent>

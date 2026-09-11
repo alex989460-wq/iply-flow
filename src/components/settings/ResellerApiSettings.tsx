@@ -29,6 +29,7 @@ export default function ResellerApiSettings() {
   const [showVplayPassword, setShowVplayPassword] = useState(false);
   const [showVplayDbPassword, setShowVplayDbPassword] = useState(false);
   const [testingVplay, setTestingVplay] = useState(false);
+  const [syncingPasswords, setSyncingPasswords] = useState(false);
 
   const [testingUniplay, setTestingUniplay] = useState(false);
   const [testingP2cine, setTestingP2cine] = useState(false);
@@ -432,6 +433,25 @@ export default function ResellerApiSettings() {
       toast({ title: 'Falha ao conectar no VPlay', description: e?.message || 'Confira o usuário e a senha.', variant: 'destructive' });
     } finally {
       setTestingVplay(false);
+    }
+  };
+
+  const handleSyncPasswords = async () => {
+    setSyncingPasswords(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('panel-password-manager', {
+        body: { action: 'sync-passwords' },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Falha ao sincronizar senhas');
+      const summary = Object.entries(data.results as Record<string, { total: number; updated: number; error?: string }>)
+        .map(([panel, r]) => `${panel.toUpperCase()}: ${r.updated}/${r.total}${r.error ? ` (erro: ${r.error.slice(0, 40)})` : ''}`)
+        .join(' | ');
+      toast({ title: 'Sincronização concluída', description: summary || 'Nenhum painel configurado.' });
+    } catch (e: any) {
+      toast({ title: 'Erro na sincronização', description: e?.message || 'Não foi possível sincronizar.', variant: 'destructive' });
+    } finally {
+      setSyncingPasswords(false);
     }
   };
 
@@ -1027,6 +1047,24 @@ export default function ResellerApiSettings() {
       </Card>
 
 
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="w-5 h-5 text-amber-500" />
+            Sincronizar senhas dos painéis
+          </CardTitle>
+          <CardDescription>
+            Atualiza as senhas salvas no SuperGestor com as senhas reais dos painéis configurados acima.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="outline" onClick={handleSyncPasswords} disabled={syncingPasswords}>
+            {syncingPasswords ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Key className="w-4 h-4 mr-2" />}
+            Sincronizar senhas agora
+          </Button>
+        </CardContent>
+      </Card>
 
       <div className="flex justify-end">
         <Button onClick={handleSave} disabled={saving}>

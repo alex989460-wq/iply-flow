@@ -173,6 +173,9 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
   const [editedDueDate, setEditedDueDate] = useState<string>('');
   const [activateOnServer, setActivateOnServer] = useState<boolean>(true);
   const [deleteConfirmText, setDeleteConfirmText] = useState<string>('');
+  const [changePasswordPanel, setChangePasswordPanel] = useState<string>('');
+  const [newPassword, setNewPassword] = useState<string>('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const queryClient = useQueryClient();
 
   // Fetch vplay servers
@@ -1252,6 +1255,45 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
     else toast.error('Não foi possível copiar automaticamente. Selecione e copie manualmente.');
   };
 
+  const openChangePassword = () => {
+    if (!selectedCustomer) return;
+    const server = selectedCustomer.server as any;
+    const panelType = String(server?.panel_type || server?.server_name || '').toLowerCase();
+    let defaultPanel = '';
+    if (panelType.includes('natv')) defaultPanel = 'natv';
+    else if (panelType.includes('rush')) defaultPanel = 'rush';
+    else if (panelType.includes('vplay')) defaultPanel = 'vplay';
+    else if (panelType.includes('p2cine') || panelType.includes('koffice')) defaultPanel = 'p2cine';
+    setChangePasswordPanel(defaultPanel);
+    setNewPassword('');
+  };
+
+  const handleChangePassword = async () => {
+    if (!selectedCustomer || !newPassword || !changePasswordPanel) return;
+    setIsChangingPassword(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('panel-password-manager', {
+        body: {
+          action: 'change-password',
+          username: selectedCustomer.username,
+          new_password: newPassword,
+          panel: changePasswordPanel,
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Falha ao alterar senha');
+      toast.success(`Senha alterada no painel ${changePasswordPanel.toUpperCase()} e salva.`);
+      setChangePasswordPanel('');
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      const refreshed = await supabase.from('customers').select('*, plans(*), servers(*)').eq('id', selectedCustomer.id).single();
+      if (refreshed.data) setSelectedCustomer(refreshed.data as any);
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao alterar senha');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   const getStatusBadge = (status: string, dueDate?: string) => {
     // Check if customer is overdue (regardless of status)
     const isOverdue = dueDate ? isCustomerOverdue(dueDate) : false;
@@ -1935,6 +1977,79 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                       </div>
                     </div>
                   )}
+
+                  {/* Change password section */}
+                  <div className="mt-3 p-3 rounded-2xl border border-border/20 bg-background/40 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 flex items-center gap-1.5">
+                        <Key className="h-3 w-3" />
+                        Trocar senha no painel
+                      </p>
+                    </div>
+                    {!changePasswordPanel ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full h-8 text-xs rounded-xl"
+                        onClick={openChangePassword}
+                        disabled={!selectedCustomer.username}
+                      >
+                        <Key className="w-3 h-3 mr-1.5" />
+                        Alterar senha do cliente
+                      </Button>
+                    ) : (
+                      <div className="space-y-2">
+                        <Select value={changePasswordPanel} onValueChange={setChangePasswordPanel}>
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue placeholder="Painel" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="natv">NATV</SelectItem>
+                            <SelectItem value="natv2">NATV2</SelectItem>
+                            <SelectItem value="rush">Rush</SelectItem>
+                            <SelectItem value="p2cine">P2Cine / kOffice</SelectItem>
+                            <SelectItem value="vplay">VPlay</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <div className="flex gap-2">
+                          <Input
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            placeholder="Nova senha"
+                            className="h-8 text-xs"
+                            type="text"
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-2"
+                            onClick={() => setNewPassword(Math.random().toString(36).slice(2, 10))}
+                          >
+                            Gerar
+                          </Button>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="flex-1 h-8 text-xs"
+                            onClick={() => setChangePasswordPanel('')}
+                          >
+                            Cancelar
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="flex-1 h-8 text-xs"
+                            onClick={handleChangePassword}
+                            disabled={!newPassword || isChangingPassword}
+                          >
+                            {isChangingPassword ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Key className="w-3 h-3 mr-1" />}
+                            Trocar
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Renewal success message */}
                   {renewalMessage && (
