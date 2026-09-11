@@ -28,6 +28,10 @@ export default function CreditCheckout() {
   const [serverId, setServerId] = useState("");
   const [quantity, setQuantity] = useState(10);
   const [email, setEmail] = useState("");
+  const [panelUsername, setPanelUsername] = useState("");
+  const [phone, setPhone] = useState("");
+  const [identity, setIdentity] = useState<{ found: boolean; name?: string; message?: string } | null>(null);
+  const [checking, setChecking] = useState(false);
   const [provider, setProvider] = useState<"efi" | "mercadopago">("efi");
   const [creating, setCreating] = useState(false);
   const [pix, setPix] = useState<{ order_id: string; total: number; copia: string; qr: string } | null>(null);
@@ -71,9 +75,31 @@ export default function CreditCheckout() {
     return tier ? { unit: Number(tier.unit_price), total: Number(tier.unit_price) * quantity } : null;
   }, [serverTiers, quantity]);
 
+  const identificar = async () => {
+    if (!panelUsername.trim() && !phone.trim() && !email.trim()) return;
+    setChecking(true);
+    try {
+      const res = await call({
+        action: "public-identify",
+        panel_username: panelUsername.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
+      });
+      setIdentity({ found: !!res.found, name: res.name, message: res.message });
+    } catch {
+      setIdentity(null);
+    } finally {
+      setChecking(false);
+    }
+  };
+
   const comprar = async () => {
-    if (!email.trim()) {
-      toast({ title: "Informe o seu e-mail de acesso", variant: "destructive" });
+    if (!panelUsername.trim()) {
+      toast({ title: "Informe o usuário do painel", variant: "destructive" });
+      return;
+    }
+    if (!phone.trim() && !email.trim()) {
+      toast({ title: "Informe o telefone ou o e-mail de acesso", variant: "destructive" });
       return;
     }
     setCreating(true);
@@ -82,6 +108,8 @@ export default function CreditCheckout() {
       const res = await call({
         action: "public-create-order",
         email: email.trim(),
+        panel_username: panelUsername.trim(),
+        phone: phone.trim(),
         server_id: serverId,
         quantity,
         provider,
@@ -218,17 +246,60 @@ export default function CreditCheckout() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>E-mail de acesso ao painel</Label>
+                  <Label>Usuário do painel</Label>
                   <Input
-                    type="email"
-                    placeholder="seuemail@exemplo.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="seu login no servidor"
+                    value={panelUsername}
+                    onChange={(e) => {
+                      setPanelUsername(e.target.value);
+                      setIdentity(null);
+                    }}
+                    onBlur={identificar}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Os créditos são lançados nessa conta assim que o Pix for confirmado.
-                  </p>
                 </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Telefone (WhatsApp)</Label>
+                    <Input
+                      placeholder="(11) 99999-9999"
+                      value={phone}
+                      onChange={(e) => {
+                        setPhone(e.target.value);
+                        setIdentity(null);
+                      }}
+                      onBlur={identificar}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>E-mail (opcional)</Label>
+                    <Input
+                      type="email"
+                      placeholder="seuemail@exemplo.com"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        setIdentity(null);
+                      }}
+                      onBlur={identificar}
+                    />
+                  </div>
+                </div>
+                {checking && (
+                  <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Localizando a sua conta...
+                  </p>
+                )}
+                {identity?.found && (
+                  <p className="flex items-center gap-2 text-xs text-emerald-600">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Conta localizada: <strong>{identity.name}</strong>
+                  </p>
+                )}
+                {identity && !identity.found && (
+                  <p className="text-xs text-destructive">{identity.message}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Os créditos são lançados nessa conta assim que o Pix for confirmado.
+                </p>
                 {providers.mercadopago && providers.efi && (
                   <div className="space-y-2">
                     <Label>Forma de pagamento</Label>

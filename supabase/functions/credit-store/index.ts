@@ -19,6 +19,8 @@ const json = (b: unknown, s = 200) =>
 
 const stripDataPrefix = (v: string) => String(v || "").replace(/^data:image\/\w+;base64,/, "");
 
+const onlyDigits = (v: string) => String(v || "").replace(/\D/g, "");
+
 export function priceFor(tiers: any[], qty: number): { unit: number; tier: any } | null {
   const active = (tiers || []).filter((t) => t.is_active !== false);
   const exact = active.find((t) => qty >= Number(t.min_qty) && qty <= Number(t.max_qty));
@@ -74,6 +76,46 @@ Deno.serve(async (req) => {
     return data;
   };
 
+  // Identifica o comprador pelo usuário do painel, telefone ou e-mail.
+  const identifyBuyer = async (opts: { panelUsername?: string; phone?: string; email?: string }) => {
+    const user = String(opts.panelUsername || "").trim();
+    const phone = onlyDigits(String(opts.phone || ""));
+    const email = String(opts.email || "").trim().toLowerCase();
+
+    if (user) {
+      const cols = [
+        "vplay_panel_username", "rush_username", "uniplay_username",
+        "the_best_username", "p2cine_username", "sigma_username",
+      ];
+      const { data: api } = await admin
+        .from("reseller_api_settings")
+        .select(`user_id, ${cols.join(", ")}`)
+        .or(cols.map((c) => `${c}.ilike.${user}`).join(","))
+        .limit(1)
+        .maybeSingle();
+      if ((api as any)?.user_id) {
+        const { data: acc } = await admin
+          .from("reseller_access").select("user_id, email, full_name").eq("user_id", (api as any).user_id).maybeSingle();
+        if (acc?.user_id) return acc;
+      }
+    }
+
+    if (phone) {
+      const tail = phone.slice(-8);
+      const { data: byPhone } = await admin
+        .from("reseller_access").select("user_id, email, full_name, phone").not("phone", "is", null).limit(500);
+      const hit = (byPhone || []).find((r: any) => onlyDigits(r.phone).endsWith(tail));
+      if (hit?.user_id) return hit;
+    }
+
+    if (email) {
+      const { data: byEmail } = await admin
+        .from("reseller_access").select("user_id, email, full_name").ilike("email", email).maybeSingle();
+      if (byEmail?.user_id) return byEmail;
+    }
+    return null;
+  };
+
   const buildOrder = async (opts: {
     sellerId: string;
     buyerId: string | null;
@@ -81,8 +123,12 @@ Deno.serve(async (req) => {
     serverId: string;
     qty: number;
     provider: "efi" | "mercadopago";
+    panelUsername?: string | null;
+    buyerPhone?: string | null;
   }) => {
     const { sellerId, buyerId, buyerEmail, serverId, qty, provider } = opts;
+    const panelUsername = opts.panelUsername || null;
+    const buyerPhone = opts.buyerPhone || null;
     const [{ data: server }, { data: tiers }] = await Promise.all([
       admin.from("servers").select("id, server_name").eq("id", serverId).maybeSingle(),
       admin.from("credit_price_tiers").select("*").eq("server_id", serverId).eq("owner_id", sellerId).eq("is_active", true),
@@ -109,6 +155,8 @@ Deno.serve(async (req) => {
       .insert({
         buyer_id: buyerId,
         buyer_email: buyerEmail,
+        panel_username: panelUsername,
+        buyer_phone: buyerPhone,
         seller_id: sellerId,
         server_id: server.id,
         server_name: server.server_name,
@@ -150,7 +198,7 @@ Deno.serve(async (req) => {
         provider_payment_id: payment.id,
         pix_copia_cola: payment.qrCode || "",
         qrcode_base64: stripDataPrefix(payment.qrCodeBase64 || ""),
-        metadata: { description, source: "credit_order", buyer_id: buyerId, buyer_email: buyerEmail },
+        metadata: { description, source: "credit_order", buyer_id: buyerId, buyer_email: buyerEmail, panel_username: panelUsername, buyer_phone: buyerPhone },
         expires_at: new Date(Date.now() + 86400_000).toISOString(),
       });
       await admin.from("credit_orders").update({ txid }).eq("id", order.id);
@@ -186,7 +234,7 @@ Deno.serve(async (req) => {
       provider: "efi",
       pix_copia_cola: pixCopiaCola,
       qrcode_base64: qrcodeBase64,
-      metadata: { description, source: "credit_order", buyer_id: buyerId, buyer_email: buyerEmail },
+      metadata: { description, source: "credit_order", buyer_id: buyerId, buyer_email: buyerEmail, panel_username: panelUsername, buyer_phone: buyerPhone },
       expires_at: new Date(Date.now() + 86400_000).toISOString(),
     });
     await admin.from("credit_orders").update({ txid }).eq("id", order.id);
@@ -228,21 +276,47 @@ Deno.serve(async (req) => {
         });
       }
 
+      if (action === "public-identify") {
+        const found = await identifyBuyer({
+          panelUsername: String(body.panel_username || ""),
+          phone: String(body.phone || ""),
+          email: String(body.email || ""),
+        });
+        if (!found) {
+          return json({
+            ok: true,
+            found: false,
+            message: "Não encontramos essa conta. Confira o usuário do painel, o telefone ou o e-mail de acesso.",
+          });
+        }
+        return json({ ok: true, found: true, name: found.full_name || found.email, email: found.email });
+      }
+
       if (action === "public-create-order") {
         const email = String(body.email || "").trim().toLowerCase();
+        const panelUsername = String(body.panel_username || "").trim();
+        const phone = onlyDigits(String(body.phone || ""));
         const serverId = String(body.server_id || "");
         const qty = Math.max(1, Math.round(Number(body.quantity) || 0));
         const provider = String(body.provider || "efi") === "mercadopago" ? "mercadopago" : "efi";
-        if (!email || !serverId || !qty) return json({ error: "parametros_invalidos" }, 400);
+        if (!serverId || !qty) return json({ error: "parametros_invalidos" }, 400);
+        if (!panelUsername) {
+          return json({ error: "usuario_obrigatorio", message: "Informe o usuário do painel para sabermos onde lançar os créditos." }, 400);
+        }
+        if (!email && !phone) {
+          return json({ error: "contato_obrigatorio", message: "Informe o telefone ou o e-mail de acesso." }, 400);
+        }
 
-        const { data: buyer } = await admin
-          .from("reseller_access").select("user_id, email").ilike("email", email).maybeSingle();
+        const buyer = await identifyBuyer({ panelUsername, phone, email });
         if (!buyer?.user_id) {
-          return json({ error: "conta_nao_encontrada", message: "Não encontramos uma conta com esse e-mail. Confira o e-mail de acesso ao painel." }, 400);
+          return json({
+            error: "conta_nao_encontrada",
+            message: "Não encontramos essa conta. Confira o usuário do painel, o telefone ou o e-mail de acesso.",
+          }, 400);
         }
         return await buildOrder({
-          sellerId: seller.user_id, buyerId: buyer.user_id, buyerEmail: buyer.email || email,
-          serverId, qty, provider,
+          sellerId: seller.user_id, buyerId: buyer.user_id, buyerEmail: buyer.email || email || null,
+          serverId, qty, provider, panelUsername, buyerPhone: phone || null,
         });
       }
 
