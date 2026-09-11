@@ -1338,7 +1338,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
     const panel = panelOverride || changePasswordPanel || detectPanel();
     if (!selectedCustomer || !panel) {
       toast.error('Selecione o painel do cliente para puxar a senha.');
-      return;
+      return null;
     }
     setChangePasswordPanel(panel);
     setIsChangingPassword(true);
@@ -1358,8 +1358,10 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       const refreshed = await supabase.from('customers').select('*, plans(*), servers(*)').eq('id', selectedCustomer.id).single();
       if (refreshed.data) setSelectedCustomer(refreshed.data as any);
+      return String(data.password || '');
     } catch (err: any) {
       toast.error(err.message || 'Erro ao puxar senha');
+      return null;
     } finally {
       setIsChangingPassword(false);
     }
