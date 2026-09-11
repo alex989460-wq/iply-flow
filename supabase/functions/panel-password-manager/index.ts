@@ -493,15 +493,24 @@ serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization") || "";
-    if (!authHeader.startsWith("Bearer ")) return json({ success: false, error: "Não autorizado" }, 401);
+    const cronSecret = req.headers.get("X-Cron-Secret") || "";
+    const expectedCronSecret = Deno.env.get("PANEL_PASSWORD_SYNC_CRON_SECRET") || "";
+    const isCron = expectedCronSecret && cronSecret === expectedCronSecret;
 
-    const sb = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } },
-    );
-    const { data: { user }, error: authError } = await sb.auth.getUser();
-    if (authError || !user) return json({ success: false, error: "Não autorizado" }, 401);
+    let userId = "";
+    if (isCron) {
+      userId = "cron";
+    } else {
+      if (!authHeader.startsWith("Bearer ")) return json({ success: false, error: "Não autorizado" }, 401);
+      const sb = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: authHeader } } },
+      );
+      const { data: { user }, error: authError } = await sb.auth.getUser();
+      if (authError || !user) return json({ success: false, error: "Não autorizado" }, 401);
+      userId = user.id;
+    }
 
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
