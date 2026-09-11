@@ -1257,7 +1257,8 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
 
   const openChangePassword = () => {
     if (!selectedCustomer) return;
-    const panelType = String(selectedCustomer.server?.panel_type || selectedCustomer.server?.server_name || '').toLowerCase();
+    const server = selectedCustomer.server as any;
+    const panelType = String(server?.panel_type || server?.server_name || '').toLowerCase();
     let defaultPanel = '';
     if (panelType.includes('natv')) defaultPanel = 'natv';
     else if (panelType.includes('rush')) defaultPanel = 'rush';
