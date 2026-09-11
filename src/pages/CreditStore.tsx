@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Layout } from "@/components/layout/Layout";
+import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -176,7 +176,7 @@ export default function CreditStore() {
   };
 
   return (
-    <Layout>
+    <DashboardLayout>
       <div className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -497,6 +497,6 @@ export default function CreditStore() {
           </div>
         </DialogContent>
       </Dialog>
-    </Layout>
+    </DashboardLayout>
   );
 }
