@@ -19,6 +19,8 @@ const json = (b: unknown, s = 200) =>
 
 const stripDataPrefix = (v: string) => String(v || "").replace(/^data:image\/\w+;base64,/, "");
 
+const onlyDigits = (v: string) => String(v || "").replace(/\D/g, "");
+
 export function priceFor(tiers: any[], qty: number): { unit: number; tier: any } | null {
   const active = (tiers || []).filter((t) => t.is_active !== false);
   const exact = active.find((t) => qty >= Number(t.min_qty) && qty <= Number(t.max_qty));
@@ -153,6 +155,8 @@ Deno.serve(async (req) => {
       .insert({
         buyer_id: buyerId,
         buyer_email: buyerEmail,
+        panel_username: panelUsername,
+        buyer_phone: buyerPhone,
         seller_id: sellerId,
         server_id: server.id,
         server_name: server.server_name,
