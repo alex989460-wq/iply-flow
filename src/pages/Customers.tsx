@@ -1140,6 +1140,8 @@ export default function Customers() {
     else if (panelType.includes('rush')) defaultPanel = 'rush';
     else if (panelType.includes('vplay')) defaultPanel = 'vplay';
     else if (panelType.includes('p2cine') || panelType.includes('koffice')) defaultPanel = 'p2cine';
+    else if (panelType.includes('best')) defaultPanel = 'the_best';
+    else if (panelType.includes('uniplay') || panelType.includes('searchdefense')) defaultPanel = 'uniplay';
     setChangePasswordPanel(defaultPanel);
     setNewPassword('');
   };
