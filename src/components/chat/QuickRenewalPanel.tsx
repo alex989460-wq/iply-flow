@@ -1255,18 +1255,22 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
     else toast.error('Não foi possível copiar automaticamente. Selecione e copie manualmente.');
   };
 
+  const detectPanel = () => {
+    const server = selectedCustomer?.server as any;
+    const panelType = String(server?.panel_type || server?.server_name || '').toLowerCase();
+    if (panelType.includes('natv')) return 'natv';
+    if (panelType.includes('rush')) return 'rush';
+    if (panelType.includes('vplay')) return 'vplay';
+    if (panelType.includes('p2cine') || panelType.includes('koffice')) return 'p2cine';
+    return '';
+  };
+
   const openChangePassword = () => {
     if (!selectedCustomer) return;
-    const server = selectedCustomer.server as any;
-    const panelType = String(server?.panel_type || server?.server_name || '').toLowerCase();
-    let defaultPanel = '';
-    if (panelType.includes('natv')) defaultPanel = 'natv';
-    else if (panelType.includes('rush')) defaultPanel = 'rush';
-    else if (panelType.includes('vplay')) defaultPanel = 'vplay';
-    else if (panelType.includes('p2cine') || panelType.includes('koffice')) defaultPanel = 'p2cine';
-    setChangePasswordPanel(defaultPanel);
+    setChangePasswordPanel(detectPanel());
     setNewPassword('');
   };
+
 
   const handleChangePassword = async () => {
     if (!selectedCustomer || !newPassword || !changePasswordPanel) return;
