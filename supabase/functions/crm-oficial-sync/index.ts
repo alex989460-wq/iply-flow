@@ -1089,7 +1089,8 @@ async function ensurePublicMediaUrl(url: string, label = "media") {
       const { error } = await admin.storage.from("reseller-assets").upload(path, bytes, { contentType, upsert: true });
       if (!error) {
         const { data } = admin.storage.from("reseller-assets").getPublicUrl(path);
-        if (data?.publicUrl) return data.publicUrl;
+        if (data?.publicUrl) return toPublicHttpsUrl(data.publicUrl);
+
         break;
       }
       lastErr = error;
