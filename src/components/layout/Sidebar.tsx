@@ -32,6 +32,7 @@ import {
   UserPlus,
   ShieldCheck,
   ListChecks,
+  Coins,
 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
