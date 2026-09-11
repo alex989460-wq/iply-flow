@@ -133,8 +133,10 @@ function uniplayCreditsForMonths(rawMonths: unknown): number {
 // Mesma infraestrutura usada pelo Sigma: SIGMA_PROXY_URL / SIGMA_PROXY_SECRET.
 // ---------------------------------------------------------------------------
 function proxyConfig(): { url: string; secret: string } | null {
-  const u = String(Deno.env.get("SIGMA_PROXY_URL") || "").trim().replace(/\/+$/, "");
-  const s = String(Deno.env.get("SIGMA_PROXY_SECRET") || "").trim();
+  // Prioridade: proxy dedicado da Uniplay (VPS com IP brasileiro). Fallback:
+  // proxy compartilhado do Sigma.
+  const u = String(Deno.env.get("UNIPLAY_PROXY_URL") || Deno.env.get("SIGMA_PROXY_URL") || "").trim().replace(/\/+$/, "");
+  const s = String(Deno.env.get("UNIPLAY_PROXY_SECRET") || Deno.env.get("SIGMA_PROXY_SECRET") || "").trim();
   if (!u || !s) return null;
   return { url: /^https?:\/\//i.test(u) ? u : `https://${u}`, secret: s };
 }
