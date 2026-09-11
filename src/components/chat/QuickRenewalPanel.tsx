@@ -1977,6 +1977,79 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     </div>
                   )}
 
+                  {/* Change password section */}
+                  <div className="mt-3 p-3 rounded-2xl border border-border/20 bg-background/40 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 flex items-center gap-1.5">
+                        <Key className="h-3 w-3" />
+                        Trocar senha no painel
+                      </p>
+                    </div>
+                    {!changePasswordPanel ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full h-8 text-xs rounded-xl"
+                        onClick={openChangePassword}
+                        disabled={!selectedCustomer.username}
+                      >
+                        <Key className="w-3 h-3 mr-1.5" />
+                        Alterar senha do cliente
+                      </Button>
+                    ) : (
+                      <div className="space-y-2">
+                        <Select value={changePasswordPanel} onValueChange={setChangePasswordPanel}>
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue placeholder="Painel" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="natv">NATV</SelectItem>
+                            <SelectItem value="natv2">NATV2</SelectItem>
+                            <SelectItem value="rush">Rush</SelectItem>
+                            <SelectItem value="p2cine">P2Cine / kOffice</SelectItem>
+                            <SelectItem value="vplay">VPlay</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <div className="flex gap-2">
+                          <Input
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            placeholder="Nova senha"
+                            className="h-8 text-xs"
+                            type="text"
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-2"
+                            onClick={() => setNewPassword(Math.random().toString(36).slice(2, 10))}
+                          >
+                            Gerar
+                          </Button>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="flex-1 h-8 text-xs"
+                            onClick={() => setChangePasswordPanel('')}
+                          >
+                            Cancelar
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="flex-1 h-8 text-xs"
+                            onClick={handleChangePassword}
+                            disabled={!newPassword || isChangingPassword}
+                          >
+                            {isChangingPassword ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Key className="w-3 h-3 mr-1" />}
+                            Trocar
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Renewal success message */}
                   {renewalMessage && (
                     <div className="mt-3 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl space-y-2">
