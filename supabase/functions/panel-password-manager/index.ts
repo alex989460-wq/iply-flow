@@ -470,8 +470,26 @@ async function vplaySyncPasswords(connection: any) {
 }
 
 // ─── MAIN ───
+const ChangePasswordSchema = z.object({
+  action: z.literal("change-password"),
+  username: z.string().min(1),
+  new_password: z.string().min(4).max(128),
+  panel: z.enum(["natv", "natv2", "rush", "p2cine", "vplay"]),
+});
+
+const SyncPasswordsSchema = z.object({
+  action: z.literal("sync-passwords"),
+  owner_id: z.string().uuid().optional(),
+});
+
+async function isAdmin(client: any) {
+  const { data, error } = await client.rpc("is_admin");
+  if (error) return false;
+  return !!data;
+}
+
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
     const authHeader = req.headers.get("Authorization") || "";
@@ -491,10 +509,16 @@ serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
 
-    const body = await req.json().catch(() => ({}));
-    const action = String(body?.action || "");
-    const ownerId = String(body?.owner_id || user.id);
-    const settings = await getResellerSettings(admin, ownerId);
+    const rawBody = await req.json().catch(() => ({}));
+    const action = String(rawBody?.action || "");
+    const adminNow = await isAdmin(admin);
+    const requestedOwner = String(rawBody?.owner_id || "");
+    const ownerId = (requestedOwner && adminNow) ? requestedOwner : user.id;
+
+    let settings: any = {};
+    if (action !== "sync-passwords" || ownerId !== "all") {
+      settings = await getResellerSettings(admin, ownerId);
+    }
 
     if (action === "change-password") {
       const username = String(body?.username || "").trim();
