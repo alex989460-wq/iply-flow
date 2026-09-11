@@ -12,11 +12,21 @@ Ordem de execução:
 5. `scripts/deploy-functions.sh` — sobe as 99 funções de servidor na VPS.
 6. `scripts/deploy-frontend.sh` — compila e publica o site.
 7. `cron/jobs.sql` — recria os 13 agendamentos apontando para a VPS.
-8. `CUTOVER.md` — virada de DNS e webhooks, com plano de reversão.
-9. `scripts/backup.sh` — backup automático (instalado pelo `install.sh`).
+8. `scripts/preflight-vps.sh` — valida a VPS sem ativar jobs nem alterar o domínio.
+9. `CUTOVER.md` — virada de DNS e webhooks, com plano de reversão.
+10. `scripts/backup.sh` — backup automático (instalado pelo `install.sh`).
 
 Nada aqui altera o ambiente atual: os passos 1 a 7 rodam em paralelo, com a
 produção no ar. Só o passo 8 troca o tráfego.
+
+Antes de combinar a virada, rode na VPS:
+
+```bash
+sudo bash /opt/supergestor/repo/deploy/scripts/preflight-vps.sh
+```
+
+O resultado deve terminar em `PREFLIGHT_APROVADO`. A checagem reprova se houver
+agendamentos ativos ou se a cópia dos arquivos ainda não estiver completa.
 
 ## Requisitos da VPS
 

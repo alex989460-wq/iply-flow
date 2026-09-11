@@ -6,6 +6,7 @@ Escolha um horário de baixo movimento (madrugada).
 ## Antes da virada (dias antes, com produção no ar)
 
 - [ ] VPS instalada (`install.sh`) e site abrindo por IP/domínio temporário.
+- [ ] `preflight-vps.sh` terminou com `PREFLIGHT_APROVADO`.
 - [ ] Banco importado e contagens conferidas (`import-to-vps.sh` diz "OK").
 - [ ] Chaves preenchidas (`SECRETS.md`) e funções publicadas.
 - [ ] Agendamentos criados na VPS, mas **desativados**:
@@ -21,6 +22,7 @@ Escolha um horário de baixo movimento (madrugada).
 1. **Congelar o antigo**
    - Desativar todos os agendamentos do ambiente atual.
    - Avisar no sistema (opcional) que haverá 10 minutos de manutenção.
+   - Não desligar nem excluir o ambiente antigo; ele será a reversão por 48h.
 
 2. **Sincronizar o delta**
    ```bash
