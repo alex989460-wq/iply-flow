@@ -12,19 +12,19 @@ mkdir -p "$WORK"
 api() { curl -s --max-time 120 -X POST "$EXPORT_URL" -H "Content-Type: application/json" \
   -H "x-migration-secret: $EXPORT_KEY" -d "$1"; }
 
-psqlq() { docker exec -i supabase-db psql -q -U postgres -d postgres "$@"; }
+psqlq() { docker exec supabase-db psql -q -U supabase_admin -d postgres "$@" < /dev/null; }
 
 cols() { # $1 schema  $2 table -> lista de colunas graváveis
-  docker exec -i supabase-db psql -At -U postgres -d postgres -c \
+  docker exec supabase-db psql -At -U supabase_admin -d postgres -c \
     "select string_agg(quote_ident(column_name), ', ' order by ordinal_position)
      from information_schema.columns
      where table_schema='$1' and table_name='$2'
-       and is_generated='NEVER' and coalesce(identity_generation,'')<>'ALWAYS'"
+       and is_generated='NEVER' and coalesce(identity_generation,'')<>'ALWAYS'" < /dev/null
 }
 
 load() { # $1 schema  $2 table  $3 json file
   local C; C=$(cols "$1" "$2")
-  docker cp "$3" supabase-db:/batch.json >/dev/null
+  docker cp "$3" supabase-db:/batch.json >/dev/null 2>&1 < /dev/null
   psqlq -v ON_ERROR_STOP=0 -c "set session_replication_role = replica;
     insert into $1.$2 ($C) select $C from jsonb_populate_recordset(null::$1.$2, pg_read_file('/batch.json')::jsonb)
     on conflict do nothing;" 2>&1 | grep -i "error" || true
