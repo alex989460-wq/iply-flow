@@ -3671,6 +3671,16 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                           <Button
                             variant="ghost"
                             size="icon"
+                            className="h-8 w-8 hover:bg-primary/10"
+                            title="Alterar senha no painel"
+                            onClick={() => openChangePassword(customer)}
+                            disabled={!customer.username}
+                          >
+                            <Key className="w-4 h-4 text-primary" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="h-8 w-8 hover:bg-muted"
                             onClick={() => handleEdit(customer)}
                           >
