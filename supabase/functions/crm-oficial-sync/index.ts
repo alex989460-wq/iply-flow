@@ -1252,17 +1252,34 @@ async function doSendWhatsapp(payload: {
     const officialHeaderMedia = extractOfficialTemplateHeaderMedia(officialTemplate)
       || await fetchOfficialTemplateHeaderMedia(String(payload.template_name), String(lang), apiKey).catch(() => undefined);
     const requestHeaderImageUrl = imageHeaderFromComponents(components);
-    const requestedHeaderMedia = requestHeaderImageUrl && isMetaTemplateMediaUrl(requestHeaderImageUrl)
+    const requestedHeaderMedia = requestHeaderImageUrl
       ? { type: "image" as const, url: requestHeaderImageUrl }
       : undefined;
-    const rawHeaderMedia = officialHeaderMedia || requestedHeaderMedia;
-    if (requestHeaderImageUrl && !rawHeaderMedia) {
-      throw new Error("Template com imagem recebeu uma URL que não é a mídia oficial do Meta. Sincronize o template oficial antes de enviar.");
+
+    // Resolve a mídia do header para um link público válido. O "header_handle"
+    // devolvido pela Meta muitas vezes é um identificador opaco (ex.: "4::aW1h...")
+    // ou um link interno, e a Meta responde "#100 ... is not a valid URI".
+    const resolveMediaLink = async (
+      media?: { type: "image" | "video" | "document"; url: string },
+    ) => {
+      if (!media?.url) return undefined;
+      const rehosted = await ensurePublicMediaUrl(media.url, String(payload.template_name));
+      const finalUrl = toPublicHttpsUrl(String(rehosted || ""));
+      if (!isUsableMediaLink(finalUrl)) {
+        console.warn("[crm-oficial-sync] header media descartada (link inválido):", String(media.url).slice(0, 80));
+        return undefined;
+      }
+      return { ...media, url: finalUrl };
+    };
+
+    const headerMedia = (await resolveMediaLink(officialHeaderMedia))
+      || (await resolveMediaLink(requestedHeaderMedia));
+    if ((officialHeaderMedia || requestedHeaderMedia) && !headerMedia) {
+      console.warn(`[crm-oficial-sync] template "${payload.template_name}" enviado sem imagem de header (mídia oficial indisponível)`);
     }
-    const headerMedia = rawHeaderMedia
-      ? { ...rawHeaderMedia, url: await ensurePublicMediaUrl(rawHeaderMedia.url, String(payload.template_name)) }
-      : undefined;
-    const templateComponents = replaceHeaderMediaInComponents(components, headerMedia);
+    const templateComponents = headerMedia
+      ? replaceHeaderMediaInComponents(components, headerMedia)
+      : components.filter((c: any) => String(c?.type || "").toLowerCase() !== "header");
     // Envia todos os templates oficiais diretamente pela Meta. Assim o payload
     // contém somente os componentes exigidos pela definição aprovada (inclusive
     // HEADER de vídeo) e nunca ganha parâmetros extras do endpoint intermediário.
