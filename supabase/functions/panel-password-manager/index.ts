@@ -481,6 +481,8 @@ const PASSWORD_RULES: Record<string, { min: number; max: number; regex: RegExp; 
   rush: { min: 6, max: 20, regex: /^[A-Za-z0-9]+$/, hint: "Rush aceita apenas letras e números, de 6 a 20 caracteres." },
   p2cine: { min: 4, max: 20, regex: /^[A-Za-z0-9._-]+$/, hint: "P2Cine aceita letras, números, ponto, hífen e underline, de 4 a 20 caracteres." },
   vplay: { min: 4, max: 32, regex: /^[A-Za-z0-9._-]+$/, hint: "VPlay aceita letras, números, ponto, hífen e underline, de 4 a 32 caracteres." },
+  the_best: { min: 6, max: 32, regex: /^[A-Za-z0-9._-]+$/, hint: "The Best aceita letras, números, ponto, hífen e underline, de 6 a 32 caracteres." },
+  uniplay: { min: 6, max: 20, regex: /^[A-Za-z0-9]+$/, hint: "Uniplay aceita apenas letras e números, de 6 a 20 caracteres." },
 };
 
 function validatePanelPassword(panel: string, password: string): string | null {
