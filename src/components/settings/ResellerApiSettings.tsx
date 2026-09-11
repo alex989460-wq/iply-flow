@@ -29,6 +29,7 @@ export default function ResellerApiSettings() {
   const [showVplayPassword, setShowVplayPassword] = useState(false);
   const [showVplayDbPassword, setShowVplayDbPassword] = useState(false);
   const [testingVplay, setTestingVplay] = useState(false);
+  const [syncingPasswords, setSyncingPasswords] = useState(false);
 
   const [testingUniplay, setTestingUniplay] = useState(false);
   const [testingP2cine, setTestingP2cine] = useState(false);
