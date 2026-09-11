@@ -1688,16 +1688,40 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                         <Key className="h-3 w-3" />
                         Senha
                       </label>
-                      <div className="flex items-center justify-between group/pw">
-                        <span className="font-mono text-xs truncate max-w-[80px]">
+                      <div className="flex items-center justify-between gap-1 group/pw">
+                        <span className="font-mono text-xs truncate flex-1">
                           {selectedCustomer.password || '—'}
                         </span>
-                        {selectedCustomer.password && (
-                          <Copy 
-                            className="h-3 w-3 text-muted-foreground/40 opacity-0 group-hover/pw:opacity-100 hover:text-primary cursor-pointer transition-all" 
-                            onClick={() => handleCopyMessage(selectedCustomer.password!)}
-                          />
-                        )}
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          <button
+                            type="button"
+                            title="Puxar senha do painel"
+                            onClick={() => handleFetchPassword()}
+                            disabled={!selectedCustomer.username || isChangingPassword}
+                            className="h-6 w-6 grid place-items-center rounded-lg text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-all disabled:opacity-40"
+                          >
+                            {isChangingPassword ? <Loader2 className="h-3 w-3 animate-spin" /> : <Key className="h-3 w-3" />}
+                          </button>
+                          <button
+                            type="button"
+                            title="Alterar senha no painel"
+                            onClick={openChangePassword}
+                            disabled={!selectedCustomer.username}
+                            className="h-6 w-6 grid place-items-center rounded-lg text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-all disabled:opacity-40"
+                          >
+                            <Settings className="h-3 w-3" />
+                          </button>
+                          {selectedCustomer.password && (
+                            <button
+                              type="button"
+                              title="Copiar senha"
+                              onClick={() => handleCopyMessage(selectedCustomer.password!)}
+                              className="h-6 w-6 grid place-items-center rounded-lg text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-all"
+                            >
+                              <Copy className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
