@@ -73,6 +73,21 @@ Deno.serve(async (req) => {
       return json({ objects: data ?? [] });
     }
 
+    if (action === "secrets") {
+      // Exporta os segredos de integração para a nova infraestrutura (uso único na migração).
+      const skip = new Set([
+        "SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_DB_URL",
+        "MIGRATION_EXPORT_KEY", "MIGRATION_EXPORT_SECRET",
+      ]);
+      const out: string[] = [];
+      for (const [k, v] of Object.entries(Deno.env.toObject())) {
+        if (skip.has(k) || !v) continue;
+        if (!/^[A-Z0-9_]+$/.test(k)) continue;
+        out.push(`${k}=${v.includes("\n") ? JSON.stringify(v) : v}`);
+      }
+      return new Response(out.sort().join("\n") + "\n", { headers: { ...cors, "Content-Type": "text/plain" } });
+    }
+
     if (action === "buckets") {
       const { data, error } = await supabase.storage.listBuckets();
       if (error) throw error;
