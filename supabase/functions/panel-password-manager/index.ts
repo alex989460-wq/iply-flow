@@ -90,54 +90,45 @@ async function natvChangePassword(
   if (normalized.endsWith("/api")) bases.add(normalized.replace(/\/api$/, ""));
   else bases.add(`${normalized}/api`);
 
-  const usersBases = [...bases];
-  const userUrlCandidates = usersBases.flatMap((b) => [`${b}/users`, `${b}/user`]);
-
-  let targetUser: any = null;
-  let targetEndpoint = "";
-
-  for (const url of userUrlCandidates) {
-    try {
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } });
-      if (!res.ok) continue;
-      const data = await res.json().catch(() => null);
-      const users = Array.isArray(data) ? data : data?.data || data?.users || [];
-      const variants = buildUsernameVariants(username).map((v) => v.toLowerCase());
-      targetUser = users.find((u: any) => {
-        const un = String(u.username || u.login || u.user || u.name || "").toLowerCase();
-        return variants.includes(un);
-      });
-      if (targetUser) {
-        targetEndpoint = url;
-        break;
-      }
-    } catch { /* ignore */ }
-  }
-
+  const targetUser = await natvFindUserRaw(baseUrl, apiKey, username);
   if (!targetUser) throw new Error(`Usuário "${username}" não encontrado no painel NATV.`);
 
   const id = targetUser.id ?? targetUser.user_id ?? targetUser._id;
-  if (!id) throw new Error("Painel NATV retornou usuário sem ID.");
+  const realUsername = String(targetUser.username || username);
 
-  const changeCandidates = usersBases.flatMap((b) => [
-    `${b}/users/${id}`,
-    `${b}/user/${id}`,
-    `${b}/users/${id}/password`,
-    `${b}/user/${id}/password`,
-    `${b}/users/change-password`,
-    `${b}/user/change-password`,
-  ]);
+  const headers = { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}`, Accept: "application/json" };
+  const attempts: { url: string; method: string; body: any }[] = [];
+  for (const b of bases) {
+    attempts.push(
+      { url: `${b}/user/edit`, method: "POST", body: { username: realUsername, id, password: newPassword } },
+      { url: `${b}/user/update`, method: "POST", body: { username: realUsername, id, password: newPassword } },
+      { url: `${b}/user/password`, method: "POST", body: { username: realUsername, id, password: newPassword } },
+      { url: `${b}/user`, method: "PUT", body: { username: realUsername, id, password: newPassword } },
+      { url: `${b}/user/${id}`, method: "PUT", body: { username: realUsername, password: newPassword } },
+    );
+  }
 
   let lastError = "";
-  for (const url of changeCandidates) {
+  for (const a of attempts) {
+    if (!id && a.url.endsWith(`/${id}`)) continue;
     try {
-      const res = await fetch(url, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ password: newPassword, password_confirmation: newPassword, new_password: newPassword }),
+      const res = await fetch(a.url, {
+        method: a.method,
+        headers,
+        body: JSON.stringify(a.body),
+        signal: AbortSignal.timeout(12000),
       });
-      if (res.ok) return { success: true, endpoint: url };
-      lastError = await res.text().catch(() => String(res.status));
+      const text = await res.text().catch(() => "");
+      if (res.ok) {
+        // confirma que a senha realmente mudou no painel
+        const check = await natvFindUserRaw(baseUrl, apiKey, realUsername).catch(() => null);
+        if (!check || String(pickPassword(check)) === newPassword || !pickPassword(check)) {
+          return { success: true, endpoint: a.url };
+        }
+        lastError = "o painel aceitou a chamada mas manteve a senha antiga";
+        continue;
+      }
+      lastError = `${res.status} ${text.slice(0, 160)}`;
     } catch (e) {
       lastError = e instanceof Error ? e.message : String(e);
     }
@@ -145,6 +136,7 @@ async function natvChangePassword(
 
   throw new Error(`Não foi possível alterar a senha no NATV. Último erro: ${lastError.slice(0, 200)}`);
 }
+
 
 async function natvSyncPasswords(baseUrl: string, apiKey: string) {
   const normalized = normalizeBaseUrl(baseUrl);
@@ -482,6 +474,161 @@ function matchUser(list: { username: string; password: string }[], username: str
   return list.find((u) => variants.includes(String(u.username || "").toLowerCase()));
 }
 
+// Regras de formato de senha aceitas por cada painel
+const PASSWORD_RULES: Record<string, { min: number; max: number; regex: RegExp; hint: string }> = {
+  natv: { min: 6, max: 20, regex: /^[A-Za-z0-9]+$/, hint: "NATV aceita apenas letras e números, de 6 a 20 caracteres." },
+  natv2: { min: 6, max: 20, regex: /^[A-Za-z0-9]+$/, hint: "NATV² aceita apenas letras e números, de 6 a 20 caracteres." },
+  rush: { min: 6, max: 20, regex: /^[A-Za-z0-9]+$/, hint: "Rush aceita apenas letras e números, de 6 a 20 caracteres." },
+  p2cine: { min: 4, max: 20, regex: /^[A-Za-z0-9._-]+$/, hint: "P2Cine aceita letras, números, ponto, hífen e underline, de 4 a 20 caracteres." },
+  vplay: { min: 4, max: 32, regex: /^[A-Za-z0-9._-]+$/, hint: "VPlay aceita letras, números, ponto, hífen e underline, de 4 a 32 caracteres." },
+};
+
+function validatePanelPassword(panel: string, password: string): string | null {
+  const rule = PASSWORD_RULES[panel];
+  if (!rule) return null;
+  if (password.length < rule.min || password.length > rule.max || !rule.regex.test(password)) return rule.hint;
+  return null;
+}
+
+function pickPassword(obj: any): string {
+  if (!obj || typeof obj !== "object") return "";
+  const keys = ["password", "senha", "pass", "user_password", "plain_password", "password_plain", "pwd"];
+  for (const k of keys) {
+    const v = obj[k];
+    if (v !== undefined && v !== null && String(v).trim()) return String(v).trim();
+  }
+  return "";
+}
+
+function extractList(data: any): any[] {
+  if (Array.isArray(data)) return data;
+  if (!data || typeof data !== "object") return [];
+  for (const k of ["data", "users", "items", "results", "rows", "lines"]) {
+    if (Array.isArray(data[k])) return data[k];
+    if (data[k] && Array.isArray(data[k]?.data)) return data[k].data;
+  }
+  return [];
+}
+
+// Busca o usuário no NATV usando endpoints de pesquisa e paginação
+// O painel NATV expõe POST /user/search { username } e devolve a lista com senha.
+async function natvFindUserRaw(baseUrl: string, apiKey: string, username: string): Promise<any | null> {
+  const normalized = normalizeBaseUrl(baseUrl);
+  const bases = new Set<string>([normalized]);
+  if (normalized.endsWith("/api")) bases.add(normalized.replace(/\/api$/, ""));
+  else bases.add(`${normalized}/api`);
+
+  const variants = buildUsernameVariants(username).map((v) => v.toLowerCase());
+
+  for (const b of bases) {
+    for (const v of buildUsernameVariants(username)) {
+      try {
+        const res = await fetch(`${b}/user/search`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ username: v }),
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!res.ok) continue;
+        const list = extractList(await res.json().catch(() => null));
+        const found = list.find((u: any) => variants.includes(String(u?.username || u?.login || u?.user || "").toLowerCase()));
+        if (found) return found;
+      } catch { /* ignore */ }
+    }
+  }
+  return null;
+}
+
+
+// Busca o usuário no Rush (iptv e p2p), tentando pesquisa direta antes da listagem completa
+async function rushFindUserRaw(baseUrl: string, token: string, username: string): Promise<any | null> {
+  const normalized = normalizeBaseUrl(baseUrl);
+  const variants = buildUsernameVariants(username).map((v) => v.toLowerCase());
+
+  // 1) pesquisa direta (rápida) nos dois sistemas
+  for (const type of ["iptv", "p2p"]) {
+    for (const v of buildUsernameVariants(username)) {
+      const url = `${normalized}/${type}/list?token=${encodeURIComponent(token)}&search=${encodeURIComponent(v)}`;
+      try {
+        const res = await fetch(url, {
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!res.ok) continue;
+        const list = extractList(await res.json().catch(() => null));
+        const found = list.find((u: any) => variants.includes(String(u?.username || u?.login || "").toLowerCase()));
+        if (found) return found;
+      } catch { /* ignore */ }
+    }
+  }
+
+  // 2) só então a listagem completa (lenta)
+  for (const type of ["iptv", "p2p"]) {
+    try {
+      const users = await rushListUsers(normalized, token, type);
+      const found = users.find((u: any) => variants.includes(String(u?.username || u?.login || "").toLowerCase()));
+      if (found) return found;
+    } catch { /* ignore */ }
+  }
+
+  return null;
+}
+
+// Busca a linha do cliente no P2Cine e tenta extrair a senha
+async function p2cineFindClientRow(base: string, token: string, username: string, resellerId?: string): Promise<{ id: string; password: string } | null> {
+  const variants = buildUsernameVariants(username).map((v) => v.toLowerCase());
+  const form = new URLSearchParams();
+  form.set("draw", "1");
+  form.set("start", "0");
+  form.set("length", "50");
+  form.set("search[value]", username);
+  form.set("search[regex]", "false");
+  form.set("filter_value", "#");
+  form.set("search_column", "login");
+  form.set("reseller_id", String(resellerId || "-1"));
+  for (let i = 0; i < 10; i++) {
+    form.set(`columns[${i}][data]`, String(i));
+    form.set(`columns[${i}][searchable]`, "true");
+    form.set(`columns[${i}][orderable]`, "true");
+    form.set(`columns[${i}][search][value]`, "");
+    form.set(`columns[${i}][search][regex]`, "false");
+  }
+  form.set("order[0][column]", "0");
+  form.set("order[0][dir]", "desc");
+
+  const res = await p2cineApiFetch(`${base}/clients/api/?get_clients&token=${token}`, {
+    method: "POST",
+    headers: {
+      ...browserHeaders,
+      Accept: "application/json, text/javascript, */*; q=0.01",
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+      "X-Requested-With": "XMLHttpRequest",
+      Origin: base,
+      Referer: `${base}/clients/?token=${token}`,
+    },
+    body: form.toString(),
+  });
+
+  const rows = Array.isArray(res.json?.data) ? res.json.data : [];
+  for (const row of rows) {
+    const cells = (row as any[]).map((c) => String(c ?? "").replace(/<[^>]*>/g, "").trim());
+    const loginIdx = cells.findIndex((c) => variants.includes(c.toLowerCase()));
+    if (loginIdx < 0) continue;
+    const id = String(cells[0] || "").trim();
+    // a senha normalmente vem na coluna seguinte ao login
+    const candidate = cells
+      .slice(loginIdx + 1)
+      .find((c) => c && c.length >= 4 && c.length <= 32 && /^[A-Za-z0-9._-]+$/.test(c) && !variants.includes(c.toLowerCase()));
+    return { id, password: candidate || "" };
+  }
+  return null;
+}
+
+
 // ─── MAIN ───
 const ChangePasswordSchema = z.object({
   action: z.literal("change-password"),
@@ -540,7 +687,10 @@ serve(async (req) => {
 
     const rawBody = await req.json().catch(() => ({}));
     const action = String(rawBody?.action || "");
-    const adminNow = isCron ? true : await isAdmin(admin);
+    const adminNow = isCron
+      ? true
+      : !!(await admin.from("user_roles").select("role").eq("user_id", userId).eq("role", "admin").maybeSingle()).data;
+
     const requestedOwner = String(rawBody?.owner_id || "");
     const ownerId = (requestedOwner && adminNow)
       ? requestedOwner
@@ -559,6 +709,11 @@ serve(async (req) => {
       const parsed = ChangePasswordSchema.safeParse(rawBody);
       if (!parsed.success) return json({ success: false, error: parsed.error.flatten().fieldErrors }, 400);
       const { username, new_password: newPassword, panel } = parsed.data;
+
+      const formatError = validatePanelPassword(panel, newPassword);
+      if (formatError) return json({ success: false, error: formatError }, 400);
+
+
 
       let result: any;
       switch (panel) {
@@ -628,26 +783,44 @@ serve(async (req) => {
           const key = settings[`${prefix}_api_key`] || Deno.env.get(prefix.toUpperCase() + "_API_KEY") || "";
           const base = settings[`${prefix}_base_url`] || Deno.env.get(prefix.toUpperCase() + "_BASE_URL") || "";
           if (!key || !base) return json({ success: false, error: `Credenciais ${prefix.toUpperCase()} não configuradas.` }, 400);
-          found = matchUser(await natvSyncPasswords(base, key), username);
+          const raw = await natvFindUserRaw(base, key, username);
+          if (!raw) return json({ success: false, error: `Usuário "${username}" não encontrado no painel ${prefix.toUpperCase()}.` }, 404);
+          const pwd = pickPassword(raw);
+          if (!pwd) {
+            return json({ success: false, error: `O painel ${prefix.toUpperCase()} não devolve a senha desse usuário. Use "Alterar senha" para definir uma nova.` }, 404);
+          }
+          found = { username, password: pwd };
           break;
         }
         case "rush": {
           const { rush_username: rUser, rush_password: rPass, rush_token: rToken, rush_base_url: rBase } = settings;
           if (!rUser || !rPass || !rToken || !rBase) return json({ success: false, error: "Credenciais Rush não configuradas." }, 400);
           const token = await rushAuth(rBase, rUser, rPass, rToken);
-          found = matchUser(await rushSyncPasswords(rBase, token), username);
+          const raw = await rushFindUserRaw(rBase, token, username);
+          if (!raw) return json({ success: false, error: `Usuário "${username}" não encontrado no painel Rush.` }, 404);
+          const pwd = pickPassword(raw);
+          if (!pwd) {
+            return json({ success: false, error: `O painel Rush não devolve a senha desse usuário. Use "Alterar senha" para definir uma nova.` }, 404);
+          }
+          found = { username, password: pwd };
           break;
         }
         case "p2cine": {
           const { p2cine_username: pUser, p2cine_api_key: pKey, p2cine_base_url: pBase } = settings;
           if (!pUser || !pKey || !pBase) return json({ success: false, error: "Credenciais P2Cine não configuradas." }, 400);
           const login = await p2cineApiLogin(pBase, pUser, pKey);
-          found = matchUser(await p2cineSyncPasswords(pBase, login.token, login.uid), username);
+          const row = await p2cineFindClientRow(pBase, login.token, username, login.uid);
+          if (!row) return json({ success: false, error: `Usuário "${username}" não encontrado no painel P2Cine.` }, 404);
+          if (!row.password) {
+            return json({ success: false, error: `O painel P2Cine não mostra a senha desse usuário. Use "Alterar senha" para definir uma nova.` }, 404);
+          }
+          found = { username, password: row.password };
           break;
         }
         case "vplay": {
           const connection = await vplayConnection(settings);
           if (!connection) return json({ success: false, error: "Credenciais MySQL do VPlay não configuradas." }, 400);
+
           try {
             const row = await vplayFindUser(connection, username);
             if (row) {
@@ -667,6 +840,11 @@ serve(async (req) => {
       const updatedIds = await updateCustomerPassword(admin, ownerId, username, found.password);
       return json({ success: true, panel, password: found.password, updated_customer_ids: updatedIds });
     }
+
+
+
+
+
 
 
 
