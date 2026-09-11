@@ -2058,104 +2058,18 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                     </div>
                   )}
 
-                  {/* Change password section */}
-                  <div className="mt-3 p-3 rounded-2xl border border-border/20 bg-background/40 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 flex items-center gap-1.5">
-                        <Key className="h-3 w-3" />
-                        Trocar senha no painel
-                      </p>
+                  {/* Copiar acesso completo do servidor */}
+                  <Button
+                    variant="outline"
+                    className="mt-3 w-full h-10 rounded-xl font-semibold text-xs bg-gradient-to-r from-emerald-500/10 to-emerald-500/5 hover:from-emerald-500/20 hover:to-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 transition-all active:scale-[0.98]"
+                    onClick={handleCopyFullAccess}
+                  >
+                    <div className="p-1 rounded-lg bg-emerald-500/20 mr-2">
+                      <Server className="h-3.5 w-3.5" />
                     </div>
-                    {!changePasswordPanel ? (
-                      <div className="grid grid-cols-2 gap-2">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="h-8 text-xs rounded-xl"
-                          onClick={() => handleFetchPassword()}
-                          disabled={!selectedCustomer.username || isChangingPassword}
-                        >
-                          {isChangingPassword ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Key className="w-3 h-3 mr-1" />}
-                          Puxar senha
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 text-xs rounded-xl"
-                          onClick={openChangePassword}
-                          disabled={!selectedCustomer.username}
-                        >
-                          <Key className="w-3 h-3 mr-1.5" />
-                          Alterar senha
-                        </Button>
-                      </div>
-                    ) : (
+                    Copiar Acesso Completo (M3U/HLS)
+                  </Button>
 
-                      <div className="space-y-2">
-                        <Select value={changePasswordPanel} onValueChange={setChangePasswordPanel}>
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder="Painel" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="natv">NATV</SelectItem>
-                            <SelectItem value="natv2">NATV2</SelectItem>
-                            <SelectItem value="rush">Rush</SelectItem>
-                            <SelectItem value="p2cine">P2Cine / kOffice</SelectItem>
-                            <SelectItem value="vplay">VPlay</SelectItem>
-                            <SelectItem value="the_best">The Best</SelectItem>
-                            <SelectItem value="uniplay">Uniplay</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <div className="flex gap-2">
-                          <Input
-                            value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
-                            placeholder="Nova senha"
-                            className="h-8 text-xs"
-                            type="text"
-                          />
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 px-2"
-                            onClick={() => setNewPassword(Math.random().toString(36).slice(2, 10))}
-                          >
-                            Gerar
-                          </Button>
-                        </div>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="w-full h-8 text-xs rounded-xl"
-                          onClick={() => handleFetchPassword()}
-                          disabled={isChangingPassword}
-                        >
-                          {isChangingPassword ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Key className="w-3 h-3 mr-1" />}
-                          Puxar senha atual
-                        </Button>
-                        <div className="flex gap-2">
-
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="flex-1 h-8 text-xs"
-                            onClick={() => setChangePasswordPanel('')}
-                          >
-                            Cancelar
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="flex-1 h-8 text-xs"
-                            onClick={handleChangePassword}
-                            disabled={!newPassword || isChangingPassword}
-                          >
-                            {isChangingPassword ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Key className="w-3 h-3 mr-1" />}
-                            Trocar
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
 
                   {/* Renewal success message */}
                   {renewalMessage && (
