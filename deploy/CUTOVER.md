@@ -6,8 +6,10 @@ Escolha um horário de baixo movimento (madrugada).
 ## Antes da virada (dias antes, com produção no ar)
 
 - [ ] VPS instalada (`install.sh`) e site abrindo por IP/domínio temporário.
+- [ ] `preflight-vps.sh` terminou com `PREFLIGHT_APROVADO`.
 - [ ] Banco importado e contagens conferidas (`import-to-vps.sh` diz "OK").
 - [ ] Chaves preenchidas (`SECRETS.md`) e funções publicadas.
+- [ ] Recuperação de senha testada usando o SMTP próprio.
 - [ ] Agendamentos criados na VPS, mas **desativados**:
       `update cron.job set active = false;`
 - [ ] IP da VPS liberado nos painéis que filtram por IP.
@@ -21,6 +23,7 @@ Escolha um horário de baixo movimento (madrugada).
 1. **Congelar o antigo**
    - Desativar todos os agendamentos do ambiente atual.
    - Avisar no sistema (opcional) que haverá 10 minutos de manutenção.
+   - Não desligar nem excluir o ambiente antigo; ele será a reversão por 48h.
 
 2. **Sincronizar o delta**
    ```bash
@@ -30,6 +33,8 @@ Escolha um horário de baixo movimento (madrugada).
    Como o dump é completo e a importação recria as linhas, o mais seguro é
    limpar as tabelas de dados no destino antes deste segundo import
    (o script já avisa diferenças de contagem).
+   Confirme novamente que `select count(*) from cron.job where active;` retorna
+   zero antes de importar.
 
 3. **Virar o DNS**
    - Apontar o registro A de `supergestor.top` (e `www`) para o IP da VPS.
@@ -39,6 +44,7 @@ Escolha um horário de baixo movimento (madrugada).
    ```sql
    update cron.job set active = true;
    ```
+   Só execute isto depois de confirmar que o domínio já responde pelo IP novo.
 
 5. **Reapontar webhooks externos**
    Os caminhos continuam idênticos — só confirme que cada plataforma responde
@@ -61,12 +67,15 @@ Escolha um horário de baixo movimento (madrugada).
 - Voltar o registro A do DNS para o destino anterior (propaga em ~5 min com TTL 300).
 - Reativar os agendamentos do ambiente antigo.
 - O ambiente antigo permanece intacto por 48 horas justamente para isso.
+- Se a VPS já recebeu pagamentos ou cadastros, exporte essas escritas antes de
+  reverter; não reative o antigo até conciliá-las para evitar perda ou duplicidade.
 
 ## Depois de 48 horas estáveis
 
 - [ ] Conferir backups rodando (`/opt/supergestor/backups`).
 - [ ] Configurar cópia dos backups para fora da VPS (`RCLONE_REMOTE`).
 - [ ] Encerrar o ambiente antigo.
+- [ ] Remover a função temporária `migration-export` e seus segredos.
 
 ## Extensão do WhatsApp Web
 
