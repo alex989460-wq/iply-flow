@@ -878,13 +878,13 @@ const ChangePasswordSchema = z.object({
   action: z.literal("change-password"),
   username: z.string().min(1),
   new_password: z.string().min(4).max(128),
-  panel: z.enum(["natv", "natv2", "rush", "p2cine", "vplay"]),
+  panel: z.enum(["natv", "natv2", "rush", "p2cine", "vplay", "the_best", "uniplay"]),
 });
 
 const GetPasswordSchema = z.object({
   action: z.literal("get-password"),
   username: z.string().min(1),
-  panel: z.enum(["natv", "natv2", "rush", "p2cine", "vplay"]),
+  panel: z.enum(["natv", "natv2", "rush", "p2cine", "vplay", "the_best", "uniplay"]),
 });
 
 const SyncPasswordsSchema = z.object({
