@@ -1169,6 +1169,31 @@ export default function Customers() {
     }
   };
 
+  const handleFetchPassword = async () => {
+    if (!changePasswordCustomer || !changePasswordPanel) return;
+    setIsChangingPassword(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('panel-password-manager', {
+        body: {
+          action: 'get-password',
+          username: changePasswordCustomer.username,
+          panel: changePasswordPanel,
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Falha ao puxar senha');
+      setNewPassword(data.password);
+      toast({ title: 'Senha atual encontrada', description: `Senha do painel: ${data.password}` });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+    } catch (err: any) {
+      toast({ title: 'Erro ao puxar senha', description: err.message || String(err), variant: 'destructive' });
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+
+
   // Bulk renew handler
   const handleBulkRenew = async () => {
     if (selectedCustomerIds.size === 0 || !selectedPlanId || isBulkRenewing) return;
@@ -4067,8 +4092,19 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                   </Button>
                 </div>
               </div>
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
+                onClick={handleFetchPassword}
+                disabled={!changePasswordPanel || isChangingPassword}
+              >
+                {isChangingPassword ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Key className="w-4 h-4 mr-2" />}
+                Puxar senha atual do painel
+              </Button>
             </div>
             <div className="flex justify-end gap-2">
+
               <Button variant="ghost" onClick={() => { setChangePasswordCustomer(null); setNewPassword(''); }}>
                 Cancelar
               </Button>

@@ -398,13 +398,20 @@ async function p2cineSyncPasswords(base: string, token: string, resellerId?: str
 
 // ─── VPLAY ───
 async function vplayConnection(settings: any) {
-  const host = String(settings.vplay_mysql_host || "").trim();
-  const user = String(settings.vplay_mysql_user || "").trim();
-  const password = String(settings.vplay_mysql_password || "");
-  const database = String(settings.vplay_mysql_database || "").trim();
-  const port = Number(settings.vplay_mysql_port) || 3306;
+  const host = String(settings.vplay_mysql_host || Deno.env.get("VPLAY_MYSQL_HOST") || "").trim();
+  const user = String(settings.vplay_mysql_user || Deno.env.get("VPLAY_MYSQL_USER") || "").trim();
+  const password = String(settings.vplay_mysql_password || Deno.env.get("VPLAY_MYSQL_PASSWORD") || "");
+  const database = String(settings.vplay_mysql_database || Deno.env.get("VPLAY_MYSQL_DATABASE") || "").trim();
+  const port = Number(settings.vplay_mysql_port || Deno.env.get("VPLAY_MYSQL_PORT")) || 3306;
+
   if (!host || !user || !password || !database) return null;
-  return await mysql.createConnection({ host, user, password, database, port, connectTimeout: 10000 });
+  try {
+    return await mysql.createConnection({ host, user, password, database, port, connectTimeout: 10000 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(`Não foi possível conectar ao MySQL do VPlay (${host}:${port}): ${msg}`);
+  }
+
 }
 
 async function vplayFindUser(connection: any, username: string) {
@@ -469,6 +476,12 @@ async function vplaySyncPasswords(connection: any) {
   return out;
 }
 
+// ─── GET PASSWORD (puxar senha existente) ───
+function matchUser(list: { username: string; password: string }[], username: string) {
+  const variants = buildUsernameVariants(username).map((v) => v.toLowerCase());
+  return list.find((u) => variants.includes(String(u.username || "").toLowerCase()));
+}
+
 // ─── MAIN ───
 const ChangePasswordSchema = z.object({
   action: z.literal("change-password"),
@@ -477,10 +490,17 @@ const ChangePasswordSchema = z.object({
   panel: z.enum(["natv", "natv2", "rush", "p2cine", "vplay"]),
 });
 
+const GetPasswordSchema = z.object({
+  action: z.literal("get-password"),
+  username: z.string().min(1),
+  panel: z.enum(["natv", "natv2", "rush", "p2cine", "vplay"]),
+});
+
 const SyncPasswordsSchema = z.object({
   action: z.literal("sync-passwords"),
   owner_id: z.union([z.string().uuid(), z.literal("all")]).optional(),
 });
+
 
 async function isAdmin(client: any) {
   const { data, error } = await client.rpc("is_admin");
@@ -595,6 +615,61 @@ serve(async (req) => {
       return json({ success: true, panel, result, updated_customer_ids: updatedIds });
     }
 
+    if (action === "get-password") {
+      const parsed = GetPasswordSchema.safeParse(rawBody);
+      if (!parsed.success) return json({ success: false, error: parsed.error.flatten().fieldErrors }, 400);
+      const { username, panel } = parsed.data;
+
+      let found: { username: string; password: string } | undefined;
+      switch (panel) {
+        case "natv":
+        case "natv2": {
+          const prefix = panel === "natv" ? "natv" : "natv2";
+          const key = settings[`${prefix}_api_key`] || Deno.env.get(prefix.toUpperCase() + "_API_KEY") || "";
+          const base = settings[`${prefix}_base_url`] || Deno.env.get(prefix.toUpperCase() + "_BASE_URL") || "";
+          if (!key || !base) return json({ success: false, error: `Credenciais ${prefix.toUpperCase()} não configuradas.` }, 400);
+          found = matchUser(await natvSyncPasswords(base, key), username);
+          break;
+        }
+        case "rush": {
+          const { rush_username: rUser, rush_password: rPass, rush_token: rToken, rush_base_url: rBase } = settings;
+          if (!rUser || !rPass || !rToken || !rBase) return json({ success: false, error: "Credenciais Rush não configuradas." }, 400);
+          const token = await rushAuth(rBase, rUser, rPass, rToken);
+          found = matchUser(await rushSyncPasswords(rBase, token), username);
+          break;
+        }
+        case "p2cine": {
+          const { p2cine_username: pUser, p2cine_api_key: pKey, p2cine_base_url: pBase } = settings;
+          if (!pUser || !pKey || !pBase) return json({ success: false, error: "Credenciais P2Cine não configuradas." }, 400);
+          const login = await p2cineApiLogin(pBase, pUser, pKey);
+          found = matchUser(await p2cineSyncPasswords(pBase, login.token, login.uid), username);
+          break;
+        }
+        case "vplay": {
+          const connection = await vplayConnection(settings);
+          if (!connection) return json({ success: false, error: "Credenciais MySQL do VPlay não configuradas." }, 400);
+          try {
+            const row = await vplayFindUser(connection, username);
+            if (row) {
+              found = { username, password: String(row.row.password ?? "") };
+            }
+          } finally {
+            await connection.end().catch(() => undefined);
+          }
+          break;
+        }
+      }
+
+      if (!found || !found.password) {
+        return json({ success: false, error: `Senha de "${username}" não encontrada no painel selecionado.` }, 404);
+      }
+
+      const updatedIds = await updateCustomerPassword(admin, ownerId, username, found.password);
+      return json({ success: true, panel, password: found.password, updated_customer_ids: updatedIds });
+    }
+
+
+
     if (action === "sync-passwords") {
       const parsed = SyncPasswordsSchema.safeParse(rawBody);
       if (!parsed.success) return json({ success: false, error: parsed.error.flatten().fieldErrors }, 400);
@@ -694,7 +769,7 @@ serve(async (req) => {
       return json({ success: true, results });
     }
 
-    return json({ success: false, error: "Ação inválida. Use 'change-password' ou 'sync-passwords'." }, 400);
+    return json({ success: false, error: "Ação inválida. Use 'change-password', 'get-password' ou 'sync-passwords'." }, 400);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[panel-password-manager] error:", err);

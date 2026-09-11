@@ -1294,6 +1294,33 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
     }
   };
 
+  const handleFetchPassword = async () => {
+    if (!selectedCustomer || !changePasswordPanel) return;
+    setIsChangingPassword(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('panel-password-manager', {
+        body: {
+          action: 'get-password',
+          username: selectedCustomer.username,
+          panel: changePasswordPanel,
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Falha ao puxar senha');
+      setNewPassword(data.password);
+      toast.success(`Senha atual no painel: ${data.password}`);
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      const refreshed = await supabase.from('customers').select('*, plans(*), servers(*)').eq('id', selectedCustomer.id).single();
+      if (refreshed.data) setSelectedCustomer(refreshed.data as any);
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao puxar senha');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+
+
   const getStatusBadge = (status: string, dueDate?: string) => {
     // Check if customer is overdue (regardless of status)
     const isOverdue = dueDate ? isCustomerOverdue(dueDate) : false;
@@ -2028,7 +2055,18 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                             Gerar
                           </Button>
                         </div>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="w-full h-8 text-xs rounded-xl"
+                          onClick={handleFetchPassword}
+                          disabled={isChangingPassword}
+                        >
+                          {isChangingPassword ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Key className="w-3 h-3 mr-1" />}
+                          Puxar senha atual
+                        </Button>
                         <div className="flex gap-2">
+
                           <Button
                             variant="ghost"
                             size="sm"
