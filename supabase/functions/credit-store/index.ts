@@ -74,6 +74,46 @@ Deno.serve(async (req) => {
     return data;
   };
 
+  // Identifica o comprador pelo usuário do painel, telefone ou e-mail.
+  const identifyBuyer = async (opts: { panelUsername?: string; phone?: string; email?: string }) => {
+    const user = String(opts.panelUsername || "").trim();
+    const phone = onlyDigits(String(opts.phone || ""));
+    const email = String(opts.email || "").trim().toLowerCase();
+
+    if (user) {
+      const cols = [
+        "vplay_panel_username", "rush_username", "uniplay_username",
+        "the_best_username", "p2cine_username", "sigma_username",
+      ];
+      const { data: api } = await admin
+        .from("reseller_api_settings")
+        .select(`user_id, ${cols.join(", ")}`)
+        .or(cols.map((c) => `${c}.ilike.${user}`).join(","))
+        .limit(1)
+        .maybeSingle();
+      if ((api as any)?.user_id) {
+        const { data: acc } = await admin
+          .from("reseller_access").select("user_id, email, full_name").eq("user_id", (api as any).user_id).maybeSingle();
+        if (acc?.user_id) return acc;
+      }
+    }
+
+    if (phone) {
+      const tail = phone.slice(-8);
+      const { data: byPhone } = await admin
+        .from("reseller_access").select("user_id, email, full_name, phone").not("phone", "is", null).limit(500);
+      const hit = (byPhone || []).find((r: any) => onlyDigits(r.phone).endsWith(tail));
+      if (hit?.user_id) return hit;
+    }
+
+    if (email) {
+      const { data: byEmail } = await admin
+        .from("reseller_access").select("user_id, email, full_name").ilike("email", email).maybeSingle();
+      if (byEmail?.user_id) return byEmail;
+    }
+    return null;
+  };
+
   const buildOrder = async (opts: {
     sellerId: string;
     buyerId: string | null;
@@ -81,8 +121,12 @@ Deno.serve(async (req) => {
     serverId: string;
     qty: number;
     provider: "efi" | "mercadopago";
+    panelUsername?: string | null;
+    buyerPhone?: string | null;
   }) => {
     const { sellerId, buyerId, buyerEmail, serverId, qty, provider } = opts;
+    const panelUsername = opts.panelUsername || null;
+    const buyerPhone = opts.buyerPhone || null;
     const [{ data: server }, { data: tiers }] = await Promise.all([
       admin.from("servers").select("id, server_name").eq("id", serverId).maybeSingle(),
       admin.from("credit_price_tiers").select("*").eq("server_id", serverId).eq("owner_id", sellerId).eq("is_active", true),
