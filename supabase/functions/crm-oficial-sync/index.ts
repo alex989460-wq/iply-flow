@@ -1045,8 +1045,25 @@ function pickString(...values: unknown[]) {
   return "";
 }
 
+// Em ambientes self-hosted o SUPABASE_URL é interno (ex.: http://api-gw:8000),
+// e a Meta rejeita esse link com "#100 ... is not a valid URI".
+// Reescrevemos para o endereço público do sistema.
+function toPublicHttpsUrl(url: string) {
+  const publicBase = (Deno.env.get("PUBLIC_SITE_URL") || Deno.env.get("PUBLIC_SUPABASE_URL") || "").replace(/\/+$/, "");
+  if (!publicBase) return url;
+  try {
+    const parsed = new URL(url);
+    const isPublic = parsed.protocol === "https:" && parsed.hostname.includes(".");
+    if (isPublic) return url;
+    return `${publicBase}${parsed.pathname}${parsed.search}`;
+  } catch {
+    return url;
+  }
+}
+
 async function ensurePublicMediaUrl(url: string, label = "media") {
   if (!/scontent\.whatsapp\.net|lookaside\.fbsbx\.com/i.test(url)) return url;
+
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
