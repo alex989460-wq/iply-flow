@@ -1048,6 +1048,24 @@ export default function ResellerApiSettings() {
 
 
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="w-5 h-5 text-amber-500" />
+            Sincronizar senhas dos painéis
+          </CardTitle>
+          <CardDescription>
+            Atualiza as senhas salvas no SuperGestor com as senhas reais dos painéis configurados acima.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="outline" onClick={handleSyncPasswords} disabled={syncingPasswords}>
+            {syncingPasswords ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Key className="w-4 h-4 mr-2" />}
+            Sincronizar senhas agora
+          </Button>
+        </CardContent>
+      </Card>
+
       <div className="flex justify-end">
         <Button onClick={handleSave} disabled={saving}>
           {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
