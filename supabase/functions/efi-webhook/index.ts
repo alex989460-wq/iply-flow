@@ -231,7 +231,7 @@ Deno.serve(async (req) => {
               ]);
               const notifPhone = (billing as any)?.notification_phone;
               if (zap?.selected_department_id && notifPhone) {
-                const msg = `💳 *Compra de créditos paga*\n\n👤 Revendedor: *${access.full_name || access.email}*\n🖥️ Servidor: *${order.server_name || "-"}*\n🔢 Créditos: *${order.quantity}*\n💰 Total: *R$ ${Number(order.total).toFixed(2)}*\n\n✅ Créditos lançados automaticamente.`;
+                const msg = `💳 *Compra de créditos paga*\n\n👤 Revendedor: *${access.full_name || access.email}*\n🔑 Usuário do painel: *${(order as any).panel_username || "-"}*\n📱 Telefone: *${(order as any).buyer_phone || "-"}*\n🖥️ Servidor: *${order.server_name || "-"}*\n🔢 Créditos: *${order.quantity}*\n💰 Total: *R$ ${Number(order.total).toFixed(2)}*\n\n✅ Créditos lançados no Super Gestor. Se o painel exigir recarga manual, use o usuário acima.`;
                 await fetch(`${SUPABASE_URL}/functions/v1/crm-oficial-sync`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SRK}` },
