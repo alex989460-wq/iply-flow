@@ -32,6 +32,7 @@ import {
   UserPlus,
   ShieldCheck,
   ListChecks,
+  Coins,
 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
@@ -59,6 +60,7 @@ const menuItems: Array<{
   { icon: Trophy, label: 'Disparo Janela 24h', path: '/bolao-broadcast', adminOnly: false },
   { icon: UserPlus, label: 'Captura de Leads', path: '/lead-capture', adminOnly: false },
   { icon: Calculator, label: 'Calculadora de Custo', path: '/cost-calculator', adminOnly: false },
+  { icon: Coins, label: 'Comprar Créditos', path: '/creditos', adminOnly: false },
   { icon: ListChecks, label: 'Tarefas e Anotações', path: '/tarefas', adminOnly: false },
   { icon: MessageCircleMore, label: 'Chat', path: '/chat', adminOnly: false, badgeKey: 'evolution' },
   { icon: FileText, label: 'Templates CRM Oficial', path: '/crm-oficial-templates', adminOnly: false },
