@@ -1227,6 +1227,23 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
     else toast.error('Não foi possível copiar automaticamente.');
   };
 
+  const handleCopyFullAccess = async () => {
+    const c: any = selectedCustomer;
+    if (!c) return;
+    const rawHost = String(c.server?.host || '').trim().replace(/\/+$/, '');
+    const host = rawHost ? (/^https?:\/\//i.test(rawHost) ? rawHost : `http://${rawHost}`) : '';
+    const user = String(c.username || '').split(',')[0].trim();
+    const pass = String(c.password || '').trim();
+    const venc = c.due_date ? format(new Date(`${c.due_date}T12:00:00`), 'dd/MM/yyyy', { locale: ptBR }) : '-';
+    const links = host && user && pass
+      ? `\n\n*Link (M3U)* 👉 ${host}/get.php?username=${user}&password=${pass}&type=m3u_plus&output=ts\n\n*Link (HLS)* 👉 ${host}/get.php?username=${user}&password=${pass}&type=m3u_plus&output=hls`
+      : '';
+    const message = `🎬 *DADOS DE ACESSO*\n\n👤 Usuário: ${user || '-'}\n\n🔑 Senha: ${pass || '-'}\n\n🌐 Servidor: ${host || c.server?.server_name || '-'}\n\n📺 Telas: ${c.screens || selectedScreens || 1}\n\n⏰ Vencimento: ${venc}${links}`;
+    const ok = await copyText(message);
+    if (ok) toast.success('Dados completos do servidor copiados!');
+    else toast.error('Não foi possível copiar automaticamente.');
+  };
+
   const handleCopyPaymentMessage = async () => {
     if (!selectedCustomer) return;
     const message = generatePaymentMessage(selectedCustomer);
