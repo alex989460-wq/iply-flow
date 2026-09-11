@@ -90,54 +90,45 @@ async function natvChangePassword(
   if (normalized.endsWith("/api")) bases.add(normalized.replace(/\/api$/, ""));
   else bases.add(`${normalized}/api`);
 
-  const usersBases = [...bases];
-  const userUrlCandidates = usersBases.flatMap((b) => [`${b}/users`, `${b}/user`]);
-
-  let targetUser: any = null;
-  let targetEndpoint = "";
-
-  for (const url of userUrlCandidates) {
-    try {
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } });
-      if (!res.ok) continue;
-      const data = await res.json().catch(() => null);
-      const users = Array.isArray(data) ? data : data?.data || data?.users || [];
-      const variants = buildUsernameVariants(username).map((v) => v.toLowerCase());
-      targetUser = users.find((u: any) => {
-        const un = String(u.username || u.login || u.user || u.name || "").toLowerCase();
-        return variants.includes(un);
-      });
-      if (targetUser) {
-        targetEndpoint = url;
-        break;
-      }
-    } catch { /* ignore */ }
-  }
-
+  const targetUser = await natvFindUserRaw(baseUrl, apiKey, username);
   if (!targetUser) throw new Error(`Usuário "${username}" não encontrado no painel NATV.`);
 
   const id = targetUser.id ?? targetUser.user_id ?? targetUser._id;
-  if (!id) throw new Error("Painel NATV retornou usuário sem ID.");
+  const realUsername = String(targetUser.username || username);
 
-  const changeCandidates = usersBases.flatMap((b) => [
-    `${b}/users/${id}`,
-    `${b}/user/${id}`,
-    `${b}/users/${id}/password`,
-    `${b}/user/${id}/password`,
-    `${b}/users/change-password`,
-    `${b}/user/change-password`,
-  ]);
+  const headers = { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}`, Accept: "application/json" };
+  const attempts: { url: string; method: string; body: any }[] = [];
+  for (const b of bases) {
+    attempts.push(
+      { url: `${b}/user/edit`, method: "POST", body: { username: realUsername, id, password: newPassword } },
+      { url: `${b}/user/update`, method: "POST", body: { username: realUsername, id, password: newPassword } },
+      { url: `${b}/user/password`, method: "POST", body: { username: realUsername, id, password: newPassword } },
+      { url: `${b}/user`, method: "PUT", body: { username: realUsername, id, password: newPassword } },
+      { url: `${b}/user/${id}`, method: "PUT", body: { username: realUsername, password: newPassword } },
+    );
+  }
 
   let lastError = "";
-  for (const url of changeCandidates) {
+  for (const a of attempts) {
+    if (!id && a.url.endsWith(`/${id}`)) continue;
     try {
-      const res = await fetch(url, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ password: newPassword, password_confirmation: newPassword, new_password: newPassword }),
+      const res = await fetch(a.url, {
+        method: a.method,
+        headers,
+        body: JSON.stringify(a.body),
+        signal: AbortSignal.timeout(12000),
       });
-      if (res.ok) return { success: true, endpoint: url };
-      lastError = await res.text().catch(() => String(res.status));
+      const text = await res.text().catch(() => "");
+      if (res.ok) {
+        // confirma que a senha realmente mudou no painel
+        const check = await natvFindUserRaw(baseUrl, apiKey, realUsername).catch(() => null);
+        if (!check || String(pickPassword(check)) === newPassword || !pickPassword(check)) {
+          return { success: true, endpoint: a.url };
+        }
+        lastError = "o painel aceitou a chamada mas manteve a senha antiga";
+        continue;
+      }
+      lastError = `${res.status} ${text.slice(0, 160)}`;
     } catch (e) {
       lastError = e instanceof Error ? e.message : String(e);
     }
@@ -145,6 +136,7 @@ async function natvChangePassword(
 
   throw new Error(`Não foi possível alterar a senha no NATV. Último erro: ${lastError.slice(0, 200)}`);
 }
+
 
 async function natvSyncPasswords(baseUrl: string, apiKey: string) {
   const normalized = normalizeBaseUrl(baseUrl);
