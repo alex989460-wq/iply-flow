@@ -1061,6 +1061,23 @@ function toPublicHttpsUrl(url: string) {
   }
 }
 
+// A Meta só aceita link http(s) público. Handles opacos ("4::aW1h..."),
+// hosts internos (api-gw, kong, localhost) ou caminhos soltos são rejeitados
+// com "(#100) ... is not a valid URI".
+function isUsableMediaLink(url?: string) {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    if (!/^https?:$/.test(parsed.protocol)) return false;
+    const host = parsed.hostname.toLowerCase();
+    if (!host.includes(".")) return false;
+    if (/^(localhost|127\.|0\.0\.0\.0|api-gw|kong|supabase)/.test(host)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function ensurePublicMediaUrl(url: string, label = "media") {
   if (!/scontent\.whatsapp\.net|lookaside\.fbsbx\.com/i.test(url)) return url;
 
@@ -1252,17 +1269,34 @@ async function doSendWhatsapp(payload: {
     const officialHeaderMedia = extractOfficialTemplateHeaderMedia(officialTemplate)
       || await fetchOfficialTemplateHeaderMedia(String(payload.template_name), String(lang), apiKey).catch(() => undefined);
     const requestHeaderImageUrl = imageHeaderFromComponents(components);
-    const requestedHeaderMedia = requestHeaderImageUrl && isMetaTemplateMediaUrl(requestHeaderImageUrl)
+    const requestedHeaderMedia = requestHeaderImageUrl
       ? { type: "image" as const, url: requestHeaderImageUrl }
       : undefined;
-    const rawHeaderMedia = officialHeaderMedia || requestedHeaderMedia;
-    if (requestHeaderImageUrl && !rawHeaderMedia) {
-      throw new Error("Template com imagem recebeu uma URL que não é a mídia oficial do Meta. Sincronize o template oficial antes de enviar.");
+
+    // Resolve a mídia do header para um link público válido. O "header_handle"
+    // devolvido pela Meta muitas vezes é um identificador opaco (ex.: "4::aW1h...")
+    // ou um link interno, e a Meta responde "#100 ... is not a valid URI".
+    const resolveMediaLink = async (
+      media?: { type: "image" | "video" | "document"; url: string },
+    ) => {
+      if (!media?.url) return undefined;
+      const rehosted = await ensurePublicMediaUrl(media.url, String(payload.template_name));
+      const finalUrl = toPublicHttpsUrl(String(rehosted || ""));
+      if (!isUsableMediaLink(finalUrl)) {
+        console.warn("[crm-oficial-sync] header media descartada (link inválido):", String(media.url).slice(0, 80));
+        return undefined;
+      }
+      return { ...media, url: finalUrl };
+    };
+
+    const headerMedia = (await resolveMediaLink(officialHeaderMedia))
+      || (await resolveMediaLink(requestedHeaderMedia));
+    if ((officialHeaderMedia || requestedHeaderMedia) && !headerMedia) {
+      console.warn(`[crm-oficial-sync] template "${payload.template_name}" enviado sem imagem de header (mídia oficial indisponível)`);
     }
-    const headerMedia = rawHeaderMedia
-      ? { ...rawHeaderMedia, url: await ensurePublicMediaUrl(rawHeaderMedia.url, String(payload.template_name)) }
-      : undefined;
-    const templateComponents = replaceHeaderMediaInComponents(components, headerMedia);
+    const templateComponents = headerMedia
+      ? replaceHeaderMediaInComponents(components, headerMedia)
+      : components.filter((c: any) => String(c?.type || "").toLowerCase() !== "header");
     // Envia todos os templates oficiais diretamente pela Meta. Assim o payload
     // contém somente os componentes exigidos pela definição aprovada (inclusive
     // HEADER de vídeo) e nunca ganha parâmetros extras do endpoint intermediário.

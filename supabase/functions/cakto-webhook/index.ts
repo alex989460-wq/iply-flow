@@ -2526,6 +2526,11 @@ serve(async (req) => {
                   tplServerName,
                 ],
                 phone_number_id: billingPhoneNumberId,
+                // Fallback de imagem: se a mídia oficial do template vier como
+                // handle opaco/inválido, usamos a imagem de renovação do revendedor.
+                ...((billingSettings as any)?.renewal_image_url
+                  ? { header_image_url: (billingSettings as any).renewal_image_url }
+                  : {}),
               }),
             },
             MESSAGE_SEND_TIMEOUT_MS,
