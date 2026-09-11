@@ -1247,7 +1247,7 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
     const user = String(c.username || '').split(',')[0].trim();
     let pass = String(c.password || '').trim();
     if (!pass) {
-      const fetched = await handleFetchPassword(true);
+      const fetched = await handleFetchPassword();
       if (fetched) pass = fetched;
     }
     const venc = c.due_date ? format(new Date(`${c.due_date}T12:00:00`), 'dd/MM/yyyy', { locale: ptBR }) : '-';
