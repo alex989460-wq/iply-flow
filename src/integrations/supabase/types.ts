@@ -4415,6 +4415,25 @@ export type Database = {
           subject: string
         }[]
       }
+      migration_dump_auth: {
+        Args: { p_limit: number; p_offset: number; p_table: string }
+        Returns: Json
+      }
+      migration_dump_rows: {
+        Args: { p_limit: number; p_offset: number; p_table: string }
+        Returns: Json
+      }
+      migration_list_objects: {
+        Args: { p_limit: number; p_offset: number }
+        Returns: Json
+      }
+      migration_list_tables: {
+        Args: never
+        Returns: {
+          row_count: number
+          table_name: string
+        }[]
+      }
       move_to_dlq: {
         Args: {
           dlq_name: string
