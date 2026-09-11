@@ -671,7 +671,6 @@ async function theBestFindLine(base: string, auth: { token: string | null; apiKe
         signal: AbortSignal.timeout(12000),
       });
       const text = await res.text().catch(() => "");
-      console.log(`[TheBest] busca ${v}: ${res.status} ${text.slice(0, 200)}`);
       if (!res.ok) continue;
       let data: any = null;
       try { data = JSON.parse(text); } catch { data = null; }
@@ -684,7 +683,7 @@ async function theBestFindLine(base: string, auth: { token: string | null; apiKe
   }
 
   // Sem resultado na busca: varre as primeiras páginas da listagem do painel.
-  for (let page = 1; page <= 10; page++) {
+  for (let page = 1; page <= 60; page++) {
     try {
       const res = await fetch(`${base}/lines/?page=${page}&per_page=100`, {
         headers: theBestHeaders(auth.token, auth.apiKey || null),
@@ -692,7 +691,6 @@ async function theBestFindLine(base: string, auth: { token: string | null; apiKe
       });
       if (!res.ok) break;
       const list = extractList(await res.json().catch(() => null));
-      if (page === 1) console.log(`[TheBest] listagem página 1: ${list.length} linhas; exemplos ${list.slice(0, 3).map((l: any) => l?.username).join(",")}`);
       if (!list.length) break;
       const found = list.find((l: any) => lower.includes(String(l?.username || "").trim().toLowerCase()));
       if (found) return found;
