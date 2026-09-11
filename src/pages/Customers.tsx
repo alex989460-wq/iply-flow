@@ -4092,8 +4092,19 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
                   </Button>
                 </div>
               </div>
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
+                onClick={handleFetchPassword}
+                disabled={!changePasswordPanel || isChangingPassword}
+              >
+                {isChangingPassword ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Key className="w-4 h-4 mr-2" />}
+                Puxar senha atual do painel
+              </Button>
             </div>
             <div className="flex justify-end gap-2">
+
               <Button variant="ghost" onClick={() => { setChangePasswordCustomer(null); setNewPassword(''); }}>
                 Cancelar
               </Button>

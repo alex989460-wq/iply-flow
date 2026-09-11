@@ -2055,7 +2055,18 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                             Gerar
                           </Button>
                         </div>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="w-full h-8 text-xs rounded-xl"
+                          onClick={handleFetchPassword}
+                          disabled={isChangingPassword}
+                        >
+                          {isChangingPassword ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Key className="w-3 h-3 mr-1" />}
+                          Puxar senha atual
+                        </Button>
                         <div className="flex gap-2">
+
                           <Button
                             variant="ghost"
                             size="sm"
