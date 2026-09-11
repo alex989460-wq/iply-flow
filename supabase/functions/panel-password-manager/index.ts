@@ -479,7 +479,7 @@ const ChangePasswordSchema = z.object({
 
 const SyncPasswordsSchema = z.object({
   action: z.literal("sync-passwords"),
-  owner_id: z.string().uuid().optional(),
+  owner_id: z.union([z.string().uuid(), z.literal("all")]).optional(),
 });
 
 async function isAdmin(client: any) {
