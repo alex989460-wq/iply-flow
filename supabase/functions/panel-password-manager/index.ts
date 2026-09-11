@@ -841,62 +841,8 @@ serve(async (req) => {
       return json({ success: true, panel, password: found.password, updated_customer_ids: updatedIds });
     }
 
-    if (action === "probe" && adminNow) {
-      const panel = String(rawBody?.panel || "");
-      const username = String(rawBody?.username || "");
-      const out: any[] = [];
-      if (panel === "natv" || panel === "natv2") {
-        const prefix = panel;
-        const key = settings[`${prefix}_api_key`] || Deno.env.get(prefix.toUpperCase() + "_API_KEY") || "";
-        const base = normalizeBaseUrl(settings[`${prefix}_base_url`] || Deno.env.get(prefix.toUpperCase() + "_BASE_URL") || "");
-        const bases = new Set([base, base.endsWith("/api") ? base.replace(/\/api$/, "") : `${base}/api`]);
-        for (const b of bases) {
-          const attempts: { url: string; init: RequestInit }[] = [
-            { url: `${b}/user`, init: { method: "POST", body: JSON.stringify({ username }) } },
-            { url: `${b}/user/info`, init: { method: "POST", body: JSON.stringify({ username }) } },
-            { url: `${b}/user/get`, init: { method: "POST", body: JSON.stringify({ username }) } },
-            { url: `${b}/user/search`, init: { method: "POST", body: JSON.stringify({ username }) } },
-            { url: `${b}/user/${encodeURIComponent(username)}`, init: { method: "GET" } },
-            { url: `${b}/user/status`, init: { method: "POST", body: JSON.stringify({ username }) } },
-            { url: `${b}/user/activation`, init: { method: "GET" } },
-          ];
-          for (const a of attempts) {
-            try {
-              const res = await fetch(a.url, {
-                ...a.init,
-                headers: { Authorization: `Bearer ${key}`, Accept: "application/json", "Content-Type": "application/json" },
-                signal: AbortSignal.timeout(8000),
-              });
-              const body = (await res.text()).slice(0, 300);
-              out.push({ url: a.url.replace(base, "<base>"), method: a.init.method, status: res.status, body });
-            } catch (e) {
-              out.push({ url: a.url.replace(base, "<base>"), error: String(e).slice(0, 120) });
-            }
-          }
-        }
 
-      }
-      if (panel === "rush") {
-        const token = await rushAuth(settings.rush_base_url, settings.rush_username, settings.rush_password, settings.rush_token);
-        const b = normalizeBaseUrl(settings.rush_base_url);
-        for (const type of ["iptv", "p2p"]) {
-          const url = `${b}/${type}/list?token=${encodeURIComponent(token)}&search=${encodeURIComponent(username)}`;
-          try {
-            const res = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" }, signal: AbortSignal.timeout(10000) });
-            const body = (await res.text()).slice(0, 500);
-            out.push({ url: `${b}/${type}/list`, status: res.status, body });
-          } catch (e) {
-            out.push({ url: `${b}/${type}/list`, error: String(e).slice(0, 120) });
-          }
-        }
-      }
-      if (panel === "p2cine") {
-        const login = await p2cineApiLogin(settings.p2cine_base_url, settings.p2cine_username, settings.p2cine_api_key);
-        const row = await p2cineFindClientRow(settings.p2cine_base_url, login.token, username, login.uid);
-        out.push({ row });
-      }
-      return json({ success: true, probe: out });
-    }
+
 
 
 
