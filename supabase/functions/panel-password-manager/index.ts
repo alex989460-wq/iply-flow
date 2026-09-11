@@ -529,6 +529,10 @@ serve(async (req) => {
       settings = await getResellerSettings(admin, ownerId);
     }
 
+    if (isCron && action !== "sync-passwords") {
+      return json({ success: false, error: "Acesso cron limitado à sincronização." }, 403);
+    }
+
     if (action === "change-password") {
       const parsed = ChangePasswordSchema.safeParse(rawBody);
       if (!parsed.success) return json({ success: false, error: parsed.error.flatten().fieldErrors }, 400);
