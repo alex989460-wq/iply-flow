@@ -520,9 +520,11 @@ serve(async (req) => {
 
     const rawBody = await req.json().catch(() => ({}));
     const action = String(rawBody?.action || "");
-    const adminNow = await isAdmin(admin);
+    const adminNow = isCron ? true : await isAdmin(admin);
     const requestedOwner = String(rawBody?.owner_id || "");
-    const ownerId = (requestedOwner && adminNow) ? requestedOwner : user.id;
+    const ownerId = (requestedOwner && adminNow)
+      ? requestedOwner
+      : (isCron ? "all" : userId);
 
     let settings: any = {};
     if (action !== "sync-passwords" || ownerId !== "all") {
