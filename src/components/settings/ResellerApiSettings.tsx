@@ -298,7 +298,7 @@ export default function ResellerApiSettings() {
     }
     setTestingUniplay(true);
     try {
-      const { data, error } = await supabase.functions.invoke('uniplay-renew', {
+      const invokePromise = supabase.functions.invoke('uniplay-renew', {
         body: {
           action: 'test',
           uniplay_username: settings.uniplay_username,
@@ -306,6 +306,10 @@ export default function ResellerApiSettings() {
           uniplay_base_url: settings.uniplay_base_url,
         },
       });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('O painel Uniplay demorou demais para responder. Tente novamente em alguns segundos.')), 45000)
+      );
+      const { data, error } = await Promise.race([invokePromise, timeoutPromise]);
       if (error) {
         const context = (error as any)?.context;
         if (context instanceof Response) {
@@ -1023,10 +1027,16 @@ export default function ResellerApiSettings() {
               />
             </div>
           </div>
-          <Button type="button" variant="outline" onClick={testUniplay} disabled={testingUniplay}>
-            {testingUniplay && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            Testar conexão Uniplay
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" onClick={() => ensureBotApiKey()} disabled={loadingBotKey}>
+              {loadingBotKey ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Key className="w-4 h-4 mr-2" />}
+              {botApiKey ? 'Gerar nova chave de API' : 'Gerar chave de API'}
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={testUniplay} disabled={testingUniplay}>
+              {testingUniplay && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Testar conexão (opcional)
+            </Button>
+          </div>
 
           <div className="rounded-xl border border-dashed border-emerald-500/30 bg-emerald-500/[0.04] p-4 space-y-3">
             <div className="flex items-center justify-between gap-3">
@@ -1040,7 +1050,7 @@ export default function ResellerApiSettings() {
               </div>
               <Button type="button" size="sm" variant="outline" onClick={() => ensureBotApiKey()} disabled={loadingBotKey}>
                 {loadingBotKey ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Key className="w-4 h-4 mr-2" />}
-                {botApiKey ? 'Atualizar' : 'Gerar chave'}
+                {botApiKey ? 'Gerar nova chave' : 'Gerar chave'}
               </Button>
             </div>
 
