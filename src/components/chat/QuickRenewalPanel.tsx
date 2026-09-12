@@ -2630,6 +2630,8 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                   || vplayTestResult.match(/usu[áa]rio:\s*([^\s]+)/i)?.[1] || '';
                 const pass = vplayTestResult.match(/password[=:\s]+([^\s&|,]+)/i)?.[1]
                   || vplayTestResult.match(/senha:\s*([^\s]+)/i)?.[1] || '';
+                const dns = vplayTestResult.match(/servidor:\s*(\S+)/i)?.[1]
+                  || (m3u ? m3u.replace(/\/get\.php.*$/i, '') : '');
                 const copy = async (txt: string, label: string) => {
                   if (!txt) { toast.error(`Nada para copiar (${label})`); return; }
                   const ok = await copyText(txt);
