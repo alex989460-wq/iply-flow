@@ -110,10 +110,12 @@ export default function PendingManualRenewalsFloat() {
     setPos({ x, y });
   }, []);
 
+  const suppressClickRef = useRef(false);
   const onDragEnd = useCallback(() => {
     const d = dragRef.current;
     dragRef.current = null;
     if (d?.moved) {
+      suppressClickRef.current = true;
       setPos((p) => {
         if (p) { try { localStorage.setItem(POS_KEY, JSON.stringify(p)); } catch { /* ignore */ } }
         return p;
@@ -301,7 +303,10 @@ export default function PendingManualRenewalsFloat() {
         <GripHorizontal className="h-4 w-4 text-muted-foreground" />
       </div>
       <button
-        onClick={() => { if (!dragRef.current) setExpanded((v) => !v); }}
+        onClick={() => {
+          if (suppressClickRef.current) { suppressClickRef.current = false; return; }
+          setExpanded((v) => !v);
+        }}
         className="relative flex items-center justify-between gap-2 px-4 py-3 border-b border-border/60 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-transparent hover:from-amber-500/20 transition-colors"
       >
         <div className="flex items-center gap-3">
