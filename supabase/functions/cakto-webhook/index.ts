@@ -3279,7 +3279,36 @@ serve(async (req) => {
           }
         }
 
-        if (!isVplay && !isNatv && !isNatv2 && !isTheBest && !isRush && !isSigma && !isKoffice) {
+        // ── Painel Uniplay (via relay BR) ──
+        if (isUniplay) {
+          const uMonths = Math.max(1, Math.round(durationDays / 30));
+          for (const username of allUsernames) {
+            try {
+              console.log(`[Cakto] Renovando Uniplay: ${username} por ${uMonths} mês(es)`);
+              const uResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/uniplay-renew`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                },
+                body: JSON.stringify({
+                  owner_id: matchedCustomer.created_by,
+                  customer_id: matchedCustomer.id,
+                  username,
+                  months: uMonths,
+                }),
+              });
+              const uResult = await uResp.json().catch(() => ({}));
+              renewResults.push({ panel: 'uniplay', username, success: uResp.ok && uResult?.success === true, result: uResult });
+              console.log(`[Cakto] Uniplay renew ${username}:`, JSON.stringify(uResult));
+            } catch (e) {
+              const errMsg = e instanceof Error ? e.message : 'Erro desconhecido';
+              renewResults.push({ panel: 'uniplay', username, success: false, error: errMsg });
+            }
+          }
+        }
+
+        if (!isVplay && !isNatv && !isNatv2 && !isTheBest && !isRush && !isSigma && !isKoffice && !isUniplay) {
           console.log(`[Cakto] Tipo de servidor não reconhecido: "${serverName}". Nenhuma renovação externa. Apenas due_date atualizado.`);
           try {
             await supabaseAdmin.from('pending_manual_renewals').insert({
