@@ -1050,7 +1050,7 @@ export default function ResellerApiSettings() {
               </div>
               <Button type="button" size="sm" variant="outline" onClick={() => ensureBotApiKey()} disabled={loadingBotKey}>
                 {loadingBotKey ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Key className="w-4 h-4 mr-2" />}
-                {botApiKey ? 'Atualizar' : 'Gerar chave'}
+                {botApiKey ? 'Gerar nova chave' : 'Gerar chave'}
               </Button>
             </div>
 
