@@ -127,3 +127,6 @@ verify_jwt = false
 
 [functions.meta-status-webhook]
 verify_jwt = false
+
+[functions.bot-generate-test]
+verify_jwt = false

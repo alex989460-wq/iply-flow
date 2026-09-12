@@ -941,6 +941,33 @@ export type Database = {
         }
         Relationships: []
       }
+      bot_test_generations: {
+        Row: {
+          created_at: string
+          id: string
+          panel: string | null
+          phone: string
+          test_username: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          panel?: string | null
+          phone: string
+          test_username?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          panel?: string | null
+          phone?: string
+          test_username?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       bot_triggers: {
         Row: {
           bot_department_id: string | null
