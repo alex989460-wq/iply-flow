@@ -78,6 +78,11 @@ export default function ResellerApiSettings() {
 
 
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cakto-webhook`;
+  // Quando o app roda no domínio próprio (VPS), os endpoints de funções ficam no mesmo domínio.
+  const functionsBaseUrl =
+    typeof window !== 'undefined' && window.location.hostname.endsWith('supergestor.top')
+      ? window.location.origin
+      : (import.meta.env.VITE_SUPABASE_URL as string);
 
   useEffect(() => {
     if (user) {
