@@ -1,10 +1,10 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, X, Phone, Server, User as UserIcon, Calendar, Search, Smartphone, Info, RefreshCw, Loader2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, X, Phone, Server, User as UserIcon, Calendar, Search, Smartphone, Info, RefreshCw, Loader2, GripHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { describePanelError } from '@/lib/panel-error';
@@ -65,6 +65,63 @@ export default function PendingManualRenewalsFloat() {
   const [hidden, setHidden] = useState(false);
   const [resolving, setResolving] = useState<string | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
+
+  // Posição livre na tela (arrastável) — persistida por usuário
+  const POS_KEY = 'pending_float_pos';
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(() => {
+    try {
+      const raw = localStorage.getItem(POS_KEY);
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (typeof p?.x === 'number' && typeof p?.y === 'number') return p;
+      }
+    } catch { /* ignore */ }
+    return null;
+  });
+  const dragRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number; moved: boolean } | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
+  const onDragStart = useCallback((e: React.PointerEvent) => {
+    const el = panelRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      baseX: rect.left,
+      baseY: rect.top,
+      moved: false,
+    };
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+  }, []);
+
+  const onDragMove = useCallback((e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    if (!d.moved && Math.hypot(dx, dy) < 6) return;
+    d.moved = true;
+    const el = panelRef.current;
+    const w = el?.offsetWidth || 440;
+    const h = el?.offsetHeight || 300;
+    const x = Math.min(Math.max(d.baseX + dx, 8), Math.max(window.innerWidth - w - 8, 8));
+    const y = Math.min(Math.max(d.baseY + dy, 8), Math.max(window.innerHeight - h - 8, 8));
+    setPos({ x, y });
+  }, []);
+
+  const suppressClickRef = useRef(false);
+  const onDragEnd = useCallback(() => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (d?.moved) {
+      suppressClickRef.current = true;
+      setPos((p) => {
+        if (p) { try { localStorage.setItem(POS_KEY, JSON.stringify(p)); } catch { /* ignore */ } }
+        return p;
+      });
+    }
+  }, []);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -226,9 +283,30 @@ export default function PendingManualRenewalsFloat() {
   if (!user || items.length === 0 || hidden) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-[100] w-[min(440px,calc(100vw-2rem))] max-h-[80vh] flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-background/80 backdrop-blur-xl shadow-2xl ring-1 ring-black/5 animate-in slide-in-from-bottom-4">
+    <div
+      ref={panelRef}
+      style={pos ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' } : undefined}
+      className={cn(
+        "fixed z-[100] w-[min(440px,calc(100vw-2rem))] max-h-[80vh] flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-background/80 backdrop-blur-xl shadow-2xl ring-1 ring-black/5",
+        !pos && "bottom-4 right-4 animate-in slide-in-from-bottom-4"
+      )}
+    >
+      {/* Alça para arrastar para qualquer lugar da tela */}
+      <div
+        onPointerDown={onDragStart}
+        onPointerMove={onDragMove}
+        onPointerUp={onDragEnd}
+        onPointerCancel={onDragEnd}
+        className="flex items-center justify-center py-1 cursor-grab active:cursor-grabbing touch-none border-b border-border/40 bg-muted/40 select-none"
+        title="Arraste para mover"
+      >
+        <GripHorizontal className="h-4 w-4 text-muted-foreground" />
+      </div>
       <button
-        onClick={() => setExpanded((v) => !v)}
+        onClick={() => {
+          if (suppressClickRef.current) { suppressClickRef.current = false; return; }
+          setExpanded((v) => !v);
+        }}
         className="relative flex items-center justify-between gap-2 px-4 py-3 border-b border-border/60 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-transparent hover:from-amber-500/20 transition-colors"
       >
         <div className="flex items-center gap-3">
