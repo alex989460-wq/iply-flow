@@ -57,6 +57,7 @@ export default function VplayServersManager() {
     is_default: false,
   });
   const isNatv = formData.server_type === 'natv' || formData.server_type === 'natv2';
+  const isUniplay = formData.server_type === 'uniplay';
 
   // Fetch vplay servers
   const { data: servers = [], isLoading } = useQuery({
