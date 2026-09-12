@@ -5,6 +5,7 @@
 //   - renew-notify : registra renovação no inbox master via /messages (direction=in)
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { resolvePublicTemplateMedia } from "../_shared/template-media.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1078,46 +1079,15 @@ function isUsableMediaLink(url?: string) {
   }
 }
 
+// Re-hospeda a mídia da CDN da Meta no nosso Storage e só devolve o link
+// depois de confirmar que ele abre (evita o erro "Downloading media from
+// weblink failed with http code 500", que derruba a mensagem inteira).
 async function ensurePublicMediaUrl(url: string, label = "media") {
-  if (!/scontent\.whatsapp\.net|lookaside\.fbsbx\.com/i.test(url)) return url;
-
-
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  // Meta accepts its own CDN URLs for short-lived sends; fall back to the
-  // original URL whenever we can't (or fail to) rehost it.
-  if (!supabaseUrl || !serviceKey) return url;
-
   try {
-    const response = await fetch(url);
-    if (!response.ok) return url;
-    const contentType = response.headers.get("content-type") || "image/jpeg";
-    const ext = contentType.includes("video/mp4") ? "mp4"
-      : contentType.includes("pdf") ? "pdf"
-      : contentType.includes("png") ? "png"
-      : contentType.includes("webp") ? "webp"
-      : "jpg";
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    const admin = createClient(supabaseUrl, serviceKey);
-    const path = `crm-oficial-template-headers/${Date.now()}-${label.replace(/[^a-zA-Z0-9_-]/g, "_")}.${ext}`;
-    // Retry up to 3x on transient storage errors (Service Unavailable etc).
-    let lastErr: any = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const { error } = await admin.storage.from("reseller-assets").upload(path, bytes, { contentType, upsert: true });
-      if (!error) {
-        const { data } = admin.storage.from("reseller-assets").getPublicUrl(path);
-        if (data?.publicUrl) return toPublicHttpsUrl(data.publicUrl);
-
-        break;
-      }
-      lastErr = error;
-      await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
-    }
-    console.warn("[ensurePublicMediaUrl] storage upload failed, falling back to CDN URL", lastErr?.message || lastErr);
-    return url;
+    return await resolvePublicTemplateMedia(url, label);
   } catch (e) {
-    console.warn("[ensurePublicMediaUrl] exception, falling back to CDN URL", (e as Error).message);
-    return url;
+    console.warn("[ensurePublicMediaUrl] falha ao resolver mídia:", (e as Error).message);
+    return "";
   }
 }
 

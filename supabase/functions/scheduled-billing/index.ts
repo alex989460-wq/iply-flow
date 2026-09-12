@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { sendBillingEmail } from '../_shared/billing-email.ts';
 import { normalizeWhatsAppPhone } from '../_shared/phone.ts';
+import { resolvePublicTemplateMedia } from '../_shared/template-media.ts';
 
 
 const corsHeaders = {
@@ -133,9 +134,29 @@ function buildTemplateVars(customer: any): Array<{ name: string; value: string }
   ];
 }
 
-function extractHeaderImageUrl(template: any): string | undefined {
+function extractRawHeaderImageUrl(template: any): string | undefined {
   const header = template?.components?.find((c: any) => c?.type === 'HEADER' && c?.format === 'IMAGE');
   return header?.example?.header_handle?.[0] || header?.example?.header_url?.[0] || undefined;
+}
+
+// Cache por execução: link da CDN da Meta -> link público estável (ou '' quando inválido)
+const headerMediaCache = new Map<string, string>();
+
+async function resolveHeaderImageUrl(template: any): Promise<string | undefined> {
+  const raw = extractRawHeaderImageUrl(template);
+  if (!raw) return undefined;
+  if (headerMediaCache.has(raw)) return headerMediaCache.get(raw) || undefined;
+  const resolved = await resolvePublicTemplateMedia(raw, String(template?.name || 'template'));
+  headerMediaCache.set(raw, resolved);
+  if (!resolved) console.warn(`[Scheduled] Header do template "${template?.name}" indisponível; enviando sem imagem`);
+  return resolved || undefined;
+}
+
+function extractHeaderImageUrl(template: any): string | undefined {
+  const raw = extractRawHeaderImageUrl(template);
+  if (!raw) return undefined;
+  const cached = headerMediaCache.get(raw);
+  return cached === undefined ? raw : (cached || undefined);
 }
 
 function getCrmTemplateCustomerValues(customer: any, pixKey = '') {
@@ -802,7 +823,7 @@ Deno.serve(async (req) => {
         const templateName = templateMapping[billingType];
         const templateConfig = templateConfigMap[templateName];
         const templateVars = filterVarsForTemplate(templateConfig, buildTemplateVars(customer));
-        const headerImageUrl = extractHeaderImageUrl(templateConfig);
+        const headerImageUrl = await resolveHeaderImageUrl(templateConfig);
 
         console.log(`[Scheduled] (${i + 1}/${batch.length}) Template "${templateName}" -> ${customer.name}`);
 
@@ -1098,7 +1119,7 @@ Deno.serve(async (req) => {
         const templateName = templateNames[billingType];
         const templateConfig = templateConfigMap[templateName];
         const templateVars = filterVarsForTemplate(templateConfig, buildTemplateVars(customer));
-        const headerImageUrl = extractHeaderImageUrl(templateConfig);
+        const headerImageUrl = await resolveHeaderImageUrl(templateConfig);
         const crmPayload = buildCrmTemplatePayload(
           templateConfig,
           customer,
