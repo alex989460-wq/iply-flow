@@ -1,3 +1,5 @@
+import mysql from "npm:mysql2@3.9.7/promise";
+
 type DeliveryResult = {
   ok: boolean;
   status: "delivered" | "delivery_failed" | "manual_required" | "already_processed";
@@ -14,6 +16,44 @@ const responseBody = async (response: Response) => {
 
 const errorMessage = (body: any, fallback: string) =>
   String(body?.detail || body?.message || body?.error || fallback);
+
+async function recordExternalSuccess(
+  admin: any,
+  order: any,
+  provider: string,
+  externalId: string,
+  response: any,
+  before: number,
+  after: number,
+): Promise<DeliveryResult> {
+  const completed = await admin.rpc("complete_credit_order_delivery", {
+    _order_id: order.id,
+    _provider: provider,
+    _external_id: externalId,
+    _response: response,
+    _balance_before: before,
+    _balance_after: after,
+  });
+  if (completed.error) {
+    await admin.from("credit_orders").update({
+      status: "delivery_unknown",
+      delivery_provider: provider,
+      external_delivery_id: externalId,
+      delivery_response: response,
+      delivery_error: `Painel confirmou a recarga, mas o registro local falhou: ${completed.error.message}`,
+      balance_before: before,
+      balance_after: after,
+      updated_at: new Date().toISOString(),
+    }).eq("id", order.id).eq("status", "delivering");
+    return { ok: false, status: "delivery_failed", provider, message: "O painel confirmou a recarga; a conferência local ficou pendente. Não reenvie." };
+  }
+  return {
+    ok: completed.data === true,
+    status: completed.data === true ? "delivered" : "already_processed",
+    provider,
+    message: completed.data === true ? "Créditos enviados automaticamente ao painel." : "Pedido já processado.",
+  };
+}
 
 async function deliverNatv(admin: any, order: any, server: any): Promise<DeliveryResult> {
   const { data: settings } = await admin
@@ -72,35 +112,125 @@ async function deliverNatv(admin: any, order: any, server: any): Promise<Deliver
     return { ok: false, status: "delivery_failed", provider, message: errorMessage(transferBody, `Transferência recusada pelo NATV (HTTP ${transfer.status}).`) };
   }
 
-  const completed = await admin.rpc("complete_credit_order_delivery", {
-    _order_id: order.id,
-    _provider: provider,
-    _external_id: String(transferBody?.recipient_id || recipient.id || username),
-    _response: transferBody,
-    _balance_before: before,
-    _balance_after: Number(transferBody?.recipient_credits ?? before + quantity),
-  });
-  if (completed.error) {
-    // A API externa já confirmou a transferência. Não permita uma nova tentativa
-    // automática, pois ela poderia enviar os mesmos créditos novamente.
-    await admin.from("credit_orders").update({
-      status: "delivery_unknown",
-      delivery_provider: provider,
-      external_delivery_id: String(transferBody?.recipient_id || recipient.id || username),
-      delivery_response: transferBody,
-      delivery_error: `Painel confirmou a recarga, mas o registro local falhou: ${completed.error.message}`,
-      balance_before: before,
-      balance_after: Number(transferBody?.recipient_credits ?? before + quantity),
-      updated_at: new Date().toISOString(),
-    }).eq("id", order.id).eq("status", "delivering");
-    return { ok: false, status: "delivery_failed", provider, message: "O NATV confirmou a recarga; a conferência local ficou pendente. Não reenvie." };
+  return await recordExternalSuccess(
+    admin, order, provider, String(transferBody?.recipient_id || recipient.id || username), transferBody,
+    before, Number(transferBody?.recipient_credits ?? before + quantity),
+  );
+}
+
+async function deliverTheBest(admin: any, order: any): Promise<DeliveryResult> {
+  const provider = "thebest";
+  const { data: settings } = await admin.from("reseller_api_settings")
+    .select("the_best_base_url, the_best_username, the_best_password, the_best_api_key")
+    .eq("user_id", order.seller_id).maybeSingle();
+  const base = cleanBase(settings?.the_best_base_url || "https://api.painel.best");
+  const apiKey = String(settings?.the_best_api_key || "").trim();
+  const username = String(settings?.the_best_username || "").trim();
+  const password = String(settings?.the_best_password || "");
+  const headers: Record<string, string> = { Accept: "application/json", "Content-Type": "application/json" };
+  if (apiKey) {
+    headers["Api-Key"] = apiKey;
+  } else {
+    if (!username || !password) return { ok: false, status: "delivery_failed", provider, message: "Conexão The Best não configurada pelo vendedor." };
+    const auth = await fetch(`${base}/auth/token/`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }) });
+    const authBody = await responseBody(auth);
+    const token = authBody?.access || authBody?.token || authBody?.access_token;
+    if (!auth.ok || !token) return { ok: false, status: "delivery_failed", provider, message: errorMessage(authBody, "Falha no login do The Best.") };
+    headers.Authorization = `Bearer ${token}`;
   }
-  return {
-    ok: completed.data === true,
-    status: completed.data === true ? "delivered" : "already_processed",
-    provider,
-    message: completed.data === true ? "Créditos enviados automaticamente ao painel." : "Pedido já processado.",
-  };
+
+  const target = String(order.panel_username || "").trim();
+  const list = await fetch(`${base}/resellers/?search=${encodeURIComponent(target)}&per_page=100`, { headers });
+  const listBody = await responseBody(list);
+  if (!list.ok) return { ok: false, status: "delivery_failed", provider, message: errorMessage(listBody, "Falha ao localizar o revendedor no The Best.") };
+  const rows = Array.isArray(listBody) ? listBody : Array.isArray(listBody?.results) ? listBody.results : Array.isArray(listBody?.data) ? listBody.data : [];
+  const recipient = rows.find((item: any) => String(item?.username || "").trim().toLowerCase() === target.toLowerCase());
+  if (!recipient?.id) return { ok: false, status: "delivery_failed", provider, message: "Usuário não é um revendedor desta conta The Best." };
+  const before = Number(recipient.credits || 0);
+  const quantity = Math.max(1, Math.round(Number(order.quantity || 0)));
+  const transfer = await fetch(`${base}/resellers/${recipient.id}/transfer-credits/`, {
+    method: "POST", headers, body: JSON.stringify({ amount: quantity }),
+  });
+  const transferBody = await responseBody(transfer);
+  if (!transfer.ok) return { ok: false, status: "delivery_failed", provider, message: errorMessage(transferBody, `Transferência recusada pelo The Best (HTTP ${transfer.status}).`) };
+  return await recordExternalSuccess(admin, order, provider, String(recipient.id), transferBody, before, Number(transferBody?.credits ?? before + quantity));
+}
+
+async function deliverRush(admin: any, order: any): Promise<DeliveryResult> {
+  const provider = "rush";
+  const { data: settings } = await admin.from("reseller_api_settings")
+    .select("rush_base_url, rush_username, rush_password, rush_token")
+    .eq("user_id", order.seller_id).maybeSingle();
+  const base = cleanBase(settings?.rush_base_url || "https://api-new.paineloffice.click")
+    .replace("api-new.painel.ai", "api-new.paineloffice.click")
+    .replace("api.painel.ai", "api-new.paineloffice.click");
+  const token = String(settings?.rush_token || "").trim();
+  if (!token) return { ok: false, status: "delivery_failed", provider, message: "Token da Rush não configurado pelo vendedor." };
+  const target = String(order.panel_username || "").trim();
+  if (!/^\d+$/.test(target)) {
+    return { ok: false, status: "delivery_failed", provider, message: "Para recarga Rush, informe o ID numérico da revenda mostrado no Painel Office." };
+  }
+  const quantity = Math.max(1, Math.round(Number(order.quantity || 0)));
+  if (quantity < 10) return { ok: false, status: "delivery_failed", provider, message: "A Rush exige no mínimo 10 créditos por transferência." };
+  const transfer = await fetch(`${base}/resale/add-credits/${target}`, {
+    method: "PATCH",
+    headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ credits: String(quantity), reason: `Pedido SuperGestor ${order.id}`, sale: Number(order.total || 0) }),
+  });
+  const transferBody = await responseBody(transfer);
+  if (!transfer.ok) return { ok: false, status: "delivery_failed", provider, message: errorMessage(transferBody, `Transferência recusada pela Rush (HTTP ${transfer.status}).`) };
+  const payload = transferBody?.data || transferBody;
+  return await recordExternalSuccess(
+    admin, order, provider, String(payload?.id || target), transferBody,
+    Number(payload?.previous_credits || 0), Number(payload?.new_credits ?? Number(payload?.previous_credits || 0) + quantity),
+  );
+}
+
+async function deliverVplay(admin: any, order: any): Promise<DeliveryResult> {
+  const provider = "vplay";
+  const { data: settings } = await admin.from("reseller_api_settings")
+    .select("vplay_mysql_host, vplay_mysql_port, vplay_mysql_user, vplay_mysql_password, vplay_mysql_database, vplay_panel_username")
+    .eq("user_id", order.seller_id).maybeSingle();
+  const host = String(settings?.vplay_mysql_host || Deno.env.get("VPLAY_MYSQL_HOST") || "").trim();
+  const user = String(settings?.vplay_mysql_user || Deno.env.get("VPLAY_MYSQL_USER") || "").trim();
+  const password = String(settings?.vplay_mysql_password || Deno.env.get("VPLAY_MYSQL_PASSWORD") || "");
+  const database = String(settings?.vplay_mysql_database || Deno.env.get("VPLAY_MYSQL_DATABASE") || "").trim();
+  const sellerUsername = String(settings?.vplay_panel_username || Deno.env.get("VPLAY_PANEL_USERNAME") || "").trim();
+  const target = String(order.panel_username || "").trim();
+  if (!host || !user || !password || !database || !sellerUsername) {
+    return { ok: false, status: "delivery_failed", provider, message: "Conexão MySQL e usuário do painel VPlay não estão completos." };
+  }
+
+  const connection = await mysql.createConnection({ host, user, password, database, port: Number(settings?.vplay_mysql_port || Deno.env.get("VPLAY_MYSQL_PORT")) || 3306, connectTimeout: 10000 });
+  try {
+    const [columnsResult]: any = await connection.query("SHOW COLUMNS FROM `users`");
+    const columns = new Set((columnsResult || []).map((column: any) => String(column.Field)));
+    const balanceColumn = ["credits", "credit", "balance", "wallet", "money", "saldo"].find((column) => columns.has(column));
+    const ownerColumn = ["member_id", "admin_id", "user_id", "owner_id", "reseller_id"].find((column) => columns.has(column));
+    if (!columns.has("id") || !columns.has("username") || !balanceColumn || !ownerColumn) throw new Error("Estrutura de revendedores VPlay incompatível com recarga automática.");
+
+    await connection.beginTransaction();
+    const [sellerRows]: any = await connection.execute("SELECT `id` FROM `users` WHERE TRIM(`username`) = TRIM(?) LIMIT 1 FOR UPDATE", [sellerUsername]);
+    const [recipientRows]: any = await connection.execute(
+      `SELECT \`id\`, \`${balanceColumn}\`, \`${ownerColumn}\` FROM \`users\` WHERE TRIM(\`username\`) = TRIM(?) LIMIT 1 FOR UPDATE`, [target],
+    );
+    const seller = sellerRows?.[0];
+    const recipient = recipientRows?.[0];
+    if (!seller?.id || !recipient?.id || String(recipient[ownerColumn]) !== String(seller.id)) {
+      await connection.rollback();
+      return { ok: false, status: "delivery_failed", provider, message: "Usuário não é uma sub-revenda direta desta conta VPlay." };
+    }
+    const before = Number(recipient[balanceColumn] || 0);
+    const quantity = Math.max(1, Math.round(Number(order.quantity || 0)));
+    await connection.execute(`UPDATE \`users\` SET \`${balanceColumn}\` = \`${balanceColumn}\` + ? WHERE \`id\` = ? LIMIT 1`, [quantity, recipient.id]);
+    await connection.commit();
+    return await recordExternalSuccess(admin, order, provider, String(recipient.id), { recipient_id: recipient.id, recipient_username: target, credits_added: quantity }, before, before + quantity);
+  } catch (error) {
+    await connection.rollback().catch(() => undefined);
+    return { ok: false, status: "delivery_failed", provider, message: error instanceof Error ? error.message : "Falha ao transferir créditos no VPlay." };
+  } finally {
+    await connection.end().catch(() => undefined);
+  }
 }
 
 export async function deliverCreditOrder(admin: any, orderId: string): Promise<DeliveryResult> {
@@ -131,6 +261,30 @@ export async function deliverCreditOrder(admin: any, orderId: string): Promise<D
         delivery_error: result.message,
         updated_at: new Date().toISOString(),
       }).eq("id", order.id).eq("status", "delivering");
+    }
+    return result;
+  }
+
+  if (panel.includes("thebest") || panel.includes("the best") || panel.includes("painel.best")) {
+    const result = await deliverTheBest(admin, order);
+    if (!result.ok && result.status === "delivery_failed") {
+      await admin.from("credit_orders").update({ status: "delivery_failed", delivery_provider: result.provider, delivery_error: result.message, updated_at: new Date().toISOString() }).eq("id", order.id).eq("status", "delivering");
+    }
+    return result;
+  }
+
+  if (panel.includes("vplay")) {
+    const result = await deliverVplay(admin, order);
+    if (!result.ok && result.status === "delivery_failed") {
+      await admin.from("credit_orders").update({ status: "delivery_failed", delivery_provider: result.provider, delivery_error: result.message, updated_at: new Date().toISOString() }).eq("id", order.id).eq("status", "delivering");
+    }
+    return result;
+  }
+
+  if (panel.includes("rush") || panel.includes("paineloffice")) {
+    const result = await deliverRush(admin, order);
+    if (!result.ok && result.status === "delivery_failed") {
+      await admin.from("credit_orders").update({ status: "delivery_failed", delivery_provider: result.provider, delivery_error: result.message, updated_at: new Date().toISOString() }).eq("id", order.id).eq("status", "delivering");
     }
     return result;
   }
