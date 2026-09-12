@@ -1,10 +1,10 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, X, Phone, Server, User as UserIcon, Calendar, Search, Smartphone, Info, RefreshCw, Loader2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, X, Phone, Server, User as UserIcon, Calendar, Search, Smartphone, Info, RefreshCw, Loader2, GripHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { describePanelError } from '@/lib/panel-error';
@@ -65,6 +65,61 @@ export default function PendingManualRenewalsFloat() {
   const [hidden, setHidden] = useState(false);
   const [resolving, setResolving] = useState<string | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null);
+
+  // Posição livre na tela (arrastável) — persistida por usuário
+  const POS_KEY = 'pending_float_pos';
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(() => {
+    try {
+      const raw = localStorage.getItem(POS_KEY);
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (typeof p?.x === 'number' && typeof p?.y === 'number') return p;
+      }
+    } catch { /* ignore */ }
+    return null;
+  });
+  const dragRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number; moved: boolean } | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
+  const onDragStart = useCallback((e: React.PointerEvent) => {
+    const el = panelRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      baseX: rect.left,
+      baseY: rect.top,
+      moved: false,
+    };
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+  }, []);
+
+  const onDragMove = useCallback((e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    if (!d.moved && Math.hypot(dx, dy) < 6) return;
+    d.moved = true;
+    const el = panelRef.current;
+    const w = el?.offsetWidth || 440;
+    const h = el?.offsetHeight || 300;
+    const x = Math.min(Math.max(d.baseX + dx, 8), Math.max(window.innerWidth - w - 8, 8));
+    const y = Math.min(Math.max(d.baseY + dy, 8), Math.max(window.innerHeight - h - 8, 8));
+    setPos({ x, y });
+  }, []);
+
+  const onDragEnd = useCallback(() => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (d?.moved) {
+      setPos((p) => {
+        if (p) { try { localStorage.setItem(POS_KEY, JSON.stringify(p)); } catch { /* ignore */ } }
+        return p;
+      });
+    }
+  }, []);
 
   const load = useCallback(async () => {
     if (!user) return;
