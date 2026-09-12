@@ -64,6 +64,7 @@ export default function PendingManualRenewalsFloat() {
   const [expanded, setExpanded] = useState(false);
   const [hidden, setHidden] = useState(false);
   const [resolving, setResolving] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!user) return;
