@@ -174,7 +174,13 @@ Deno.serve(async (req) => {
       }
 
       if (charge.status === "paid") {
-        // Idempotency: Efí may retry the same event.
+        // Um webhook repetido nunca duplica a entrega. Se o pagamento já foi
+        // confirmado mas a entrega anterior falhou, tenta retomá-la com claim atômico.
+        if (charge.pending_kind === "credit_order" && charge.pending_id) {
+          await deliverCreditOrder(admin, charge.pending_id).catch((error) =>
+            console.error("[efi-webhook] retry credit delivery", error)
+          );
+        }
         processed++;
         continue;
       }

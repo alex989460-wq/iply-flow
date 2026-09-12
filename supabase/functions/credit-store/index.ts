@@ -7,6 +7,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { buildCredentials, createCharge, getQrCode, newTxid } from "../_shared/efi-client.ts";
 import { createPixPayment } from "../_shared/mercadopago-client.ts";
+import { deliverCreditOrder } from "../_shared/credit-delivery.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -425,6 +426,25 @@ Deno.serve(async (req) => {
       const { data: purchases } = await admin
         .from("credit_orders").select("*").eq("buyer_id", userId).order("created_at", { ascending: false }).limit(100);
       return json({ ok: true, sales: sales || [], purchases: purchases || [], orders: purchases || [] });
+    }
+
+    if (action === "retry-delivery") {
+      const orderId = String(body.order_id || "");
+      const { data: order } = await admin
+        .from("credit_orders")
+        .select("id, seller_id, status")
+        .eq("id", orderId)
+        .eq("seller_id", userId)
+        .maybeSingle();
+      if (!order) return json({ error: "not_found" }, 404);
+      if (!["paid", "delivery_failed", "manual_required"].includes(order.status)) {
+        return json({ error: "pedido_indisponivel", message: "Este pedido não está disponível para nova tentativa." }, 400);
+      }
+      if (order.status === "manual_required") {
+        await admin.from("credit_orders").update({ status: "delivery_failed" }).eq("id", order.id).eq("status", "manual_required");
+      }
+      const delivery = await deliverCreditOrder(admin, order.id);
+      return json({ ok: delivery.ok, delivery }, delivery.ok ? 200 : 400);
     }
 
     if (action === "order-status") {
