@@ -1046,6 +1046,31 @@ Obrigado pela preferência! 🙏`;
     }
   };
 
+  // Teste rápido no painel Uniplay (usa as credenciais do próprio revendedor)
+  const [uniplayTestHours, setUniplayTestHours] = useState('6');
+
+  const handleGenerateUniplayTest = async () => {
+    setIsGeneratingTest(true);
+    setVplayTestResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('uniplay-generate-test', {
+        body: {
+          hours: Number(uniplayTestHours) || 6,
+          kind: 'iptv',
+          note: vplayTestName.trim() || 'Teste SuperGestor',
+        },
+      });
+      if (error) throw new Error(error.message || 'Erro na edge function');
+      if ((data as any)?.error) throw new Error((data as any).error);
+      setVplayTestResult((data as any)?.message || JSON.stringify(data));
+      toast.success('Teste Uniplay gerado com sucesso!');
+    } catch (error) {
+      toast.error('Erro ao gerar teste Uniplay: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
+    } finally {
+      setIsGeneratingTest(false);
+    }
+  };
+
   const handleRenew = () => {
     if (selectedCustomer) {
       // Check if customer has extra months - require confirmation
