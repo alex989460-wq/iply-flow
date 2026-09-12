@@ -2967,10 +2967,15 @@ serve(async (req) => {
       const isTheBest = !isSigma && !isKoffice && (sNameLower.includes('best') || sHostLower.includes('best'));
       const isNatv2 = !isSigma && !isKoffice && (sNameLower.includes('natv²') || sNameLower.includes('natv2') || sHostLower.includes('natv2'));
       const isNatv = !isNatv2 && !isSigma && !isKoffice && (sNameLower.includes('natv') || sHostLower.includes('natv'));
+      const isUniplay = !isSigma && !isKoffice && (
+        routedPanel.kind === 'uniplay' ||
+        sNameLower.includes('uniplay') || sHostLower.includes('uniplay') ||
+        sHostLower.includes('searchdefense') || sHostLower.includes('gesapioffice')
+      );
 
       console.log(`[Cakto] Servidor: "${serverName}" (host: "${serverHost}") | auto_renew: ${autoRenew} | Painel: ${routedPanel.kind}`);
 
-      const isKnownApiServer = isVplay || isRush || isTheBest || isNatv || isNatv2 || isSigma || isKoffice;
+      const isKnownApiServer = isVplay || isRush || isTheBest || isNatv || isNatv2 || isSigma || isKoffice || isUniplay;
 
 
       // ── Helper: insert pendência manual ──
@@ -3274,7 +3279,37 @@ serve(async (req) => {
           }
         }
 
-        if (!isVplay && !isNatv && !isNatv2 && !isTheBest && !isRush && !isSigma && !isKoffice) {
+        // ── Painel Uniplay (via relay BR) ──
+        if (isUniplay) {
+          const uMonths = Math.max(1, Math.round(durationDays / 30));
+          for (const username of allUsernames) {
+            try {
+              console.log(`[Cakto] Renovando Uniplay: ${username} por ${uMonths} mês(es)`);
+              const uResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/uniplay-renew`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                  'x-cakto-webhook-secret': Deno.env.get('CAKTO_WEBHOOK_SECRET') || '',
+                },
+                body: JSON.stringify({
+                  owner_id: matchedCustomer.created_by,
+                  customer_id: matchedCustomer.id,
+                  username,
+                  months: uMonths,
+                }),
+              });
+              const uResult = await uResp.json().catch(() => ({}));
+              renewResults.push({ panel: 'uniplay', username, success: uResp.ok && uResult?.success === true, result: uResult });
+              console.log(`[Cakto] Uniplay renew ${username}:`, JSON.stringify(uResult));
+            } catch (e) {
+              const errMsg = e instanceof Error ? e.message : 'Erro desconhecido';
+              renewResults.push({ panel: 'uniplay', username, success: false, error: errMsg });
+            }
+          }
+        }
+
+        if (!isVplay && !isNatv && !isNatv2 && !isTheBest && !isRush && !isSigma && !isKoffice && !isUniplay) {
           console.log(`[Cakto] Tipo de servidor não reconhecido: "${serverName}". Nenhuma renovação externa. Apenas due_date atualizado.`);
           try {
             await supabaseAdmin.from('pending_manual_renewals').insert({
@@ -3337,6 +3372,12 @@ serve(async (req) => {
               });
             } else if (retryPanel === 'the-best' || retryPanel === 'the_best') {
               retryResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/the-best-renew`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-cakto-webhook-secret': Deno.env.get('CAKTO_WEBHOOK_SECRET') || '' },
+                body: JSON.stringify({ username: retryUsername, months: retryMonths, customer_id: matchedCustomer.id }),
+              });
+            } else if (retryPanel === 'uniplay') {
+              retryResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/uniplay-renew`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-cakto-webhook-secret': Deno.env.get('CAKTO_WEBHOOK_SECRET') || '' },
                 body: JSON.stringify({ username: retryUsername, months: retryMonths, customer_id: matchedCustomer.id }),
