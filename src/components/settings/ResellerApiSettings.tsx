@@ -298,7 +298,7 @@ export default function ResellerApiSettings() {
     }
     setTestingUniplay(true);
     try {
-      const { data, error } = await supabase.functions.invoke('uniplay-renew', {
+      const invokePromise = supabase.functions.invoke('uniplay-renew', {
         body: {
           action: 'test',
           uniplay_username: settings.uniplay_username,
@@ -306,6 +306,10 @@ export default function ResellerApiSettings() {
           uniplay_base_url: settings.uniplay_base_url,
         },
       });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('O painel Uniplay demorou demais para responder. Tente novamente em alguns segundos.')), 45000)
+      );
+      const { data, error } = await Promise.race([invokePromise, timeoutPromise]);
       if (error) {
         const context = (error as any)?.context;
         if (context instanceof Response) {
