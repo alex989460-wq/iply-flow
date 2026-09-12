@@ -1057,7 +1057,7 @@ Deno.serve(async (req) => {
         const templateConfig = templateConfigMap[templateName];
         const templateVars = filterVarsForTemplate(templateConfig, buildTemplateVars(customer));
         const exactLang = templateLangMap[templateName] || 'pt_BR';
-        const headerImageUrl = extractHeaderImageUrl(templateConfig);
+        const headerImageUrl = await resolveHeaderImageUrl(templateConfig);
 
         // On force resend, clear today's existing sent/pending log to bypass
         // the unique index (customer_id, billing_type, sent_date_br) WHERE status IN ('pending','sent')

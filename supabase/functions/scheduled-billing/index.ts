@@ -823,7 +823,7 @@ Deno.serve(async (req) => {
         const templateName = templateMapping[billingType];
         const templateConfig = templateConfigMap[templateName];
         const templateVars = filterVarsForTemplate(templateConfig, buildTemplateVars(customer));
-        const headerImageUrl = extractHeaderImageUrl(templateConfig);
+        const headerImageUrl = await resolveHeaderImageUrl(templateConfig);
 
         console.log(`[Scheduled] (${i + 1}/${batch.length}) Template "${templateName}" -> ${customer.name}`);
 
@@ -1119,7 +1119,7 @@ Deno.serve(async (req) => {
         const templateName = templateNames[billingType];
         const templateConfig = templateConfigMap[templateName];
         const templateVars = filterVarsForTemplate(templateConfig, buildTemplateVars(customer));
-        const headerImageUrl = extractHeaderImageUrl(templateConfig);
+        const headerImageUrl = await resolveHeaderImageUrl(templateConfig);
         const crmPayload = buildCrmTemplatePayload(
           templateConfig,
           customer,
