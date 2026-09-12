@@ -281,9 +281,27 @@ export default function PendingManualRenewalsFloat() {
   if (!user || items.length === 0 || hidden) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-[100] w-[min(440px,calc(100vw-2rem))] max-h-[80vh] flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-background/80 backdrop-blur-xl shadow-2xl ring-1 ring-black/5 animate-in slide-in-from-bottom-4">
+    <div
+      ref={panelRef}
+      style={pos ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' } : undefined}
+      className={cn(
+        "fixed z-[100] w-[min(440px,calc(100vw-2rem))] max-h-[80vh] flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-background/80 backdrop-blur-xl shadow-2xl ring-1 ring-black/5",
+        !pos && "bottom-4 right-4 animate-in slide-in-from-bottom-4"
+      )}
+    >
+      {/* Alça para arrastar para qualquer lugar da tela */}
+      <div
+        onPointerDown={onDragStart}
+        onPointerMove={onDragMove}
+        onPointerUp={onDragEnd}
+        onPointerCancel={onDragEnd}
+        className="flex items-center justify-center py-1 cursor-grab active:cursor-grabbing touch-none border-b border-border/40 bg-muted/40 select-none"
+        title="Arraste para mover"
+      >
+        <GripHorizontal className="h-4 w-4 text-muted-foreground" />
+      </div>
       <button
-        onClick={() => setExpanded((v) => !v)}
+        onClick={() => { if (!dragRef.current) setExpanded((v) => !v); }}
         className="relative flex items-center justify-between gap-2 px-4 py-3 border-b border-border/60 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-transparent hover:from-amber-500/20 transition-colors"
       >
         <div className="flex items-center gap-3">
