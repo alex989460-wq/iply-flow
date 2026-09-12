@@ -1046,6 +1046,31 @@ Obrigado pela preferência! 🙏`;
     }
   };
 
+  // Teste rápido no painel Uniplay (usa as credenciais do próprio revendedor)
+  const [uniplayTestHours, setUniplayTestHours] = useState('6');
+
+  const handleGenerateUniplayTest = async () => {
+    setIsGeneratingTest(true);
+    setVplayTestResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('uniplay-generate-test', {
+        body: {
+          hours: Number(uniplayTestHours) || 6,
+          kind: 'iptv',
+          note: vplayTestName.trim() || 'Teste SuperGestor',
+        },
+      });
+      if (error) throw new Error(error.message || 'Erro na edge function');
+      if ((data as any)?.error) throw new Error((data as any).error);
+      setVplayTestResult((data as any)?.message || JSON.stringify(data));
+      toast.success('Teste Uniplay gerado com sucesso!');
+    } catch (error) {
+      toast.error('Erro ao gerar teste Uniplay: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
+    } finally {
+      setIsGeneratingTest(false);
+    }
+  };
+
   const handleRenew = () => {
     if (selectedCustomer) {
       // Check if customer has extra months - require confirmation
@@ -2521,6 +2546,37 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                   Configure servidores em Configurações &gt; Gerador de Teste
                 </p>
               )}
+
+              {/* Teste rápido Uniplay */}
+              <div className="pt-2 mt-1 border-t border-violet-500/20 space-y-2">
+                <p className="text-[10px] font-semibold text-violet-500/90">Uniplay</p>
+                <div className="flex gap-2">
+                  <Select value={uniplayTestHours} onValueChange={setUniplayTestHours}>
+                    <SelectTrigger className="h-9 w-24 text-sm bg-background/40 border-violet-500/20 rounded-xl focus:ring-violet-500/20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1 hora</SelectItem>
+                      <SelectItem value="2">2 horas</SelectItem>
+                      <SelectItem value="3">3 horas</SelectItem>
+                      <SelectItem value="6">6 horas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    className="flex-1 h-9 rounded-xl font-semibold bg-violet-500/15 hover:bg-violet-500/25 text-violet-600 dark:text-violet-300 border border-violet-500/30 transition-all active:scale-[0.98]"
+                    variant="ghost"
+                    onClick={handleGenerateUniplayTest}
+                    disabled={isGeneratingTest}
+                  >
+                    {isGeneratingTest ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Play className="h-4 w-4 mr-2" />
+                    )}
+                    Gerar teste Uniplay
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
