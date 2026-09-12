@@ -32,6 +32,9 @@ export default function ResellerApiSettings() {
   const [syncingPasswords, setSyncingPasswords] = useState(false);
 
   const [testingUniplay, setTestingUniplay] = useState(false);
+  const [botApiKey, setBotApiKey] = useState('');
+  const [showBotApiKey, setShowBotApiKey] = useState(false);
+  const [loadingBotKey, setLoadingBotKey] = useState(false);
   const [testingP2cine, setTestingP2cine] = useState(false);
   const [connectingP2cine, setConnectingP2cine] = useState(false);
   const [showP2cinePassword, setShowP2cinePassword] = useState(false);
