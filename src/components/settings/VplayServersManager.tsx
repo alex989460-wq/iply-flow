@@ -57,6 +57,7 @@ export default function VplayServersManager() {
     is_default: false,
   });
   const isNatv = formData.server_type === 'natv' || formData.server_type === 'natv2';
+  const isUniplay = formData.server_type === 'uniplay';
 
   // Fetch vplay servers
   const { data: servers = [], isLoading } = useQuery({
@@ -215,7 +216,7 @@ export default function VplayServersManager() {
       toast.error('Nome do servidor é obrigatório');
       return;
     }
-    const natv = formData.server_type === 'natv' || formData.server_type === 'natv2';
+    const natv = formData.server_type === 'natv' || formData.server_type === 'natv2' || formData.server_type === 'uniplay';
     if (!natv) {
       if (!formData.integration_url.trim()) {
         toast.error('URL de integração é obrigatória');
@@ -295,13 +296,16 @@ export default function VplayServersManager() {
                   <option value="vplay">Vplay (webhook de integração)</option>
                   <option value="natv">NATV (API)</option>
                   <option value="natv2">NATV² (API)</option>
+                  <option value="uniplay">Uniplay (API)</option>
                 </select>
                 <p className="text-xs text-muted-foreground">
-                  Use NATV para painéis que geram teste via API (quando não for Vplay, P2Cine ou The Best).
+                  {isUniplay
+                    ? 'O Uniplay usa o usuário e a senha já cadastrados em APIs Externas.'
+                    : 'Use NATV para painéis que geram teste via API (quando não for Vplay, P2Cine ou The Best).'}
                 </p>
               </div>
 
-              {isNatv && (
+              {(isNatv || isUniplay) && (
                 <div className="space-y-2">
                   <Label htmlFor="test_minutes">Duração do teste</Label>
                   <select
@@ -310,8 +314,8 @@ export default function VplayServersManager() {
                     value={String(formData.test_minutes)}
                     onChange={(e) => setFormData({ ...formData, test_minutes: Number(e.target.value) })}
                   >
-                    {[15, 30, 60, 120, 180, 240, 300, 360].map((m) => (
-                      <option key={m} value={m}>{m} minutos</option>
+                    {(isUniplay ? [60, 120, 180, 360] : [15, 30, 60, 120, 180, 240, 300, 360]).map((m) => (
+                      <option key={m} value={m}>{m >= 60 && isUniplay ? `${m / 60} hora${m > 60 ? 's' : ''}` : `${m} minutos`}</option>
                     ))}
                   </select>
                 </div>
@@ -329,6 +333,7 @@ export default function VplayServersManager() {
                 </div>
               )}
 
+              {!isUniplay && (
               <div className="space-y-2">
                 <Label htmlFor="integration_url">{isNatv ? 'URL da API' : 'URL de Integração *'}</Label>
                 <Input
@@ -343,8 +348,9 @@ export default function VplayServersManager() {
                     : 'URL do webhook de integração do seu painel Vplay'}
                 </p>
               </div>
-              
-              {!isNatv && (
+              )}
+
+              {!isNatv && !isUniplay && (
               <div className="space-y-2">
                 <Label htmlFor="key_message">Chave/Palavra de Ativação</Label>
                 <Input
@@ -419,7 +425,9 @@ export default function VplayServersManager() {
                     <p className="text-xs text-muted-foreground truncate">
                       {server.server_type === 'vplay' || !server.server_type
                         ? `Vplay • Chave: ${server.key_message || '-'}`
-                        : `${server.server_type === 'natv2' ? 'NATV²' : 'NATV'} • API • ${server.test_minutes || 60} min`}
+                        : server.server_type === 'uniplay'
+                          ? `Uniplay • API • ${server.test_minutes || 360} min`
+                          : `${server.server_type === 'natv2' ? 'NATV²' : 'NATV'} • API • ${server.test_minutes || 60} min`}
                     </p>
                   </div>
                 </div>
