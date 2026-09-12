@@ -1023,10 +1023,16 @@ export default function ResellerApiSettings() {
               />
             </div>
           </div>
-          <Button type="button" variant="outline" onClick={testUniplay} disabled={testingUniplay}>
-            {testingUniplay && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            Testar conexão Uniplay
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" onClick={() => ensureBotApiKey()} disabled={loadingBotKey}>
+              {loadingBotKey ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Key className="w-4 h-4 mr-2" />}
+              {botApiKey ? 'Gerar nova chave de API' : 'Gerar chave de API'}
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={testUniplay} disabled={testingUniplay}>
+              {testingUniplay && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Testar conexão (opcional)
+            </Button>
+          </div>
 
           <div className="rounded-xl border border-dashed border-emerald-500/30 bg-emerald-500/[0.04] p-4 space-y-3">
             <div className="flex items-center justify-between gap-3">
