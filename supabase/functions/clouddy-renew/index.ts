@@ -50,6 +50,41 @@ function extractUserIdFromHtml(html: string): string | null {
   return m ? m[1] : null;
 }
 
+function decodeHtml(value: string): string {
+  return value
+    .replace(/&amp;/gi, "&")
+    .replace(/&#x2F;/gi, "/")
+    .replace(/&#47;/gi, "/");
+}
+
+function extractRefillUrls(html: string, baseUrl: string, clientId: string): string[] {
+  const urls = new Set<string>();
+  const escapedId = clientId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(
+    `["']([^"']*\\/reseller\\/users\\/${escapedId}\\/(?:refill|purchase)(?:\\/\\d+)?[^"']*)["']`,
+    "gi",
+  );
+  for (const match of html.matchAll(pattern)) {
+    try {
+      const url = new URL(decodeHtml(match[1]), `${baseUrl}/`);
+      if (url.origin === new URL(baseUrl).origin) urls.add(url.toString());
+    } catch { /* ignora links inválidos */ }
+  }
+  return [...urls];
+}
+
+function extractTariffId(value: unknown): number | null {
+  const direct = Number(value);
+  if (Number.isInteger(direct) && direct > 0) return direct;
+  if (value && typeof value === "object") {
+    for (const key of ["tariff_id", "tariffId", "tariff", "rate_id", "rateId"]) {
+      const nested = Number((value as Record<string, unknown>)[key]);
+      if (Number.isInteger(nested) && nested > 0) return nested;
+    }
+  }
+  return null;
+}
+
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -87,7 +122,7 @@ serve(async (req) => {
 
     const body = await req.json();
     const email = String(body.email || body.username || "").trim();
-    const tariffId = Number(body.tariff_id) || 4;
+    const requestedTariffId = extractTariffId(body.tariff_id);
     const sum = body.sum != null ? String(body.sum) : "";
     const via = String(body.via || "deposit");
     const customerId = body.customer_id as string | undefined;
@@ -172,6 +207,7 @@ serve(async (req) => {
     }
 
     let clientId: string | null = null;
+    let autocompleteTariffId: number | null = null;
     let debugAc = "";
     let debugFind = "";
     try {
@@ -184,6 +220,7 @@ serve(async (req) => {
         const label = String(it?.label ?? it?.text ?? it?.email ?? it?.name ?? "").toLowerCase();
         if (id && (list.length === 1 || label.includes(email.toLowerCase()))) {
           clientId = String(id);
+          autocompleteTariffId = extractTariffId(it);
           break;
         }
       }
@@ -191,7 +228,10 @@ serve(async (req) => {
       if (!clientId && list.length === 1) {
         const only = list[0];
         const id = only?.id ?? only?.value ?? only?.user_id;
-        if (id) clientId = String(id);
+        if (id) {
+          clientId = String(id);
+          autocompleteTariffId = extractTariffId(only);
+        }
       }
     } catch { /* not JSON, fall back to filter page */ }
 
@@ -248,21 +288,56 @@ serve(async (req) => {
       );
     }
 
-    // Step 2: GET refill/purchase page for CSRF.
-    // Contas novas sem tarifa vinculada não têm /refill/{id}; tentamos:
-    //   a) /reseller/users/{id}/refill/{tariff}
-    //   b) /reseller/users/{id}/purchase/{tariff}
-    //   c) /reseller/users/{id}/refill (formulário com form[tariff])
-    const candidates = [
-      { url: `${baseUrl}/reseller/users/${clientId}/refill/${tariffId}`, withTariffField: false },
-      { url: `${baseUrl}/reseller/users/${clientId}/purchase/${tariffId}`, withTariffField: false },
-      { url: `${baseUrl}/reseller/users/${clientId}/refill`, withTariffField: true },
-    ];
+    // Step 2: descobre a URL/tarifa real nos links do cliente antes de usar o legado 4.
+    // O Clouddy atribui tarifas diferentes por conta; forçar sempre a tarifa 4 gera HTTP 500.
+    const discoveredUrls = new Set<string>(extractRefillUrls(debugFind, baseUrl, clientId));
+    for (const detailPath of [
+      `/reseller/users/${clientId}`,
+      `/reseller/users/${clientId}/edit`,
+    ]) {
+      const detailResp = await fetch(`${baseUrl}${detailPath}`, { headers: baseHeaders, redirect: "manual" });
+      if (detailResp.status === 301 || detailResp.status === 302) {
+        const location = detailResp.headers.get("location") || "";
+        if (/\/auth\/login/i.test(location)) {
+          return new Response(
+            JSON.stringify({ error: "Sessão Clouddy expirada. Faça login no painel e atualize o cookie nas configurações." }),
+            { status: 401, headers: jsonHeaders },
+          );
+        }
+      }
+      if (detailResp.ok) {
+        const detailHtml = await detailResp.text();
+        for (const url of extractRefillUrls(detailHtml, baseUrl, clientId)) discoveredUrls.add(url);
+      }
+    }
+
+    const tariffIds = new Set<number>();
+    if (requestedTariffId) tariffIds.add(requestedTariffId);
+    if (autocompleteTariffId) tariffIds.add(autocompleteTariffId);
+    for (const url of discoveredUrls) {
+      const match = url.match(/\/(?:refill|purchase)\/(\d+)(?:[/?#]|$)/i);
+      const discoveredId = match ? Number(match[1]) : 0;
+      if (discoveredId > 0) tariffIds.add(discoveredId);
+    }
+    tariffIds.add(4); // compatibilidade com contas antigas
+
+    const candidates: Array<{ url: string; withTariffField: boolean; tariffId: number | null }> = [];
+    for (const url of discoveredUrls) {
+      const match = url.match(/\/(?:refill|purchase)\/(\d+)(?:[/?#]|$)/i);
+      candidates.push({ url, withTariffField: false, tariffId: match ? Number(match[1]) : null });
+    }
+    for (const tariffId of tariffIds) {
+      candidates.push({ url: `${baseUrl}/reseller/users/${clientId}/refill/${tariffId}`, withTariffField: false, tariffId });
+      candidates.push({ url: `${baseUrl}/reseller/users/${clientId}/purchase/${tariffId}`, withTariffField: false, tariffId });
+    }
+    candidates.push({ url: `${baseUrl}/reseller/users/${clientId}/refill`, withTariffField: true, tariffId: requestedTariffId || autocompleteTariffId });
 
     let refillUrl = "";
     let csrf: string | null = null;
     let withTariffField = false;
+    let selectedTariffId: number | null = null;
     let lastStatus = 0;
+    const failedCandidates: Array<{ path: string; status: number; detail?: string }> = [];
     let pageHtml = "";
     for (const c of candidates) {
       const r = await fetch(c.url, { headers: baseHeaders, redirect: "manual" });
@@ -280,22 +355,33 @@ serve(async (req) => {
         }
         continue;
       }
-      if (!r.ok) continue;
+      if (!r.ok) {
+        const errorText = (await r.text()).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 240);
+        failedCandidates.push({ path: new URL(c.url).pathname, status: r.status, detail: errorText || undefined });
+        continue;
+      }
       const html = await r.text();
       const token = extractCsrf(html);
       if (token || /name=["']form\[sum\]["']/i.test(html)) {
         refillUrl = c.url;
         csrf = token;
         withTariffField = c.withTariffField;
+        selectedTariffId = c.tariffId;
         pageHtml = html;
         break;
       }
+      failedCandidates.push({ path: new URL(c.url).pathname, status: r.status, detail: "Página sem formulário de recarga" });
     }
 
     if (!refillUrl) {
       return new Response(
         JSON.stringify({
-          error: `Nenhum formulário de recarga encontrado para tarifa ${tariffId} (último HTTP ${lastStatus})`,
+          error: requestedTariffId
+            ? `A tarifa ${requestedTariffId} não está disponível para este cliente no Clouddy.`
+            : "O Clouddy não informou uma tarifa de recarga válida para este cliente.",
+          action_required: "Abra este cliente no Clouddy, vincule uma tarifa/plano e tente novamente.",
+          attempted_tariffs: [...tariffIds],
+          attempts: failedCandidates,
         }),
         { status: 502, headers: jsonHeaders },
       );
@@ -313,7 +399,7 @@ serve(async (req) => {
     formBody.set("form[sum]", finalSum);
     formBody.set("form[confirm]", "1");
     formBody.set("form[via]", via);
-    if (withTariffField) formBody.set("form[tariff]", String(tariffId));
+    if (withTariffField && selectedTariffId) formBody.set("form[tariff]", String(selectedTariffId));
     if (csrf) formBody.set("form[_token]", csrf);
 
     const submitResp = await fetch(refillUrl, {
@@ -335,9 +421,9 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({
             success: true,
-            message: `Cliente ${email} recarregado no Clouddy (tarifa ${tariffId}, R$ ${sum})`,
+            message: `Cliente ${email} recarregado no Clouddy${selectedTariffId ? ` (tarifa ${selectedTariffId})` : ""}`,
             client_id: clientId,
-            tariff_id: tariffId,
+            tariff_id: selectedTariffId,
           }),
           { headers: jsonHeaders },
         );
