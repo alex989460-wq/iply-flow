@@ -14,6 +14,7 @@ type ServerItem = { id: string; server_name: string; automatic_delivery?: boolea
 type Tier = { server_id: string; min_qty: number; max_qty: number; unit_price: number };
 type Identity = { found: boolean; name?: string; message?: string };
 type Pix = { order_id: string; total: number; copia: string; qr: string };
+type Seller = { display_name?: string; logo_url?: string; headline?: string; subheadline?: string };
 
 const brl = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
 
@@ -22,7 +23,7 @@ export default function CreditCheckout() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [invalid, setInvalid] = useState(false);
-  const [seller, setSeller] = useState<any>(null);
+  const [seller, setSeller] = useState<Seller | null>(null);
   const [providers, setProviders] = useState({ efi: true, mercadopago: false });
   const [servers, setServers] = useState<ServerItem[]>([]);
   const [tiers, setTiers] = useState<Tier[]>([]);
