@@ -12,6 +12,8 @@ import { resolvePanel } from '@/lib/panel-detect';
 
 interface PendingItem {
   id: string;
+  customer_id?: string | null;
+  server_id?: string | null;
   customer_name: string;
   customer_phone: string | null;
   username: string | null;
