@@ -333,6 +333,7 @@ export default function VplayServersManager() {
                 </div>
               )}
 
+              {!isUniplay && (
               <div className="space-y-2">
                 <Label htmlFor="integration_url">{isNatv ? 'URL da API' : 'URL de Integração *'}</Label>
                 <Input
