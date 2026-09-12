@@ -156,6 +156,36 @@ async function deliverTheBest(admin: any, order: any): Promise<DeliveryResult> {
   return await recordExternalSuccess(admin, order, provider, String(recipient.id), transferBody, before, Number(transferBody?.credits ?? before + quantity));
 }
 
+async function deliverRush(admin: any, order: any): Promise<DeliveryResult> {
+  const provider = "rush";
+  const { data: settings } = await admin.from("reseller_api_settings")
+    .select("rush_base_url, rush_username, rush_password, rush_token")
+    .eq("user_id", order.seller_id).maybeSingle();
+  const base = cleanBase(settings?.rush_base_url || "https://api-new.paineloffice.click")
+    .replace("api-new.painel.ai", "api-new.paineloffice.click")
+    .replace("api.painel.ai", "api-new.paineloffice.click");
+  const token = String(settings?.rush_token || "").trim();
+  if (!token) return { ok: false, status: "delivery_failed", provider, message: "Token da Rush não configurado pelo vendedor." };
+  const target = String(order.panel_username || "").trim();
+  if (!/^\d+$/.test(target)) {
+    return { ok: false, status: "delivery_failed", provider, message: "Para recarga Rush, informe o ID numérico da revenda mostrado no Painel Office." };
+  }
+  const quantity = Math.max(1, Math.round(Number(order.quantity || 0)));
+  if (quantity < 10) return { ok: false, status: "delivery_failed", provider, message: "A Rush exige no mínimo 10 créditos por transferência." };
+  const transfer = await fetch(`${base}/resale/add-credits/${target}`, {
+    method: "PATCH",
+    headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ credits: String(quantity), reason: `Pedido SuperGestor ${order.id}`, sale: Number(order.total || 0) }),
+  });
+  const transferBody = await responseBody(transfer);
+  if (!transfer.ok) return { ok: false, status: "delivery_failed", provider, message: errorMessage(transferBody, `Transferência recusada pela Rush (HTTP ${transfer.status}).`) };
+  const payload = transferBody?.data || transferBody;
+  return await recordExternalSuccess(
+    admin, order, provider, String(payload?.id || target), transferBody,
+    Number(payload?.previous_credits || 0), Number(payload?.new_credits ?? Number(payload?.previous_credits || 0) + quantity),
+  );
+}
+
 async function deliverVplay(admin: any, order: any): Promise<DeliveryResult> {
   const provider = "vplay";
   const { data: settings } = await admin.from("reseller_api_settings")
@@ -245,6 +275,14 @@ export async function deliverCreditOrder(admin: any, orderId: string): Promise<D
 
   if (panel.includes("vplay")) {
     const result = await deliverVplay(admin, order);
+    if (!result.ok && result.status === "delivery_failed") {
+      await admin.from("credit_orders").update({ status: "delivery_failed", delivery_provider: result.provider, delivery_error: result.message, updated_at: new Date().toISOString() }).eq("id", order.id).eq("status", "delivering");
+    }
+    return result;
+  }
+
+  if (panel.includes("rush") || panel.includes("paineloffice")) {
+    const result = await deliverRush(admin, order);
     if (!result.ok && result.status === "delivery_failed") {
       await admin.from("credit_orders").update({ status: "delivery_failed", delivery_provider: result.provider, delivery_error: result.message, updated_at: new Date().toISOString() }).eq("id", order.id).eq("status", "delivering");
     }
