@@ -131,6 +131,85 @@ export default function PendingManualRenewalsFloat() {
     };
   }, [user, load]);
 
+  const monthsFromPlan = (plan?: string | null) => {
+    const p = String(plan || '').toLowerCase();
+    if (p.includes('trimes')) return 3;
+    if (p.includes('semes')) return 6;
+    if (p.includes('anual') || p.includes('ano')) return 12;
+    return 1;
+  };
+
+  // Reenvia a solicitação que falhou (ativação de app ou renovação no painel)
+  const retry = async (it: PendingItem) => {
+    setRetrying(it.id);
+    try {
+      const requestId = it.error_details?.request_id;
+
+      if (requestId) {
+        const { data, error } = await supabase.functions.invoke('confirm-activation', {
+          body: { request_id: requestId, action: 'activate', source: 'pending-retry' },
+        });
+        if (error) throw new Error(error.message);
+        if ((data as any)?.error) throw new Error((data as any).error);
+        toast.success('Ativação reenviada com sucesso!');
+        setItems((prev) => prev.filter((p) => p.id !== it.id));
+        await load();
+        return;
+      }
+
+      const username = String(it.username || '').split(',')[0].trim();
+      if (!username) {
+        toast.error('Esta pendência não tem usuário para reenviar.');
+        return;
+      }
+
+      let server: any = { server_name: it.server_name, host: it.server_host };
+      if (it.server_id) {
+        const { data: srv } = await supabase
+          .from('servers')
+          .select('server_name, host, panel_type')
+          .eq('id', it.server_id)
+          .maybeSingle();
+        if (srv) server = srv;
+      }
+
+      const panel = resolvePanel(server);
+      const months = monthsFromPlan(it.plan_name);
+      const label = server.server_name || 'Painel';
+
+      const call = async (fn: string, body: Record<string, unknown>) => {
+        const { data, error } = await supabase.functions.invoke(fn, { body });
+        if (error) throw new Error(describePanelError(label, error.message));
+        if (!(data as any)?.success) throw new Error(describePanelError(label, (data as any)?.error || 'Falha no painel'));
+      };
+
+      const customerId = it.customer_id || undefined;
+      if (panel === 'natv' || panel === 'natv2') {
+        await call('natv-renew', { username, months, duration_days: months * 30, customer_id: customerId, ...(panel === 'natv2' ? { panel: 'natv2' } : {}) });
+      } else if (panel === 'thebest') {
+        await call('the-best-renew', { username, months, customer_id: customerId });
+      } else if (panel === 'rush') {
+        await call('rush-renew', { username, months, customer_id: customerId });
+      } else if (panel === 'p2cine') {
+        await call('p2cine-renew', { action: 'renew', username, months, customer_id: customerId });
+      } else if (panel === 'uniplay') {
+        await call('uniplay-renew', { username, months, customer_id: customerId });
+      } else if (panel === 'vplay') {
+        await call('vplay-renew', { username, new_due_date: it.new_due_date, customer_id: customerId });
+      } else {
+        await call('xui-renew', { username, new_due_date: it.new_due_date, customer_id: customerId });
+      }
+
+      toast.success('Renovação reenviada com sucesso!');
+      await supabase.from('pending_manual_renewals').delete().eq('id', it.id);
+      setItems((prev) => prev.filter((p) => p.id !== it.id));
+    } catch (e) {
+      toast.error('Não foi possível reenviar: ' + (e instanceof Error ? e.message : 'erro desconhecido'));
+    } finally {
+      setRetrying(null);
+    }
+  };
+
   const resolve = async (id: string) => {
     setResolving(id);
     const { error } = await supabase.from('pending_manual_renewals').delete().eq('id', id);
