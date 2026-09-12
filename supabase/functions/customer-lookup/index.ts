@@ -88,6 +88,22 @@ serve(async (req) => {
     const url = new URL(req.url);
     const action = url.searchParams.get('action');
 
+    // Legacy cloud instance: forward to the production backend (data lives there now)
+    const selfUrl = Deno.env.get('SUPABASE_URL') || '';
+    const upstream = Deno.env.get('LOOKUP_UPSTREAM_URL') || 'https://supergestor.top/functions/v1/customer-lookup';
+    if (selfUrl.includes('.supabase.co') && !upstream.includes(selfUrl)) {
+      const target = new URL(upstream);
+      url.searchParams.forEach((v, k) => target.searchParams.set(k, v));
+      const rawBody = req.method === 'GET' || req.method === 'HEAD' ? undefined : await req.text();
+      const proxied = await fetch(target.toString(), {
+        method: req.method,
+        headers: { 'Content-Type': 'application/json' },
+        body: rawBody && rawBody.length ? rawBody : undefined,
+      });
+      const text = await proxied.text();
+      return new Response(text, { status: proxied.status, headers: jsonHeaders });
+    }
+
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
