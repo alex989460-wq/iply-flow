@@ -2657,8 +2657,22 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                         Link HLS
                       </Button>
                       <Button size="sm" variant="outline" className="h-8 text-[10px] px-1 rounded-xl border-violet-500/30 hover:bg-violet-500/10 hover:text-violet-600"
+                        onClick={() => copy(dns, 'Servidor/DNS')}>
+                        Servidor/DNS
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <Button size="sm" variant="outline" className="h-8 text-[10px] px-1 rounded-xl border-violet-500/30 hover:bg-violet-500/10 hover:text-violet-600"
+                        onClick={() => copy(user, 'Usuário')}>
+                        Só usuário
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-8 text-[10px] px-1 rounded-xl border-violet-500/30 hover:bg-violet-500/10 hover:text-violet-600"
+                        onClick={() => copy(pass, 'Senha')}>
+                        Só senha
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-8 text-[10px] px-1 rounded-xl border-violet-500/30 hover:bg-violet-500/10 hover:text-violet-600"
                         onClick={() => copy(user && pass ? `Usuário: ${user}\nSenha: ${pass}` : '', 'Usuário e senha')}>
-                        Usuário/Senha
+                        Usuário+Senha
                       </Button>
                     </div>
                   </div>
