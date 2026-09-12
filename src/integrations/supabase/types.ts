@@ -1178,6 +1178,142 @@ export type Database = {
         }
         Relationships: []
       }
+      credit_orders: {
+        Row: {
+          balance_after: number | null
+          balance_before: number | null
+          buyer_email: string | null
+          buyer_id: string | null
+          buyer_phone: string | null
+          created_at: string
+          delivered_at: string | null
+          delivery_attempts: number
+          delivery_error: string | null
+          delivery_provider: string | null
+          delivery_response: Json | null
+          external_delivery_id: string | null
+          id: string
+          paid_at: string | null
+          panel_username: string | null
+          provider: string
+          quantity: number
+          seller_id: string
+          server_id: string
+          server_name: string | null
+          status: string
+          total: number
+          txid: string | null
+          unit_price: number
+          updated_at: string
+        }
+        Insert: {
+          balance_after?: number | null
+          balance_before?: number | null
+          buyer_email?: string | null
+          buyer_id?: string | null
+          buyer_phone?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          delivery_attempts?: number
+          delivery_error?: string | null
+          delivery_provider?: string | null
+          delivery_response?: Json | null
+          external_delivery_id?: string | null
+          id?: string
+          paid_at?: string | null
+          panel_username?: string | null
+          provider: string
+          quantity: number
+          seller_id: string
+          server_id: string
+          server_name?: string | null
+          status?: string
+          total: number
+          txid?: string | null
+          unit_price: number
+          updated_at?: string
+        }
+        Update: {
+          balance_after?: number | null
+          balance_before?: number | null
+          buyer_email?: string | null
+          buyer_id?: string | null
+          buyer_phone?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          delivery_attempts?: number
+          delivery_error?: string | null
+          delivery_provider?: string | null
+          delivery_response?: Json | null
+          external_delivery_id?: string | null
+          id?: string
+          paid_at?: string | null
+          panel_username?: string | null
+          provider?: string
+          quantity?: number
+          seller_id?: string
+          server_id?: string
+          server_name?: string | null
+          status?: string
+          total?: number
+          txid?: string | null
+          unit_price?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_orders_server_id_fkey"
+            columns: ["server_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      credit_price_tiers: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          max_qty: number
+          min_qty: number
+          owner_id: string
+          server_id: string
+          unit_price: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          max_qty: number
+          min_qty: number
+          owner_id: string
+          server_id: string
+          unit_price: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          max_qty?: number
+          min_qty?: number
+          owner_id?: string
+          server_id?: string
+          unit_price?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_price_tiers_server_id_fkey"
+            columns: ["server_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crm_oficial_billing_schedule: {
         Row: {
           channel_id: string | null
@@ -4321,6 +4457,53 @@ export type Database = {
           usernames: string[]
         }
         Returns: number
+      }
+      claim_credit_order_delivery: {
+        Args: { _order_id: string }
+        Returns: {
+          balance_after: number | null
+          balance_before: number | null
+          buyer_email: string | null
+          buyer_id: string | null
+          buyer_phone: string | null
+          created_at: string
+          delivered_at: string | null
+          delivery_attempts: number
+          delivery_error: string | null
+          delivery_provider: string | null
+          delivery_response: Json | null
+          external_delivery_id: string | null
+          id: string
+          paid_at: string | null
+          panel_username: string | null
+          provider: string
+          quantity: number
+          seller_id: string
+          server_id: string
+          server_name: string | null
+          status: string
+          total: number
+          txid: string | null
+          unit_price: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "credit_orders"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      complete_credit_order_delivery: {
+        Args: {
+          _balance_after: number
+          _balance_before: number
+          _external_id: string
+          _order_id: string
+          _provider: string
+          _response: Json
+        }
+        Returns: boolean
       }
       delete_email: {
         Args: { message_id: number; queue_name: string }
