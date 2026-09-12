@@ -334,7 +334,22 @@ export default function PendingManualRenewalsFloat() {
                   )}
                 </div>
 
-                <div className="mt-2.5 flex items-center gap-2">
+                <div className="mt-2.5 grid grid-cols-3 gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => retry(it)}
+                    disabled={retrying === it.id}
+                    className="h-7 text-xs gap-1.5"
+                    title="Tentar novamente a ativação/renovação no painel"
+                  >
+                    {retrying === it.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    )}
+                    Reenviar
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
