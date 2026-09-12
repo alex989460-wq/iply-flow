@@ -296,13 +296,16 @@ export default function VplayServersManager() {
                   <option value="vplay">Vplay (webhook de integração)</option>
                   <option value="natv">NATV (API)</option>
                   <option value="natv2">NATV² (API)</option>
+                  <option value="uniplay">Uniplay (API)</option>
                 </select>
                 <p className="text-xs text-muted-foreground">
-                  Use NATV para painéis que geram teste via API (quando não for Vplay, P2Cine ou The Best).
+                  {isUniplay
+                    ? 'O Uniplay usa o usuário e a senha já cadastrados em APIs Externas.'
+                    : 'Use NATV para painéis que geram teste via API (quando não for Vplay, P2Cine ou The Best).'}
                 </p>
               </div>
 
-              {isNatv && (
+              {(isNatv || isUniplay) && (
                 <div className="space-y-2">
                   <Label htmlFor="test_minutes">Duração do teste</Label>
                   <select
@@ -311,8 +314,8 @@ export default function VplayServersManager() {
                     value={String(formData.test_minutes)}
                     onChange={(e) => setFormData({ ...formData, test_minutes: Number(e.target.value) })}
                   >
-                    {[15, 30, 60, 120, 180, 240, 300, 360].map((m) => (
-                      <option key={m} value={m}>{m} minutos</option>
+                    {(isUniplay ? [60, 120, 180, 360] : [15, 30, 60, 120, 180, 240, 300, 360]).map((m) => (
+                      <option key={m} value={m}>{m >= 60 && isUniplay ? `${m / 60} hora${m > 60 ? 's' : ''}` : `${m} minutos`}</option>
                     ))}
                   </select>
                 </div>
