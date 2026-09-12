@@ -9,4 +9,4 @@
 - [ ] Agendamento diário automático de sincronização de senhas
 - [ ] Integração Uniplay API (aguardando documentação/credenciais do usuário)
 
-- [ ] Confirmar e integrar recarga externa de créditos para Rush, Uniplay, P2Cine, The Best e VPlay sem inferir operações perigosas.
+- [ ] Recarga externa: NATV, Rush, The Best e VPlay automáticos; Uniplay/P2Cine aguardam endpoint comprovado de transferência de saldo.
