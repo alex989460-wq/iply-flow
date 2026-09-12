@@ -2967,10 +2967,15 @@ serve(async (req) => {
       const isTheBest = !isSigma && !isKoffice && (sNameLower.includes('best') || sHostLower.includes('best'));
       const isNatv2 = !isSigma && !isKoffice && (sNameLower.includes('natv²') || sNameLower.includes('natv2') || sHostLower.includes('natv2'));
       const isNatv = !isNatv2 && !isSigma && !isKoffice && (sNameLower.includes('natv') || sHostLower.includes('natv'));
+      const isUniplay = !isSigma && !isKoffice && (
+        routedPanel.kind === 'uniplay' ||
+        sNameLower.includes('uniplay') || sHostLower.includes('uniplay') ||
+        sHostLower.includes('searchdefense') || sHostLower.includes('gesapioffice')
+      );
 
       console.log(`[Cakto] Servidor: "${serverName}" (host: "${serverHost}") | auto_renew: ${autoRenew} | Painel: ${routedPanel.kind}`);
 
-      const isKnownApiServer = isVplay || isRush || isTheBest || isNatv || isNatv2 || isSigma || isKoffice;
+      const isKnownApiServer = isVplay || isRush || isTheBest || isNatv || isNatv2 || isSigma || isKoffice || isUniplay;
 
 
       // ── Helper: insert pendência manual ──
