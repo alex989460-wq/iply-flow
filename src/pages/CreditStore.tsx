@@ -20,11 +20,14 @@ import {
   Save,
   Server as ServerIcon,
   ShoppingBag,
+  ShieldCheck,
+  CircleDashed,
+  RotateCcw,
   Trash2,
   X,
 } from "lucide-react";
 
-type ServerItem = { id: string; server_name: string };
+type ServerItem = { id: string; server_name: string; panel_type?: string | null; automatic_delivery?: boolean };
 type Tier = { id?: string; server_id: string; min_qty: number; max_qty: number; unit_price: number };
 type Row = { min: string; max: string; price: string };
 type Order = {
@@ -37,6 +40,9 @@ type Order = {
   created_at: string;
   buyer_email: string | null;
   delivery_error: string | null;
+  panel_username?: string | null;
+  buyer_phone?: string | null;
+  delivery_attempts?: number;
 };
 
 const brl = (v: number) =>
@@ -178,10 +184,22 @@ export default function CreditStore() {
     }
   };
 
+  const retryDelivery = async (orderId: string) => {
+    try {
+      await call({ action: "retry-delivery", order_id: orderId });
+      toast({ title: "Recarga concluída", description: "Os créditos foram enviados ao painel." });
+      load();
+    } catch (e) {
+      toast({ title: "A entrega ainda não foi concluída", description: (e as Error).message, variant: "destructive" });
+      load();
+    }
+  };
+
   const statusBadge = (s: string) => {
-    if (s === "delivered") return <Badge className="bg-emerald-600 hover:bg-emerald-600">Creditado</Badge>;
-    if (s === "paid") return <Badge className="bg-amber-600 hover:bg-amber-600">Pago</Badge>;
-    if (s === "failed") return <Badge variant="destructive">Falhou</Badge>;
+    if (s === "delivered") return <Badge className="bg-success/15 text-success hover:bg-success/15">Entregue</Badge>;
+    if (s === "delivering") return <Badge variant="secondary" className="gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Enviando</Badge>;
+    if (s === "paid" || s === "manual_required") return <Badge className="bg-warning/15 text-warning hover:bg-warning/15">Entrega manual</Badge>;
+    if (s === "failed" || s === "delivery_failed") return <Badge variant="destructive">Falhou</Badge>;
     return <Badge variant="secondary">Aguardando pagamento</Badge>;
   };
 
@@ -199,11 +217,11 @@ export default function CreditStore() {
             <p className="truncate text-xs text-muted-foreground">
               {new Date(o.created_at).toLocaleString("pt-BR")} · {o.provider === "mercadopago" ? "Mercado Pago" : "Efí Pix"} ·{" "}
               <span className="font-medium text-foreground">{brl(o.total)}</span>
-              {mostrarComprador && o.buyer_email ? ` · ${o.buyer_email}` : ""}
-              {o.delivery_error ? ` · ${o.delivery_error}` : ""}
+              {mostrarComprador && (o.panel_username || o.buyer_email) ? ` · ${o.panel_username || o.buyer_email}` : ""}
             </p>
+            {o.delivery_error && <p className="mt-1 max-w-2xl text-xs text-destructive">{o.delivery_error}</p>}
           </div>
-          {statusBadge(o.status)}
+          <div className="flex items-center gap-2">{statusBadge(o.status)}{mostrarComprador && ["paid", "manual_required", "delivery_failed"].includes(o.status) && <Button size="sm" variant="outline" onClick={() => retryDelivery(o.id)}><RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Tentar novamente</Button>}</div>
         </div>
       ))}
     </div>
@@ -213,7 +231,7 @@ export default function CreditStore() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Cabeçalho */}
-        <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-primary/15 via-background to-background p-6">
+        <div className="glass-card relative overflow-hidden p-5 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h1 className="flex items-center gap-2 text-2xl font-bold">
@@ -223,7 +241,7 @@ export default function CreditStore() {
                 Créditos
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                Monte a sua tabela por servidor e divulgue o seu link para os clientes comprarem créditos.
+                Configure valores por servidor, acompanhe pagamentos e automatize as recargas disponíveis.
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -243,7 +261,7 @@ export default function CreditStore() {
         </div>
 
         {/* Link do revendedor */}
-        <Card className="border-border/60">
+        <Card className="glass-card">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Meu link de créditos</CardTitle>
             <CardDescription>Exclusivo seu — os pagamentos caem na sua conta.</CardDescription>
@@ -294,7 +312,7 @@ export default function CreditStore() {
             ) : (
               <div className="grid gap-4 lg:grid-cols-3">
                 {/* Seus servidores */}
-                <Card className="border-border/60 lg:col-span-1">
+                <Card className="glass-card lg:col-span-1">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base">Seus servidores</CardTitle>
                     <CardDescription>Cada servidor tem a sua própria tabela.</CardDescription>
@@ -316,7 +334,7 @@ export default function CreditStore() {
                         >
                           <span className="flex min-w-0 items-center gap-2">
                             <ServerIcon className={cn("h-4 w-4 shrink-0", ativo ? "text-primary" : "text-muted-foreground")} />
-                            <span className="truncate font-medium">{s.server_name}</span>
+                            <span className="min-w-0"><span className="block truncate font-medium">{s.server_name}</span><span className="flex items-center gap-1 text-[10px] text-muted-foreground">{s.automatic_delivery ? <><ShieldCheck className="h-3 w-3 text-success" /> Recarga automática</> : <><CircleDashed className="h-3 w-3" /> Entrega manual</>}</span></span>
                           </span>
                           <Badge variant={pronto ? "default" : "secondary"} className="shrink-0 text-[10px]">
                             {pronto ? "com tabela" : "sem tabela"}
@@ -328,7 +346,7 @@ export default function CreditStore() {
                 </Card>
 
                 {/* Editor */}
-                <Card className="border-border/60 lg:col-span-2">
+                <Card className="glass-card lg:col-span-2">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base">
                       Tabela de {serverAtual?.server_name || "—"}
@@ -336,6 +354,7 @@ export default function CreditStore() {
                     <CardDescription>
                       Defina a faixa de quantidade e o valor de cada crédito.
                     </CardDescription>
+                    <div className="pt-2">{serverAtual?.automatic_delivery ? <Badge className="gap-1 bg-success/15 text-success hover:bg-success/15"><ShieldCheck className="h-3 w-3" /> NATV: entrega automática ativa</Badge> : <Badge variant="secondary" className="gap-1"><CircleDashed className="h-3 w-3" /> Pagamento confirmado com entrega manual</Badge>}</div>
                   </CardHeader>
                   <CardContent className="space-y-5">
                     <div className="space-y-2">
