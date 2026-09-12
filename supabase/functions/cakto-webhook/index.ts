@@ -3290,6 +3290,7 @@ serve(async (req) => {
                 headers: {
                   'Content-Type': 'application/json',
                   'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                  'x-cakto-webhook-secret': Deno.env.get('CAKTO_WEBHOOK_SECRET') || '',
                 },
                 body: JSON.stringify({
                   owner_id: matchedCustomer.created_by,
@@ -3371,6 +3372,12 @@ serve(async (req) => {
               });
             } else if (retryPanel === 'the-best' || retryPanel === 'the_best') {
               retryResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/the-best-renew`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-cakto-webhook-secret': Deno.env.get('CAKTO_WEBHOOK_SECRET') || '' },
+                body: JSON.stringify({ username: retryUsername, months: retryMonths, customer_id: matchedCustomer.id }),
+              });
+            } else if (retryPanel === 'uniplay') {
+              retryResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/uniplay-renew`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-cakto-webhook-secret': Deno.env.get('CAKTO_WEBHOOK_SECRET') || '' },
                 body: JSON.stringify({ username: retryUsername, months: retryMonths, customer_id: matchedCustomer.id }),
