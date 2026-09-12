@@ -425,7 +425,9 @@ export default function VplayServersManager() {
                     <p className="text-xs text-muted-foreground truncate">
                       {server.server_type === 'vplay' || !server.server_type
                         ? `Vplay • Chave: ${server.key_message || '-'}`
-                        : `${server.server_type === 'natv2' ? 'NATV²' : 'NATV'} • API • ${server.test_minutes || 60} min`}
+                        : server.server_type === 'uniplay'
+                          ? `Uniplay • API • ${server.test_minutes || 360} min`
+                          : `${server.server_type === 'natv2' ? 'NATV²' : 'NATV'} • API • ${server.test_minutes || 60} min`}
                     </p>
                   </div>
                 </div>
