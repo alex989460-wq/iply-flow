@@ -1022,6 +1022,61 @@ export default function ResellerApiSettings() {
             {testingUniplay && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Testar conexão Uniplay
           </Button>
+
+          <div className="rounded-xl border border-dashed border-emerald-500/30 bg-emerald-500/[0.04] p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold flex items-center gap-2">
+                  <Key className="w-4 h-4 text-emerald-500" /> Chave do robô (gerar teste automático)
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Use esta chave no seu chatbot (header <code>x-api-key</code>) para gerar testes Uniplay automaticamente.
+                </p>
+              </div>
+              <Button type="button" size="sm" variant="outline" onClick={() => ensureBotApiKey()} disabled={loadingBotKey}>
+                {loadingBotKey ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Key className="w-4 h-4 mr-2" />}
+                {botApiKey ? 'Atualizar' : 'Gerar chave'}
+              </Button>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs">Sua chave (x-api-key)</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  readOnly
+                  type={showBotApiKey ? 'text' : 'password'}
+                  value={botApiKey || ''}
+                  placeholder="Clique em Gerar chave"
+                  className="font-mono text-xs"
+                />
+                <Button type="button" variant="ghost" size="icon" onClick={() => setShowBotApiKey(!showBotApiKey)}>
+                  {showBotApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  disabled={!botApiKey}
+                  onClick={() => {
+                    navigator.clipboard.writeText(botApiKey);
+                    toast({ title: 'Copiado', description: 'Chave copiada para a área de transferência.' });
+                  }}
+                >
+                  <Copy className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs">Endpoint (POST)</Label>
+              <MaskedUrlField url={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bot-generate-test`} label="Endpoint" />
+              <p className="text-[11px] text-muted-foreground">
+                Corpo: <code>{`{"phone":"{{telefone_do_cliente}}","hours":3}`}</code> · A resposta traz
+                <code> username</code>, <code>password</code>, <code>dns</code>, <code>m3u</code>, <code>hls</code> e <code>message</code>.
+                Limite: 1 teste por número a cada 24h.
+              </p>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
