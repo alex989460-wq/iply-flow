@@ -383,9 +383,18 @@ Deno.serve(async (req) => {
     };
 
 
+    // Saldos já conhecidos: se a consulta falhar, mantemos o último valor lido
+    // em vez de apagar a informação da tela.
+    const { data: prevRows } = await admin.from("panel_stats_cache")
+      .select("server_id, credits, online")
+      .eq("user_id", ownerId);
+    const prev = new Map<string, { credits: number | null; online: number | null }>(
+      (prevRows || []).map((r: any) => [String(r.server_id), { credits: r.credits, online: r.online }]),
+    );
+
     await Promise.all((servers || []).map(async (server: any) => {
       const panel = resolvePanel(server);
-      const entry: { panel: string | null; credits: number | null; online: number | null; error?: string } = {
+      const entry: { panel: string | null; credits: number | null; online: number | null; error?: string; stale?: boolean } = {
         panel, credits: null, online: null,
       };
       results[server.id] = entry;
@@ -410,9 +419,17 @@ Deno.serve(async (req) => {
           Object.assign(entry, await theBestStats());
         } else if (panel === "rush") {
           Object.assign(entry, await rushStats());
+        } else if (panel === "uniplay") {
+          throw new Error("O painel Uniplay não disponibiliza consulta de saldo pela API.");
         }
       } catch (e) {
         entry.error = e instanceof Error ? e.message : String(e);
+        const old = prev.get(String(server.id));
+        if (old && (old.credits !== null || old.online !== null)) {
+          entry.credits = old.credits;
+          entry.online = old.online;
+          entry.stale = true;
+        }
       }
     }));
 
@@ -428,6 +445,7 @@ Deno.serve(async (req) => {
     if (rows.length) {
       await admin.from("panel_stats_cache").upsert(rows, { onConflict: "user_id,server_id" });
     }
+
 
     return json({ ok: true, stats: results });
 
