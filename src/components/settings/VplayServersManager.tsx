@@ -348,8 +348,9 @@ export default function VplayServersManager() {
                     : 'URL do webhook de integração do seu painel Vplay'}
                 </p>
               </div>
-              
-              {!isNatv && (
+              )}
+
+              {!isNatv && !isUniplay && (
               <div className="space-y-2">
                 <Label htmlFor="key_message">Chave/Palavra de Ativação</Label>
                 <Input
