@@ -1002,6 +1002,22 @@ Obrigado pela preferência! 🙏`;
     setVplayTestResult(null);
 
     try {
+      if (serverType === 'uniplay') {
+        const minutes = Number((selectedVplayServer as any).test_minutes || 360);
+        const { data, error } = await supabase.functions.invoke('uniplay-generate-test', {
+          body: {
+            hours: Math.max(1, Math.round(minutes / 60)),
+            kind: 'iptv',
+            note: testName,
+          },
+        });
+        if (error) throw new Error(error.message || 'Erro na edge function');
+        if ((data as any)?.error) throw new Error((data as any).error);
+        setVplayTestResult((data as any)?.message || JSON.stringify(data));
+        toast.success('Teste Uniplay gerado com sucesso!');
+        return;
+      }
+
       if (isNatvServer) {
         const { data, error } = await supabase.functions.invoke('natv-generate-test', {
           body: {
