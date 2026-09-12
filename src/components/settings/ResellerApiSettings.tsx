@@ -77,8 +77,66 @@ export default function ResellerApiSettings() {
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cakto-webhook`;
 
   useEffect(() => {
-    if (user) fetchSettings();
+    if (user) {
+      fetchSettings();
+      loadBotApiKey();
+    }
   }, [user]);
+
+  const genApiKey = () => {
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    return 'sk_' + Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
+  };
+
+  const loadBotApiKey = async () => {
+    if (!user) return;
+    const { data } = await (supabase
+      .from('reseller_checkout_settings' as any)
+      .select('api_key')
+      .eq('user_id', user.id)
+      .maybeSingle() as any);
+    if (data?.api_key) setBotApiKey(data.api_key);
+  };
+
+  const ensureBotApiKey = async (silent = false) => {
+    if (!user) return '';
+    setLoadingBotKey(true);
+    try {
+      const { data: existing } = await (supabase
+        .from('reseller_checkout_settings' as any)
+        .select('id, api_key')
+        .eq('user_id', user.id)
+        .maybeSingle() as any);
+
+      if (existing?.api_key) {
+        setBotApiKey(existing.api_key);
+        return existing.api_key as string;
+      }
+
+      const key = genApiKey();
+      if (existing?.id) {
+        const { error } = await (supabase
+          .from('reseller_checkout_settings' as any)
+          .update({ api_key: key })
+          .eq('id', existing.id) as any);
+        if (error) throw error;
+      } else {
+        const { error } = await (supabase
+          .from('reseller_checkout_settings' as any)
+          .insert({ user_id: user.id, slug: `bot-${user.id.slice(0, 8)}`, api_key: key }) as any);
+        if (error) throw error;
+      }
+      setBotApiKey(key);
+      if (!silent) toast({ title: 'Chave gerada', description: 'Sua chave de API do robô foi criada e salva.' });
+      return key;
+    } catch (err: any) {
+      if (!silent) toast({ title: 'Erro', description: err.message || String(err), variant: 'destructive' });
+      return '';
+    } finally {
+      setLoadingBotKey(false);
+    }
+  };
 
   const fetchSettings = async () => {
     try {
