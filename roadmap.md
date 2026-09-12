@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Em andamento
+- [ ] Automatizar compra e transferência de créditos por painel, com isolamento por revendedor e novo visual da loja
 - [ ] Concluir cópia e validação da VPS sem alterar o DNS ou interromper a produção
 - [ ] Executar sincronização delta, SSL, webhooks e ativação dos jobs somente na virada combinada
 - [x] Troca de senha do cliente diretamente nos painéis NATV, Rush, P2Cine e Vplay
