@@ -1069,11 +1069,12 @@ export default function ResellerApiSettings() {
 
             <div className="space-y-2">
               <Label className="text-xs">Endpoint (POST)</Label>
-              <MaskedUrlField url={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bot-generate-test`} label="Endpoint" />
+              <MaskedUrlField url={`${functionsBaseUrl}/functions/v1/bot-generate-test`} label="Endpoint" />
               <p className="text-[11px] text-muted-foreground">
-                Corpo: <code>{`{"phone":"{{telefone_do_cliente}}","hours":3}`}</code> · A resposta traz
+                Envie <code>POST</code> com cabeçalho <code>x-api-key: sua_chave</code> e corpo{' '}
+                <code>{`{"phone":"{{telefone_do_cliente}}","hours":3}`}</code>. A resposta traz
                 <code> username</code>, <code>password</code>, <code>dns</code>, <code>m3u</code>, <code>hls</code> e <code>message</code>.
-                Limite: 1 teste por número a cada 24h.
+                Limite: 1 teste por número a cada 24h. Abrir este endereço no navegador não mostra nada — ele só responde a envios do robô.
               </p>
             </div>
           </div>
