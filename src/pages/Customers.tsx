@@ -345,9 +345,13 @@ export default function Customers() {
         total: count || 0,
       };
     },
-    staleTime: 2 * 60 * 1000,
+    // Vencimentos podem ser renovados por webhooks/rotinas fora desta tela.
+    // Nunca reutilize uma listagem antiga ao abrir Clientes ou voltar à aba.
+    staleTime: 0,
     gcTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: 'always',
+    refetchOnReconnect: 'always',
   });
 
   const customers = customersResult?.rows || [];
