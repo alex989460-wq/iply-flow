@@ -11,6 +11,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { resolvePanel } from "../_shared/panel-router.ts";
 import { reportScreensMismatch } from "../_shared/screens-mismatch.ts";
 import { settleReferralOnPayment, consumeReferralCredit } from "../_shared/referral.ts";
+import { deliverCreditOrder } from "../_shared/credit-delivery.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -209,19 +210,14 @@ Deno.serve(async (req) => {
               .from("reseller_access").select("id, credits, email, full_name")
               .eq("user_id", order.buyer_id).maybeSingle();
             if (!access) throw new Error("revendedor_sem_acesso");
-            const { error: upErr } = await admin
-              .from("reseller_access")
-              .update({ credits: Number(access.credits || 0) + Number(order.quantity || 0) })
-              .eq("id", access.id);
-            if (upErr) throw upErr;
-
             await admin.from("credit_orders").update({
-              status: "delivered",
+              status: "paid",
               paid_at: new Date().toISOString(),
-              delivered_at: new Date().toISOString(),
               delivery_error: null,
               updated_at: new Date().toISOString(),
             }).eq("id", order.id);
+
+            const delivery = await deliverCreditOrder(admin, order.id);
 
             // Aviso ao admin vendedor.
             try {
@@ -231,7 +227,10 @@ Deno.serve(async (req) => {
               ]);
               const notifPhone = (billing as any)?.notification_phone;
               if (zap?.selected_department_id && notifPhone) {
-                const msg = `💳 *Compra de créditos paga*\n\n👤 Revendedor: *${access.full_name || access.email}*\n🔑 Usuário do painel: *${(order as any).panel_username || "-"}*\n📱 Telefone: *${(order as any).buyer_phone || "-"}*\n🖥️ Servidor: *${order.server_name || "-"}*\n🔢 Créditos: *${order.quantity}*\n💰 Total: *R$ ${Number(order.total).toFixed(2)}*\n\n✅ Créditos lançados no Super Gestor. Se o painel exigir recarga manual, use o usuário acima.`;
+                const deliveryLine = delivery.status === "delivered"
+                  ? "✅ Créditos enviados automaticamente ao painel e registrados no Super Gestor."
+                  : `⚠️ Pagamento confirmado. Entrega pendente: ${delivery.message}`;
+                const msg = `💳 *Compra de créditos paga*\n\n👤 Revendedor: *${access.full_name || access.email}*\n🔑 Usuário do painel: *${(order as any).panel_username || "-"}*\n📱 Telefone: *${(order as any).buyer_phone || "-"}*\n🖥️ Servidor: *${order.server_name || "-"}*\n🔢 Créditos: *${order.quantity}*\n💰 Total: *R$ ${Number(order.total).toFixed(2)}*\n\n${deliveryLine}`;
                 await fetch(`${SUPABASE_URL}/functions/v1/crm-oficial-sync`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SRK}` },

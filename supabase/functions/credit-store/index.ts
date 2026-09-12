@@ -77,12 +77,20 @@ Deno.serve(async (req) => {
   };
 
   // Identifica o comprador pelo usuário do painel, telefone ou e-mail.
-  const identifyBuyer = async (opts: { panelUsername?: string; phone?: string; email?: string }) => {
+  const identifyBuyer = async (sellerId: string, opts: { panelUsername?: string; phone?: string; email?: string }) => {
     const user = String(opts.panelUsername || "").trim();
     const phone = onlyDigits(String(opts.phone || ""));
     const email = String(opts.email || "").trim().toLowerCase();
 
-    if (user) {
+    const { data: directAccounts } = await admin
+      .from("reseller_access")
+      .select("user_id, email, full_name, phone")
+      .eq("parent_reseller_id", sellerId)
+      .eq("is_active", true)
+      .limit(1000);
+    const allowedIds = new Set((directAccounts || []).map((item: any) => item.user_id));
+
+    if (user && allowedIds.size) {
       const cols = [
         "vplay_panel_username", "rush_username", "uniplay_username",
         "the_best_username", "p2cine_username", "sigma_username",
@@ -91,27 +99,21 @@ Deno.serve(async (req) => {
         .from("reseller_api_settings")
         .select(`user_id, ${cols.join(", ")}`)
         .or(cols.map((c) => `${c}.ilike.${user}`).join(","))
+        .in("user_id", [...allowedIds])
         .limit(1)
         .maybeSingle();
-      if ((api as any)?.user_id) {
-        const { data: acc } = await admin
-          .from("reseller_access").select("user_id, email, full_name").eq("user_id", (api as any).user_id).maybeSingle();
-        if (acc?.user_id) return acc;
-      }
+      if ((api as any)?.user_id) return (directAccounts || []).find((item: any) => item.user_id === (api as any).user_id) || null;
     }
 
     if (phone) {
       const tail = phone.slice(-8);
-      const { data: byPhone } = await admin
-        .from("reseller_access").select("user_id, email, full_name, phone").not("phone", "is", null).limit(500);
-      const hit = (byPhone || []).find((r: any) => onlyDigits(r.phone).endsWith(tail));
+      const hit = (directAccounts || []).find((r: any) => onlyDigits(r.phone).endsWith(tail));
       if (hit?.user_id) return hit;
     }
 
     if (email) {
-      const { data: byEmail } = await admin
-        .from("reseller_access").select("user_id, email, full_name").ilike("email", email).maybeSingle();
-      if (byEmail?.user_id) return byEmail;
+      const hit = (directAccounts || []).find((r: any) => String(r.email || "").toLowerCase() === email);
+      if (hit?.user_id) return hit;
     }
     return null;
   };
@@ -130,7 +132,7 @@ Deno.serve(async (req) => {
     const panelUsername = opts.panelUsername || null;
     const buyerPhone = opts.buyerPhone || null;
     const [{ data: server }, { data: tiers }] = await Promise.all([
-      admin.from("servers").select("id, server_name").eq("id", serverId).maybeSingle(),
+      admin.from("servers").select("id, server_name, panel_type, host").eq("id", serverId).eq("created_by", sellerId).maybeSingle(),
       admin.from("credit_price_tiers").select("*").eq("server_id", serverId).eq("owner_id", sellerId).eq("is_active", true),
     ]);
     if (!server) return json({ error: "servidor_invalido" }, 400);
@@ -271,13 +273,16 @@ Deno.serve(async (req) => {
             subheadline: seller.subheadline,
           },
           providers: { efi: seller.enable_efi !== false, mercadopago: seller.enable_mercadopago === true },
-          servers: servers || [],
+          servers: (servers || []).map((server: any) => {
+            const panel = `${server.panel_type || ""} ${server.server_name || ""}`.toLowerCase();
+            return { ...server, automatic_delivery: panel.includes("natv") };
+          }),
           tiers: tiers || [],
         });
       }
 
       if (action === "public-identify") {
-        const found = await identifyBuyer({
+        const found = await identifyBuyer(seller.user_id, {
           panelUsername: String(body.panel_username || ""),
           phone: String(body.phone || ""),
           email: String(body.email || ""),
@@ -307,7 +312,7 @@ Deno.serve(async (req) => {
           return json({ error: "contato_obrigatorio", message: "Informe o telefone ou o e-mail de acesso." }, 400);
         }
 
-        const buyer = await identifyBuyer({ panelUsername, phone, email });
+        const buyer = await identifyBuyer(seller.user_id, { panelUsername, phone, email });
         if (!buyer?.user_id) {
           return json({
             error: "conta_nao_encontrada",
@@ -350,7 +355,7 @@ Deno.serve(async (req) => {
       // Cada revendedor (inclusive o admin) só precifica os SEUS próprios
       // servidores. Nunca listar servidores de outras revendas aqui.
       const [{ data: myServers }, { data: myTiers }, { data: access }, { data: checkout }] = await Promise.all([
-        admin.from("servers").select("id, server_name, host").eq("created_by", userId).order("server_name"),
+        admin.from("servers").select("id, server_name, host, panel_type").eq("created_by", userId).order("server_name"),
         admin.from("credit_price_tiers").select("*").eq("owner_id", userId).order("min_qty"),
         admin.from("reseller_access").select("credits").eq("user_id", userId).maybeSingle(),
         admin.from("reseller_checkout_settings").select("slug, is_active").eq("user_id", userId).maybeSingle(),
@@ -361,7 +366,7 @@ Deno.serve(async (req) => {
         .filter((id: string) => !(myServers || []).some((s: any) => s.id === id));
       let extras: any[] = [];
       if (extraIds.length) {
-        const { data } = await admin.from("servers").select("id, server_name, host").in("id", extraIds);
+        const { data } = await admin.from("servers").select("id, server_name, host, panel_type").in("id", extraIds).eq("created_by", userId);
         extras = data || [];
       }
       return json({
@@ -370,7 +375,10 @@ Deno.serve(async (req) => {
         credits: Number((access as any)?.credits || 0),
         slug: checkout?.slug || null,
         link_active: checkout?.is_active !== false,
-        servers: [...(myServers || []), ...extras],
+        servers: [...(myServers || []), ...extras].map((server: any) => {
+          const panel = `${server.panel_type || ""} ${server.server_name || ""} ${server.host || ""}`.toLowerCase();
+          return { ...server, automatic_delivery: panel.includes("natv") || panel.includes("pixbot") };
+        }),
         tiers: myTiers || [],
       });
     }
@@ -380,6 +388,8 @@ Deno.serve(async (req) => {
       const serverId = String(body.server_id || "");
       const rows = Array.isArray(body.tiers) ? body.tiers : parseTierText(String(body.text || ""));
       if (!serverId) return json({ error: "servidor_obrigatorio" }, 400);
+      const { data: ownedServer } = await admin.from("servers").select("id").eq("id", serverId).eq("created_by", userId).maybeSingle();
+      if (!ownedServer) return json({ error: "servidor_invalido", message: "Este servidor não pertence à sua conta." }, 403);
       if (!rows.length) {
         return json({ error: "tabela_vazia", message: "Não consegui ler nenhuma faixa. Use, por exemplo: 10 a 19 = 8,00" }, 400);
       }
@@ -402,7 +412,10 @@ Deno.serve(async (req) => {
     }
 
     if (action === "delete-table") {
-      await admin.from("credit_price_tiers").delete().eq("owner_id", userId).eq("server_id", String(body.server_id));
+      const serverId = String(body.server_id || "");
+      const { data: ownedServer } = await admin.from("servers").select("id").eq("id", serverId).eq("created_by", userId).maybeSingle();
+      if (!ownedServer) return json({ error: "servidor_invalido", message: "Este servidor não pertence à sua conta." }, 403);
+      await admin.from("credit_price_tiers").delete().eq("owner_id", userId).eq("server_id", serverId);
       return json({ ok: true });
     }
 
