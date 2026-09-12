@@ -256,11 +256,11 @@ Deno.serve(async (req) => {
           } catch (e) {
             deliveryError = e instanceof Error ? e.message : String(e);
             await admin.from("credit_orders").update({
-              status: "paid",
+              status: "delivery_failed",
               paid_at: new Date().toISOString(),
               delivery_error: deliveryError,
               updated_at: new Date().toISOString(),
-            }).eq("id", order.id);
+            }).eq("id", order.id).in("status", ["pending", "paid"]);
           }
         }
         processed++;

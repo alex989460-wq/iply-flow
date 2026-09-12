@@ -114,7 +114,7 @@ export default function CreditCheckout() {
   if (loading) return <main className="flex min-h-screen items-center justify-center bg-background"><Loader2 className="h-7 w-7 animate-spin text-primary" /></main>;
   if (invalid) return <main className="flex min-h-screen items-center justify-center bg-background p-6"><div className="glass-card max-w-sm p-8 text-center"><Coins className="mx-auto mb-4 h-10 w-10 text-muted-foreground" /><h1 className="text-xl font-bold">Link indisponível</h1><p className="mt-2 text-sm text-muted-foreground">Solicite um novo link ao seu revendedor.</p></div></main>;
 
-  const finished = ["delivered", "manual_required", "delivery_failed"].includes(orderStatus);
+  const finished = ["delivered", "manual_required", "delivery_failed", "delivery_unknown"].includes(orderStatus);
 
   return (
     <main className="min-h-screen bg-background px-3 py-5 sm:px-6 sm:py-10">

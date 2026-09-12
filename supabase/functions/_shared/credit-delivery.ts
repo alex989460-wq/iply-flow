@@ -56,12 +56,18 @@ async function deliverNatv(admin: any, order: any, server: any): Promise<Deliver
     return { ok: false, status: "delivery_failed", provider, message: `O NATV exige no mínimo ${minimum} créditos para esta conta.` };
   }
 
-  const transfer = await fetch(`${baseUrl}/reseller/credits`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ username, amount: quantity }),
-  });
-  const transferBody = await responseBody(transfer);
+  let transfer: Response;
+  let transferBody: any;
+  try {
+    transfer = await fetch(`${baseUrl}/reseller/credits`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ username, amount: quantity }),
+    });
+    transferBody = await responseBody(transfer);
+  } catch (error) {
+    return { ok: false, status: "delivery_failed", provider, message: error instanceof Error ? error.message : "Falha de conexão com o NATV." };
+  }
   if (!transfer.ok) {
     return { ok: false, status: "delivery_failed", provider, message: errorMessage(transferBody, `Transferência recusada pelo NATV (HTTP ${transfer.status}).`) };
   }
@@ -74,7 +80,21 @@ async function deliverNatv(admin: any, order: any, server: any): Promise<Deliver
     _balance_before: before,
     _balance_after: Number(transferBody?.recipient_credits ?? before + quantity),
   });
-  if (completed.error) throw completed.error;
+  if (completed.error) {
+    // A API externa já confirmou a transferência. Não permita uma nova tentativa
+    // automática, pois ela poderia enviar os mesmos créditos novamente.
+    await admin.from("credit_orders").update({
+      status: "delivery_unknown",
+      delivery_provider: provider,
+      external_delivery_id: String(transferBody?.recipient_id || recipient.id || username),
+      delivery_response: transferBody,
+      delivery_error: `Painel confirmou a recarga, mas o registro local falhou: ${completed.error.message}`,
+      balance_before: before,
+      balance_after: Number(transferBody?.recipient_credits ?? before + quantity),
+      updated_at: new Date().toISOString(),
+    }).eq("id", order.id).eq("status", "delivering");
+    return { ok: false, status: "delivery_failed", provider, message: "O NATV confirmou a recarga; a conferência local ficou pendente. Não reenvie." };
+  }
   return {
     ok: completed.data === true,
     status: completed.data === true ? "delivered" : "already_processed",

@@ -199,6 +199,7 @@ export default function CreditStore() {
     if (s === "delivered") return <Badge className="bg-success/15 text-success hover:bg-success/15">Entregue</Badge>;
     if (s === "delivering") return <Badge variant="secondary" className="gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Enviando</Badge>;
     if (s === "paid" || s === "manual_required") return <Badge className="bg-warning/15 text-warning hover:bg-warning/15">Entrega manual</Badge>;
+    if (s === "delivery_unknown") return <Badge className="bg-warning/15 text-warning hover:bg-warning/15">Conferir no painel</Badge>;
     if (s === "failed" || s === "delivery_failed") return <Badge variant="destructive">Falhou</Badge>;
     return <Badge variant="secondary">Aguardando pagamento</Badge>;
   };

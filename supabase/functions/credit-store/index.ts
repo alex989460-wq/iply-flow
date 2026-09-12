@@ -262,7 +262,7 @@ Deno.serve(async (req) => {
           .from("credit_price_tiers").select("*").eq("owner_id", seller.user_id).eq("is_active", true).order("min_qty");
         const ids = [...new Set((tiers || []).map((t: any) => t.server_id))];
         const { data: servers } = ids.length
-          ? await admin.from("servers").select("id, server_name").in("id", ids).order("server_name")
+          ? await admin.from("servers").select("id, server_name, panel_type, host").in("id", ids).eq("created_by", seller.user_id).order("server_name")
           : { data: [] as any[] };
         return json({
           ok: true,
@@ -328,7 +328,7 @@ Deno.serve(async (req) => {
 
       if (action === "public-order-status") {
         const { data } = await admin
-          .from("credit_orders").select("id, status, quantity, total, server_name").eq("id", String(body.order_id)).maybeSingle();
+          .from("credit_orders").select("id, status, quantity, total, server_name").eq("id", String(body.order_id)).eq("seller_id", seller.user_id).maybeSingle();
         if (!data) return json({ error: "not_found" }, 404);
         return json({ ok: true, order: data });
       }
@@ -394,13 +394,24 @@ Deno.serve(async (req) => {
       if (!rows.length) {
         return json({ error: "tabela_vazia", message: "Não consegui ler nenhuma faixa. Use, por exemplo: 10 a 19 = 8,00" }, 400);
       }
+      const normalized = rows.map((r: any) => ({
+        min_qty: Math.round(Number(r.min_qty)),
+        max_qty: Math.round(Number(r.max_qty)),
+        unit_price: Number(Number(r.unit_price).toFixed(2)),
+      })).sort((a: any, b: any) => a.min_qty - b.min_qty);
+      if (normalized.some((r: any) => !Number.isFinite(r.min_qty) || !Number.isFinite(r.max_qty) || !Number.isFinite(r.unit_price) || r.min_qty < 1 || r.max_qty < r.min_qty || r.unit_price <= 0)) {
+        return json({ error: "faixa_invalida", message: "Revise as quantidades e os preços informados." }, 400);
+      }
+      if (normalized.some((r: any, index: number) => index > 0 && r.min_qty <= normalized[index - 1].max_qty)) {
+        return json({ error: "faixas_sobrepostas", message: "As faixas de quantidade não podem se sobrepor." }, 400);
+      }
       await admin.from("credit_price_tiers").delete().eq("owner_id", userId).eq("server_id", serverId);
-      const payload = rows.map((r: any) => ({
+      const payload = normalized.map((r: any) => ({
         owner_id: userId,
         server_id: serverId,
-        min_qty: Math.max(1, Math.round(Number(r.min_qty))),
-        max_qty: Math.max(1, Math.round(Number(r.max_qty))),
-        unit_price: Number(Number(r.unit_price).toFixed(2)),
+        min_qty: r.min_qty,
+        max_qty: r.max_qty,
+        unit_price: r.unit_price,
         is_active: true,
       }));
       const { error } = await admin.from("credit_price_tiers").insert(payload);
