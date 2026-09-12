@@ -216,7 +216,7 @@ export default function VplayServersManager() {
       toast.error('Nome do servidor é obrigatório');
       return;
     }
-    const natv = formData.server_type === 'natv' || formData.server_type === 'natv2';
+    const natv = formData.server_type === 'natv' || formData.server_type === 'natv2' || formData.server_type === 'uniplay';
     if (!natv) {
       if (!formData.integration_url.trim()) {
         toast.error('URL de integração é obrigatória');
