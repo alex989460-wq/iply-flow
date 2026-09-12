@@ -276,7 +276,7 @@ Deno.serve(async (req) => {
           providers: { efi: seller.enable_efi !== false, mercadopago: seller.enable_mercadopago === true },
           servers: (servers || []).map((server: any) => {
             const panel = `${server.panel_type || ""} ${server.server_name || ""}`.toLowerCase();
-            return { ...server, automatic_delivery: panel.includes("natv") };
+            return { ...server, automatic_delivery: panel.includes("natv") || panel.includes("pixbot") || panel.includes("thebest") || panel.includes("the best") || panel.includes("painel.best") || panel.includes("vplay") };
           }),
           tiers: tiers || [],
         });
@@ -378,7 +378,7 @@ Deno.serve(async (req) => {
         link_active: checkout?.is_active !== false,
         servers: [...(myServers || []), ...extras].map((server: any) => {
           const panel = `${server.panel_type || ""} ${server.server_name || ""} ${server.host || ""}`.toLowerCase();
-          return { ...server, automatic_delivery: panel.includes("natv") || panel.includes("pixbot") };
+          return { ...server, automatic_delivery: panel.includes("natv") || panel.includes("pixbot") || panel.includes("thebest") || panel.includes("the best") || panel.includes("painel.best") || panel.includes("vplay") };
         }),
         tiers: myTiers || [],
       });
