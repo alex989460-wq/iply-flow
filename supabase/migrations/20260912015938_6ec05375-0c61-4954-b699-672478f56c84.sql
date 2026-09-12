@@ -1,0 +1,2 @@
+ALTER TABLE public.vplay_servers DROP CONSTRAINT IF EXISTS vplay_servers_server_type_check;
+ALTER TABLE public.vplay_servers ADD CONSTRAINT vplay_servers_server_type_check CHECK (server_type IN ('vplay','natv','natv2','uniplay'));
