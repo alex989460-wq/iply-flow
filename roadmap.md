@@ -8,3 +8,5 @@
 - [x] Sincronização manual 100% das senhas dos clientes pelas APIs dos painéis
 - [ ] Agendamento diário automático de sincronização de senhas
 - [ ] Integração Uniplay API (aguardando documentação/credenciais do usuário)
+
+- [ ] Confirmar e integrar recarga externa de créditos para Rush, Uniplay, P2Cine, The Best e VPlay sem inferir operações perigosas.
