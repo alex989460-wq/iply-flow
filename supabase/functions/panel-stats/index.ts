@@ -284,27 +284,49 @@ Deno.serve(async (req) => {
           const password = String((cfg as any)?.the_best_password || "").trim();
           const base = normBase((cfg as any)?.the_best_base_url || "https://api.painel.best");
           if (!apiKey && (!username || !password)) {
-            throw new Error("Credenciais do The Best não configuradas.");
-          }
-          const headers: any = { Accept: "application/json" };
-          if (apiKey) {
-            headers["Api-Key"] = apiKey;
-          } else {
-            const res = await fetch(`${base}/auth/login`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", ...headers },
-              body: JSON.stringify({ username, password }),
-            });
-            if (!res.ok) throw new Error(`Falha no login do The Best (HTTP ${res.status})`);
-            const data = await res.json();
-            if (!data.token) throw new Error("O painel The Best não devolveu o token de acesso.");
-            headers["Authorization"] = `Bearer ${data.token}`;
+            throw new Error("Credenciais do The Best não configuradas em Configurações → APIs.");
           }
 
-          const res = await fetch(`${base}/reseller/credits`, { headers });
-          if (!res.ok) throw new Error(`Falha ao ler créditos do The Best (HTTP ${res.status})`);
-          const data = await res.json();
-          return { credits: pickNumber(data.credits, data.saldo, data.balance), online: null };
+          const readUser = async (headers: Record<string, string>) => {
+            const res = await fetch(`${base}/user/`, { headers: { Accept: "application/json", ...headers } });
+            const text = await res.text();
+            if (!res.ok) return { ok: false, status: res.status, text } as const;
+            try {
+              return { ok: true, data: JSON.parse(text) } as const;
+            } catch {
+              return { ok: false, status: res.status, text } as const;
+            }
+          };
+
+          let result: any = null;
+          if (apiKey) {
+            const r = await readUser({ "Api-Key": apiKey });
+            if (r.ok) result = r.data;
+          }
+          if (!result) {
+            if (!username || !password) throw new Error("A chave de API do The Best foi recusada e não há usuário/senha cadastrados.");
+            const login = await fetch(`${base}/auth/token/`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Accept: "application/json" },
+              body: JSON.stringify({ username, password }),
+            });
+            const loginText = await login.text();
+            if (!login.ok) throw new Error(`Falha no login do The Best (HTTP ${login.status})`);
+            let token = "";
+            try {
+              const d = JSON.parse(loginText);
+              token = String(d.access || d.token || d.access_token || "");
+            } catch { /* ignore */ }
+            if (!token) throw new Error("O painel The Best não devolveu o token de acesso.");
+            const r = await readUser({ Authorization: `Bearer ${token}` });
+            if (!r.ok) throw new Error(`Falha ao ler os créditos do The Best (HTTP ${r.status}).`);
+            result = r.data;
+          }
+
+          return {
+            credits: pickNumber(result?.credits, result?.saldo, result?.balance),
+            online: pickNumber(result?.active_lines_count, result?.online),
+          };
         })();
       }
       return theBestPromise;
@@ -319,25 +341,23 @@ Deno.serve(async (req) => {
           const pass = String((cfg as any)?.rush_password || "").trim();
           const token = String((cfg as any)?.rush_token || "").trim();
           const base = normBase((cfg as any)?.rush_base_url || "https://api-new.paineloffice.click");
-          if (!user || !pass || !token) throw new Error("Credenciais da Rush não configuradas.");
-          
-          const auth = `user=${user}&pass=${pass}&token=${token}`;
+          if (!user || !pass || !token) throw new Error("Credenciais da Rush não configuradas em Configurações → APIs.");
+
+          // A API nova exige usuário/senha/token na query E o Bearer no header.
+          const auth = `username=${encodeURIComponent(user)}&password=${encodeURIComponent(pass)}&token=${encodeURIComponent(token)}`;
+          const headers = { Accept: "application/json", Authorization: `Bearer ${token}` };
+
           let credits: number | null = null;
           let lastErr = "";
-
-          const deepCredits = (obj: any): number | null => {
-            if (!obj || typeof obj !== "object") return null;
-            return pickNumber(obj.credits, obj.credits_iptv, obj.credits_p2p, obj.saldo, obj.balance, obj.credits_total);
-          };
-
-          for (const p of ["/reseller/info", "/credits/info", "/iptv/credits", "/p2p/credits"]) {
+          for (const p of ["/resale/info", "/resale/me"]) {
             try {
-              const r = await fetch(`${base}${p}?${auth}`, { headers: { Accept: "application/json", Authorization: `Bearer ${token}` } });
+              const r = await fetch(`${base}${p}?${auth}`, { headers });
               const t = await r.text();
               if (!r.ok) { lastErr = `HTTP ${r.status} em ${p}`; continue; }
               let b: any = null;
               try { b = JSON.parse(t); } catch { lastErr = `resposta não-JSON em ${p}`; continue; }
-              credits = deepCredits(b);
+              const info = b?.info || b?.data || b;
+              credits = pickNumber(info?.credits, info?.credit, info?.saldo, info?.balance);
               if (credits !== null) break;
               lastErr = `sem campo de saldo em ${p}`;
             } catch (e) {
@@ -347,24 +367,34 @@ Deno.serve(async (req) => {
           if (credits === null) throw new Error(`Não foi possível ler os créditos da Rush (${lastErr || "sem resposta"}).`);
 
           let online: number | null = null;
-          for (const p of ["/iptv/online", "/p2p/online", "/iptv/list?online=1&per_page=1"]) {
-            try {
-              const r = await fetch(`${base}${p.includes("?") ? `${p}&` : `${p}?`}${auth}`, { headers: { Accept: "application/json", Authorization: `Bearer ${token}` } });
-              if (!r.ok) continue;
+          try {
+            const r = await fetch(`${base}/dashboard?${auth}`, { headers });
+            if (r.ok) {
               const b = await r.json();
-              online = pickNumber(b?.online, b?.total, b?.count, Array.isArray(b?.items) ? b.items.length : null, Array.isArray(b) ? b.length : null);
-              if (online !== null) break;
-            } catch { /* opcional */ }
-          }
+              const row = Array.isArray(b) ? b[b.length - 1] : b;
+              online = pickNumber(row?.online, row?.usersOnline);
+            }
+          } catch { /* opcional */ }
+
           return { credits, online };
         })();
       }
       return rushPromise;
     };
 
+
+    // Saldos já conhecidos: se a consulta falhar, mantemos o último valor lido
+    // em vez de apagar a informação da tela.
+    const { data: prevRows } = await admin.from("panel_stats_cache")
+      .select("server_id, credits, online")
+      .eq("user_id", ownerId);
+    const prev = new Map<string, { credits: number | null; online: number | null }>(
+      (prevRows || []).map((r: any) => [String(r.server_id), { credits: r.credits, online: r.online }]),
+    );
+
     await Promise.all((servers || []).map(async (server: any) => {
       const panel = resolvePanel(server);
-      const entry: { panel: string | null; credits: number | null; online: number | null; error?: string } = {
+      const entry: { panel: string | null; credits: number | null; online: number | null; error?: string; stale?: boolean } = {
         panel, credits: null, online: null,
       };
       results[server.id] = entry;
@@ -389,9 +419,17 @@ Deno.serve(async (req) => {
           Object.assign(entry, await theBestStats());
         } else if (panel === "rush") {
           Object.assign(entry, await rushStats());
+        } else if (panel === "uniplay") {
+          throw new Error("O painel Uniplay não disponibiliza consulta de saldo pela API.");
         }
       } catch (e) {
         entry.error = e instanceof Error ? e.message : String(e);
+        const old = prev.get(String(server.id));
+        if (old && (old.credits !== null || old.online !== null)) {
+          entry.credits = old.credits;
+          entry.online = old.online;
+          entry.stale = true;
+        }
       }
     }));
 
@@ -407,6 +445,7 @@ Deno.serve(async (req) => {
     if (rows.length) {
       await admin.from("panel_stats_cache").upsert(rows, { onConflict: "user_id,server_id" });
     }
+
 
     return json({ ok: true, stats: results });
 
