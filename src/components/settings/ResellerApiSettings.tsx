@@ -316,6 +316,7 @@ export default function ResellerApiSettings() {
       }
       if (!data?.success) throw new Error(data?.error || 'Falha no login');
       toast({ title: 'Login OK', description: `Uniplay: ${data.username} (id ${data.id})` });
+      await ensureBotApiKey(true);
     } catch (err: any) {
       const message = err.message || String(err);
       toast({
