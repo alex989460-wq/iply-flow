@@ -13,6 +13,15 @@ export class PageErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: unknown) {
     console.error('[PageErrorBoundary]', error, info);
+
+    // Falha causada pelo tradutor do navegador: tenta se recuperar sozinho
+    // uma única vez antes de mostrar a tela de erro.
+    const msg = String(error?.message || '');
+    const translateGlitch = /removeChild|insertBefore|NotFoundError|not a child of this node/i.test(msg);
+    if (translateGlitch && !sessionStorage.getItem('pageerror_autoreload')) {
+      sessionStorage.setItem('pageerror_autoreload', '1');
+      window.location.reload();
+    }
   }
 
   render() {
