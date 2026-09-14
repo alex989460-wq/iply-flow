@@ -530,7 +530,7 @@ export default function ResellerApiSettings() {
     if (settings.p2cine_username && settings.p2cine_api_key && settings.p2cine_base_url) list.push('p2cine');
     if (settings.the_best_api_key || (settings.the_best_username && settings.the_best_password)) list.push('the_best');
     if (settings.uniplay_username && settings.uniplay_password) list.push('uniplay');
-    if (settings.vplay_mysql_host && settings.vplay_mysql_user && settings.vplay_mysql_database) list.push('vplay');
+    if (settings.vplay_mysql_host || settings.vplay_mysql_user || settings.vplay_mysql_database) list.push('vplay');
     return list;
   };
 

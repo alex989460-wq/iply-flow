@@ -153,25 +153,52 @@ async function natvSyncPasswords(baseUrl: string, apiKey: string) {
   else bases.add(`${normalized}/api`);
 
   const users: any[] = [];
+  const attempts: string[] = [];
+  const authVariants: Record<string, string>[] = [
+    { Authorization: `Bearer ${apiKey}` },
+    { "Api-Key": apiKey },
+    { "x-api-key": apiKey },
+  ];
+
+  outer:
   for (const b of [...bases]) {
-    for (const path of ["/users", "/user"]) {
-      try {
-        const res = await fetch(`${b}${path}`, { headers: { Authorization: `Bearer ${apiKey}` } });
-        if (!res.ok) continue;
-        const data = await res.json().catch(() => null);
-        const list = Array.isArray(data) ? data : data?.data || data?.users || [];
-        if (list.length) {
-          users.push(...list);
-          break;
+    for (const path of ["/users", "/user", "/lines", "/clients"]) {
+      for (const headers of authVariants) {
+        try {
+          const res = await fetch(`${b}${path}?limit=10000`, { headers: { Accept: "application/json", ...headers } });
+          if (!res.ok) {
+            attempts.push(`${path} -> HTTP ${res.status}`);
+            continue;
+          }
+          const data = await res.json().catch(() => null);
+          const list = Array.isArray(data) ? data : data?.data || data?.users || data?.results || [];
+          if (Array.isArray(list) && list.length) {
+            users.push(...list);
+            break outer;
+          }
+          attempts.push(`${path} -> lista vazia`);
+        } catch (e) {
+          attempts.push(`${path} -> ${e instanceof Error ? e.message : String(e)}`);
         }
-      } catch { /* ignore */ }
+      }
     }
-    if (users.length) break;
   }
-  return users.map((u: any) => ({
+
+  if (!users.length) {
+    throw new Error(
+      `O painel NATV não devolveu nenhum usuário. Tentativas: ${attempts.slice(0, 6).join(" | ") || "nenhuma resposta"}`,
+    );
+  }
+
+  const mapped = users.map((u: any) => ({
     username: String(u.username || u.login || u.user || "").trim(),
     password: String(u.password || u.senha || "").trim(),
   })).filter((u) => u.username && u.password);
+
+  if (!mapped.length) {
+    throw new Error(`O painel NATV devolveu ${users.length} usuário(s), mas nenhum com senha visível pela API.`);
+  }
+  return mapped;
 }
 
 // ─── RUSH ───
@@ -387,13 +414,30 @@ async function p2cineSyncPasswords(base: string, token: string, resellerId?: str
   });
 
   const rows = Array.isArray(res.json?.data) ? res.json.data : [];
-  return rows.map((row: any[]) => {
+  if (!rows.length) {
+    throw new Error(
+      `O painel P2Cine não devolveu clientes (HTTP ${res.status}): ${String(res.body || "").slice(0, 160) || "resposta vazia"}`,
+    );
+  }
+
+  const looksLikeCredential = (c: string) =>
+    !!c && c.length >= 4 && c.length <= 32 && /^[A-Za-z0-9._-]+$/.test(c) && !/^\d{1,4}$/.test(c);
+
+  const mapped = rows.map((row: any[]) => {
     const cells = row.map((c) => String(c ?? "").replace(/<[^>]*>/g, "").trim());
-    return {
-      username: String(cells[1] || cells[2] || "").trim(),
-      password: String(cells.find((c) => /senha|password|pin/i.test(c)) || "").trim(),
-    };
+    // coluna 0 costuma ser o id; login vem logo em seguida e a senha na coluna seguinte ao login
+    const loginIdx = cells.findIndex((c, i) => i > 0 && looksLikeCredential(c));
+    const username = loginIdx >= 0 ? cells[loginIdx] : "";
+    const password = loginIdx >= 0
+      ? (cells.slice(loginIdx + 1).find((c) => looksLikeCredential(c) && c.toLowerCase() !== username.toLowerCase()) || "")
+      : "";
+    return { username, password };
   }).filter((u: any) => u.username && u.password);
+
+  if (!mapped.length) {
+    throw new Error(`O painel P2Cine listou ${rows.length} cliente(s), mas não mostra as senhas nessa listagem.`);
+  }
+  return mapped;
 }
 
 // ─── VPLAY ───
@@ -1188,6 +1232,8 @@ serve(async (req) => {
           } catch (e) {
             results.natv = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
           }
+        } else if (want("natv")) {
+          results.natv = { total: 0, updated: 0, error: "Credenciais do NATV não configuradas (chave da API e endereço)." };
         }
 
         // NATV2
@@ -1203,6 +1249,8 @@ serve(async (req) => {
           } catch (e) {
             results.natv2 = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
           }
+        } else if (want("natv2")) {
+          results.natv2 = { total: 0, updated: 0, error: "Credenciais do NATV² não configuradas (chave da API e endereço)." };
         }
 
         // Rush
@@ -1219,6 +1267,8 @@ serve(async (req) => {
           } catch (e) {
             results.rush = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
           }
+        } else if (want("rush")) {
+          results.rush = { total: 0, updated: 0, error: "Credenciais do Rush não configuradas (usuário, senha, token e endereço)." };
         }
 
         // P2Cine
@@ -1235,6 +1285,8 @@ serve(async (req) => {
           } catch (e) {
             results.p2cine = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
           }
+        } else if (want("p2cine")) {
+          results.p2cine = { total: 0, updated: 0, error: "Credenciais do P2Cine não configuradas (usuário, chave da API e endereço)." };
         }
 
         // The Best
@@ -1252,6 +1304,8 @@ serve(async (req) => {
           } catch (e) {
             results.the_best = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
           }
+        } else if (want("the_best")) {
+          results.the_best = { total: 0, updated: 0, error: "Credenciais do The Best não configuradas." };
         }
 
         // Uniplay
@@ -1273,26 +1327,43 @@ serve(async (req) => {
           } catch (e) {
             results.uniplay = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
           }
+        } else if (want("uniplay")) {
+          results.uniplay = { total: 0, updated: 0, error: "Usuário e senha do Uniplay não configurados." };
         }
 
         // VPlay
-        const connection = want("vplay") ? await vplayConnection(s).catch((e) => {
-          results.vplay = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
-          return null;
-        }) : null;
-        if (connection) {
-          try {
-            const users = await vplaySyncPasswords(connection);
-            let updated = 0;
-            for (const u of users) {
-              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive);
-              updated += ids.length;
-            }
-            results.vplay = { total: users.length, updated };
-          } catch (e) {
+        if (want("vplay")) {
+          const connection = await vplayConnection(s).catch((e) => {
             results.vplay = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
-          } finally {
-            await connection.end().catch(() => undefined);
+            return null;
+          });
+
+          if (!connection) {
+            if (!results.vplay) {
+              results.vplay = {
+                total: 0,
+                updated: 0,
+                error: "Dados de acesso ao banco do VPlay não configurados (endereço, usuário, senha e banco).",
+              };
+            }
+          } else {
+            try {
+              const users = await vplaySyncPasswords(connection);
+              if (!users.length) {
+                results.vplay = { total: 0, updated: 0, error: "O banco do VPlay não devolveu nenhum usuário com senha." };
+              } else {
+                let updated = 0;
+                for (const u of users) {
+                  const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive);
+                  updated += ids.length;
+                }
+                results.vplay = { total: users.length, updated };
+              }
+            } catch (e) {
+              results.vplay = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
+            } finally {
+              await connection.end().catch(() => undefined);
+            }
           }
         }
       }
