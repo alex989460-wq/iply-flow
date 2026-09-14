@@ -58,14 +58,22 @@ async function getResellerSettings(admin: any, ownerId: string) {
   return data || {};
 }
 
-async function updateCustomerPassword(admin: any, ownerId: string, username: string, password: string) {
+async function updateCustomerPassword(
+  admin: any,
+  ownerId: string,
+  username: string,
+  password: string,
+  onlyActive = false,
+) {
   const variants = buildUsernameVariants(username);
-  const { data: customers } = await admin
+  let query = admin
     .from("customers")
     .select("id, username")
     .eq("created_by", ownerId)
     .in("username", variants)
     .limit(10);
+  if (onlyActive) query = query.eq("status", "ativa");
+  const { data: customers } = await query;
 
   const updated: string[] = [];
   for (const c of customers || []) {
