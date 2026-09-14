@@ -1299,13 +1299,13 @@ serve(async (req) => {
             for (const u of users) {
               const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive);
               updated += ids.length;
-        } else if (want("the_best")) {
-          results.the_best = { total: 0, updated: 0, error: "Credenciais do The Best não configuradas." };
-        }
+            }
             results.the_best = { total: users.length, updated };
           } catch (e) {
             results.the_best = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
           }
+        } else if (want("the_best")) {
+          results.the_best = { total: 0, updated: 0, error: "Credenciais do The Best não configuradas." };
         }
 
         // Uniplay
