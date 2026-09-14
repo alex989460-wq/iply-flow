@@ -33,6 +33,7 @@ import {
   ShieldCheck,
   ListChecks,
   Coins,
+  Share2,
 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
@@ -65,6 +66,7 @@ const menuItems: Array<{
   { icon: MessageCircleMore, label: 'Chat', path: '/chat', adminOnly: false, badgeKey: 'evolution' },
   { icon: FileText, label: 'Templates CRM Oficial', path: '/crm-oficial-templates', adminOnly: false },
   { icon: Bot, label: 'Robô CRM', path: '/crm-oficial-chatbots', adminOnly: false },
+  { icon: Share2, label: 'Social Mídia', path: '/social-midia', adminOnly: false },
   { icon: QrCode, label: 'Conexões WhatsApp', path: '/evolution-instances', adminOnly: false },
   
 

@@ -42,6 +42,7 @@ import UnifiedChat from "./pages/UnifiedChat";
 import CrmOficialChannels from "./pages/CrmOficialChannels";
 import CrmOficialTemplates from "./pages/CrmOficialTemplates";
 import CrmOficialChatbots from "./pages/CrmOficialChatbots";
+import CrmOficialSocial from "./pages/CrmOficialSocial";
 import Atendimentos from "./pages/Atendimentos";
 import WhatsappUtility from "./pages/WhatsappUtility";
 
@@ -160,6 +161,7 @@ function AppRoutes() {
       <Route path="/crm-oficial-channels" element={<ProtectedRoute><CrmOficialChannels /></ProtectedRoute>} />
       <Route path="/crm-oficial-templates" element={<ProtectedRoute><CrmOficialTemplates /></ProtectedRoute>} />
       <Route path="/crm-oficial-chatbots" element={<ProtectedRoute><CrmOficialChatbots /></ProtectedRoute>} />
+      <Route path="/social-midia" element={<ProtectedRoute><CrmOficialSocial /></ProtectedRoute>} />
       <Route path="/atendimentos" element={<ProtectedRoute><Atendimentos /></ProtectedRoute>} />
       <Route path="/whatsapp-utility" element={<ProtectedRoute><WhatsappUtility /></ProtectedRoute>} />
 
