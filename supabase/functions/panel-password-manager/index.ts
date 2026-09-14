@@ -1232,6 +1232,8 @@ serve(async (req) => {
           } catch (e) {
             results.natv = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
           }
+        } else if (want("natv")) {
+          results.natv = { total: 0, updated: 0, error: "Credenciais do NATV não configuradas (chave da API e endereço)." };
         }
 
         // NATV2
