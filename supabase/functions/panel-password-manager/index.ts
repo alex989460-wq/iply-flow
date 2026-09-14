@@ -414,13 +414,30 @@ async function p2cineSyncPasswords(base: string, token: string, resellerId?: str
   });
 
   const rows = Array.isArray(res.json?.data) ? res.json.data : [];
-  return rows.map((row: any[]) => {
+  if (!rows.length) {
+    throw new Error(
+      `O painel P2Cine não devolveu clientes (HTTP ${res.status}): ${String(res.body || "").slice(0, 160) || "resposta vazia"}`,
+    );
+  }
+
+  const looksLikeCredential = (c: string) =>
+    !!c && c.length >= 4 && c.length <= 32 && /^[A-Za-z0-9._-]+$/.test(c) && !/^\d{1,4}$/.test(c);
+
+  const mapped = rows.map((row: any[]) => {
     const cells = row.map((c) => String(c ?? "").replace(/<[^>]*>/g, "").trim());
-    return {
-      username: String(cells[1] || cells[2] || "").trim(),
-      password: String(cells.find((c) => /senha|password|pin/i.test(c)) || "").trim(),
-    };
+    // coluna 0 costuma ser o id; login vem logo em seguida e a senha na coluna seguinte ao login
+    const loginIdx = cells.findIndex((c, i) => i > 0 && looksLikeCredential(c));
+    const username = loginIdx >= 0 ? cells[loginIdx] : "";
+    const password = loginIdx >= 0
+      ? (cells.slice(loginIdx + 1).find((c) => looksLikeCredential(c) && c.toLowerCase() !== username.toLowerCase()) || "")
+      : "";
+    return { username, password };
   }).filter((u: any) => u.username && u.password);
+
+  if (!mapped.length) {
+    throw new Error(`O painel P2Cine listou ${rows.length} cliente(s), mas não mostra as senhas nessa listagem.`);
+  }
+  return mapped;
 }
 
 // ─── VPLAY ───
