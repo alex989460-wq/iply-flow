@@ -564,18 +564,26 @@ export default function ResellerApiSettings() {
         let totalAll = 0;
         let updatedAll = 0;
         let lastError: string | undefined;
-        for (let round = 0; round < 50; round++) {
-          const { data, error } = await supabase.functions.invoke('panel-password-manager', {
-            body: { action: 'sync-passwords', panels: [panel], server_ids: serverIds, only_active: syncOnlyActive, offset },
-          });
-          if (error) throw error;
-          if (!data?.success) throw new Error(data?.error || 'Falha na sincronização');
-          const r = (data.results || {})[panel] || { total: 0, updated: 0 };
+        for (let round = 0; round < 400; round++) {
+          let r: { total?: number; updated?: number; error?: string; next_offset?: number | null };
+          try {
+            const { data, error } = await supabase.functions.invoke('panel-password-manager', {
+              body: { action: 'sync-passwords', panels: [panel], server_ids: serverIds, only_active: syncOnlyActive, offset },
+            });
+            if (error) throw error;
+            if (!data?.success) throw new Error(data?.error || 'Falha na sincronização');
+            r = (data.results || {})[panel] || { total: 0, updated: 0 };
+          } catch (roundError: any) {
+            // Mantém o que já foi sincronizado e informa onde parou.
+            lastError = `${roundError?.message || 'Erro desconhecido'} (parou em ${totalAll} cliente(s))`;
+            break;
+          }
           totalAll += r.total || 0;
           updatedAll += r.updated || 0;
           lastError = r.error;
           setSyncResults([...collected, { panel, updated: updatedAll, total: totalAll, error: lastError }]);
           if (r.next_offset == null) break;
+          if (!r.total) break;
           offset = r.next_offset;
         }
         collected.push({ panel, updated: updatedAll, total: totalAll, error: lastError });
