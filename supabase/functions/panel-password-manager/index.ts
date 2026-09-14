@@ -1280,13 +1280,13 @@ serve(async (req) => {
             for (const u of users) {
               const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive);
               updated += ids.length;
-        } else if (want("p2cine")) {
-          results.p2cine = { total: 0, updated: 0, error: "Credenciais do P2Cine não configuradas (usuário, chave da API e endereço)." };
-        }
+            }
             results.p2cine = { total: users.length, updated };
           } catch (e) {
             results.p2cine = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
           }
+        } else if (want("p2cine")) {
+          results.p2cine = { total: 0, updated: 0, error: "Credenciais do P2Cine não configuradas (usuário, chave da API e endereço)." };
         }
 
         // The Best
