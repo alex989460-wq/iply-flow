@@ -195,21 +195,43 @@ async function natvSyncPasswords(
   apiKey: string,
   onlyActive: boolean,
   serverIds: string[],
+  offset = 0,
 ) {
   const customers = await getLocalSyncCustomers(admin, ownerId, panel, onlyActive, serverIds);
-  if (!customers.length) return { total: 0, found: 0, updated: 0 };
+  if (!customers.length) return { total: 0, found: 0, updated: 0, nextOffset: null as number | null };
+
+  // O painel NATV só responde por usuário. Processamos em blocos paralelos com
+  // orçamento de tempo para nunca estourar o limite da função (que devolvia
+  // "non-2xx" quando a revenda tinha milhares de clientes).
+  const started = Date.now();
+  const BUDGET_MS = 50_000;
+  const CONCURRENCY = 8;
 
   let found = 0;
   let updated = 0;
-  for (const customer of customers) {
-    const raw = await natvFindUserRaw(baseUrl, apiKey, customer.username);
-    const password = pickPassword(raw);
-    if (!password) continue;
-    found++;
-    const { error } = await admin.from("customers").update({ password }).eq("id", customer.id).eq("created_by", ownerId);
-    if (!error) updated++;
+  let index = Math.max(0, offset);
+
+  while (index < customers.length && Date.now() - started < BUDGET_MS) {
+    const slice = customers.slice(index, index + CONCURRENCY);
+    await Promise.all(slice.map(async (customer) => {
+      try {
+        const raw = await natvFindUserRaw(baseUrl, apiKey, customer.username);
+        const password = pickPassword(raw);
+        if (!password) return;
+        found++;
+        const { error } = await admin.from("customers").update({ password }).eq("id", customer.id).eq("created_by", ownerId);
+        if (!error) updated++;
+      } catch { /* usuário sem resposta do painel não interrompe o lote */ }
+    }));
+    index += slice.length;
   }
-  return { total: customers.length, found, updated };
+
+  return {
+    total: index - Math.max(0, offset),
+    found,
+    updated,
+    nextOffset: index < customers.length ? index : null,
+  };
 }
 
 // ─── RUSH ───
@@ -907,18 +929,30 @@ async function uniplaySessionWithBrowserFallback(
     return await uniplaySession(admin, ownerId, settings);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    if (!message.includes("reCAPTCHA") || !authHeader.startsWith("Bearer ")) throw error;
+    if (!authHeader.startsWith("Bearer ")) throw error;
 
     const response = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/uniplay-renew`, {
       method: "POST",
       headers: { Authorization: authHeader, "Content-Type": "application/json" },
       body: JSON.stringify({ action: "test" }),
-      signal: AbortSignal.timeout(45000),
+      signal: AbortSignal.timeout(90000),
     });
     const result = await response.json().catch(() => null);
     if (!response.ok || !result?.success) {
-      throw new Error(result?.error || "O navegador da VPS não conseguiu renovar a sessão do Uniplay.");
+      throw new Error(result?.error || message || "O navegador da VPS não conseguiu renovar a sessão do Uniplay.");
     }
+
+    // Prefere o token devolvido na hora; só depois relê o que ficou salvo.
+    if (result?.token) {
+      const session = { token: String(result.token), cryptPass: String(result.crypt_pass || "") };
+      await admin.from("reseller_api_settings").update({
+        uniplay_session_token: session.token,
+        uniplay_session_pass: session.cryptPass,
+        uniplay_session_at: new Date().toISOString(),
+      }).eq("user_id", ownerId).then(() => undefined, () => undefined);
+      return session;
+    }
+
     const refreshed = await getResellerSettings(admin, ownerId);
     if (!refreshed.uniplay_session_token) {
       throw new Error("O navegador entrou no Uniplay, mas o painel não devolveu uma sessão reutilizável.");
@@ -1017,6 +1051,7 @@ const SyncPasswordsSchema = z.object({
   panels: z.array(z.enum(["natv", "natv2", "rush", "p2cine", "vplay", "the_best", "uniplay"])).optional(),
   only_active: z.boolean().optional(),
   server_ids: z.array(z.string().uuid()).max(100).optional(),
+  offset: z.number().int().min(0).optional(),
 });
 
 
@@ -1260,10 +1295,11 @@ serve(async (req) => {
 
       const onlyActive = parsed.data.only_active !== false;
       const serverIds = parsed.data.server_ids || [];
+      const startOffset = Math.max(0, Number(parsed.data.offset || 0));
       const wanted = parsed.data.panels && parsed.data.panels.length ? new Set(parsed.data.panels) : null;
       const want = (p: string) => !wanted || wanted.has(p);
 
-      const results: Record<string, { total: number; updated: number; error?: string }> = {};
+      const results: Record<string, { total: number; updated: number; error?: string; next_offset?: number | null }> = {};
       const owners = ownerId === "all"
         ? (await admin.from("reseller_api_settings").select("user_id")).data?.map((s: any) => s.user_id) || []
         : [ownerId];
@@ -1274,8 +1310,8 @@ serve(async (req) => {
         // NATV
         if (want("natv") && s.natv_api_key && s.natv_base_url) {
           try {
-            const synced = await natvSyncPasswords(admin, currentOwner, "natv", s.natv_base_url, s.natv_api_key, onlyActive, serverIds);
-            results.natv = { total: synced.total, updated: synced.updated };
+            const synced = await natvSyncPasswords(admin, currentOwner, "natv", s.natv_base_url, s.natv_api_key, onlyActive, serverIds, startOffset);
+            results.natv = { total: synced.total, updated: synced.updated, next_offset: synced.nextOffset };
           } catch (e) {
             results.natv = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
           }
@@ -1286,8 +1322,8 @@ serve(async (req) => {
         // NATV2
         if (want("natv2") && s.natv2_api_key && s.natv2_base_url) {
           try {
-            const synced = await natvSyncPasswords(admin, currentOwner, "natv2", s.natv2_base_url, s.natv2_api_key, onlyActive, serverIds);
-            results.natv2 = { total: synced.total, updated: synced.updated };
+            const synced = await natvSyncPasswords(admin, currentOwner, "natv2", s.natv2_base_url, s.natv2_api_key, onlyActive, serverIds, startOffset);
+            results.natv2 = { total: synced.total, updated: synced.updated, next_offset: synced.nextOffset };
           } catch (e) {
             results.natv2 = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
           }
@@ -1313,22 +1349,53 @@ serve(async (req) => {
           results.rush = { total: 0, updated: 0, error: "Credenciais do Rush não configuradas (usuário, senha, token e endereço)." };
         }
 
-        // P2Cine
-        if (want("p2cine") && s.p2cine_username && s.p2cine_api_key && s.p2cine_base_url) {
-          try {
-            const login = await p2cineApiLogin(s.p2cine_base_url, s.p2cine_username, s.p2cine_api_key);
-            const users = await p2cineSyncPasswords(s.p2cine_base_url, login.token, login.uid);
-            let updated = 0;
-            for (const u of users) {
-              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive, serverIds);
-              updated += ids.length;
-            }
-            results.p2cine = { total: users.length, updated };
-          } catch (e) {
-            results.p2cine = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
+        // P2Cine / kOffice — percorre todos os painéis cadastrados do revendedor.
+        if (want("p2cine")) {
+          const { data: kofficeRows } = await admin
+            .from("koffice_panel_connections")
+            .select("base_url, username, api_key")
+            .eq("user_id", currentOwner)
+            .eq("is_active", true)
+            .order("created_at");
+
+          const panelsP2cine: { base: string; username: string; apiKey: string }[] = [];
+          const seen = new Set<string>();
+          for (const row of (kofficeRows || [])) {
+            const base = String((row as any).base_url || "").trim().replace(/\/+$/, "");
+            const user = String((row as any).username || "").trim();
+            const key = String((row as any).api_key || "").trim();
+            const dedupe = `${base}|${user}`.toLowerCase();
+            if (!base || !user || !key || seen.has(dedupe)) continue;
+            seen.add(dedupe);
+            panelsP2cine.push({ base, username: user, apiKey: key });
           }
-        } else if (want("p2cine")) {
-          results.p2cine = { total: 0, updated: 0, error: "Credenciais do P2Cine não configuradas (usuário, chave da API e endereço)." };
+          const settingsBase = String(s.p2cine_base_url || "").trim().replace(/\/+$/, "");
+          if (settingsBase && s.p2cine_username && s.p2cine_api_key
+            && !seen.has(`${settingsBase}|${s.p2cine_username}`.toLowerCase())) {
+            panelsP2cine.push({ base: settingsBase, username: s.p2cine_username, apiKey: s.p2cine_api_key });
+          }
+
+          if (!panelsP2cine.length) {
+            results.p2cine = { total: 0, updated: 0, error: "Nenhum painel kOffice/P2Cine cadastrado (URL, usuário e chave da API)." };
+          } else {
+            let total = 0;
+            let updated = 0;
+            const errors: string[] = [];
+            for (const p of panelsP2cine) {
+              try {
+                const login = await p2cineApiLogin(p.base, p.username, p.apiKey);
+                const users = await p2cineSyncPasswords(p.base, login.token, login.uid);
+                total += users.length;
+                for (const u of users) {
+                  const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive, serverIds);
+                  updated += ids.length;
+                }
+              } catch (e) {
+                errors.push(`${p.base.replace(/^https?:\/\//, "")}: ${e instanceof Error ? e.message : String(e)}`);
+              }
+            }
+            results.p2cine = { total, updated, error: errors.length ? errors.join(" | ") : undefined };
+          }
         }
 
         // The Best
