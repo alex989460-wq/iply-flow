@@ -60,6 +60,22 @@ export default function CrmOficialSocial({ embed = false }: { embed?: boolean } 
     return () => { cancelled = true; };
   }, []);
 
+  // Ouve pedidos do site embutido para abrir links externos fora do painel.
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.origin !== CRM_BASE) return;
+      const data: any = event.data;
+      if (!data || typeof data !== "object") return;
+      const type = String(data.type || data.event || "");
+      const url = typeof data.url === "string" ? data.url : null;
+      if (url && /^(open|external|navigate|link)/i.test(type) && /^https:\/\//i.test(url)) {
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
+
   // Trava o scroll da página para o iframe ocupar a tela sem "pulos".
   useEffect(() => {
     const prevBody = document.body.style.overflow;
@@ -95,14 +111,15 @@ export default function CrmOficialSocial({ embed = false }: { embed?: boolean } 
             <span className="hidden sm:inline">Atualizar</span>
           </Button>
           <Button
-            variant="ghost"
+            variant="default"
             size="sm"
             className="h-7 px-2 text-[11px]"
             disabled={!url}
             onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
+            title="Alguns links (como conectar Facebook/Instagram) só funcionam fora do painel. Use este botão para abrir no site original."
           >
             <ExternalLink className="w-3.5 h-3.5 mr-1" />
-            <span className="hidden sm:inline">Nova aba</span>
+            <span className="hidden sm:inline">Abrir no site original</span>
           </Button>
         </div>
       </div>
