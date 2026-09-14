@@ -920,6 +920,8 @@ const GetPasswordSchema = z.object({
 const SyncPasswordsSchema = z.object({
   action: z.literal("sync-passwords"),
   owner_id: z.union([z.string().uuid(), z.literal("all")]).optional(),
+  panels: z.array(z.enum(["natv", "natv2", "rush", "p2cine", "vplay", "the_best", "uniplay"])).optional(),
+  only_active: z.boolean().optional(),
 });
 
 
@@ -1161,6 +1163,10 @@ serve(async (req) => {
         return json({ success: false, error: "Apenas administradores podem sincronizar todos os revendedores." }, 200);
       }
 
+      const onlyActive = parsed.data.only_active !== false;
+      const wanted = parsed.data.panels && parsed.data.panels.length ? new Set(parsed.data.panels) : null;
+      const want = (p: string) => !wanted || wanted.has(p);
+
       const results: Record<string, { total: number; updated: number; error?: string }> = {};
       const owners = ownerId === "all"
         ? (await admin.from("reseller_api_settings").select("user_id")).data?.map((s: any) => s.user_id) || []
@@ -1170,12 +1176,12 @@ serve(async (req) => {
         const s = await getResellerSettings(admin, currentOwner);
 
         // NATV
-        if (s.natv_api_key && s.natv_base_url) {
+        if (want("natv") && s.natv_api_key && s.natv_base_url) {
           try {
             const users = await natvSyncPasswords(s.natv_base_url, s.natv_api_key);
             let updated = 0;
             for (const u of users) {
-              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password);
+              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive);
               updated += ids.length;
             }
             results.natv = { total: users.length, updated };
@@ -1185,12 +1191,12 @@ serve(async (req) => {
         }
 
         // NATV2
-        if (s.natv2_api_key && s.natv2_base_url) {
+        if (want("natv2") && s.natv2_api_key && s.natv2_base_url) {
           try {
             const users = await natvSyncPasswords(s.natv2_base_url, s.natv2_api_key);
             let updated = 0;
             for (const u of users) {
-              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password);
+              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive);
               updated += ids.length;
             }
             results.natv2 = { total: users.length, updated };
@@ -1200,13 +1206,13 @@ serve(async (req) => {
         }
 
         // Rush
-        if (s.rush_username && s.rush_password && s.rush_token && s.rush_base_url) {
+        if (want("rush") && s.rush_username && s.rush_password && s.rush_token && s.rush_base_url) {
           try {
             const token = await rushAuth(s.rush_base_url, s.rush_username, s.rush_password, s.rush_token);
             const users = await rushSyncPasswords(s.rush_base_url, token);
             let updated = 0;
             for (const u of users) {
-              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password);
+              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive);
               updated += ids.length;
             }
             results.rush = { total: users.length, updated };
@@ -1216,13 +1222,13 @@ serve(async (req) => {
         }
 
         // P2Cine
-        if (s.p2cine_username && s.p2cine_api_key && s.p2cine_base_url) {
+        if (want("p2cine") && s.p2cine_username && s.p2cine_api_key && s.p2cine_base_url) {
           try {
             const login = await p2cineApiLogin(s.p2cine_base_url, s.p2cine_username, s.p2cine_api_key);
             const users = await p2cineSyncPasswords(s.p2cine_base_url, login.token, login.uid);
             let updated = 0;
             for (const u of users) {
-              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password);
+              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive);
               updated += ids.length;
             }
             results.p2cine = { total: users.length, updated };
@@ -1232,14 +1238,14 @@ serve(async (req) => {
         }
 
         // The Best
-        if (s.the_best_api_key || (s.the_best_username && s.the_best_password)) {
+        if (want("the_best") && (s.the_best_api_key || (s.the_best_username && s.the_best_password))) {
           try {
             const base = normalizeBaseUrl(s.the_best_base_url, THE_BEST_DEFAULT);
             const auth = await theBestAuth(base, s.the_best_api_key || "", s.the_best_username || "", s.the_best_password || "");
             const users = await theBestSyncPasswords(base, auth);
             let updated = 0;
             for (const u of users) {
-              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password);
+              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive);
               updated += ids.length;
             }
             results.the_best = { total: users.length, updated };
@@ -1249,7 +1255,7 @@ serve(async (req) => {
         }
 
         // Uniplay
-        if (s.uniplay_username && s.uniplay_password) {
+        if (want("uniplay") && s.uniplay_username && s.uniplay_password) {
           try {
             const session = await uniplaySession(admin, currentOwner, s);
             const users = await uniplayListUsers(session);
@@ -1260,7 +1266,7 @@ serve(async (req) => {
               const pwd = pickPassword(u);
               if (!name || !pwd) continue;
               total++;
-              const ids = await updateCustomerPassword(admin, currentOwner, name, pwd);
+              const ids = await updateCustomerPassword(admin, currentOwner, name, pwd, onlyActive);
               updated += ids.length;
             }
             results.uniplay = { total, updated };
@@ -1270,13 +1276,16 @@ serve(async (req) => {
         }
 
         // VPlay
-        const connection = await vplayConnection(s);
+        const connection = want("vplay") ? await vplayConnection(s).catch((e) => {
+          results.vplay = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
+          return null;
+        }) : null;
         if (connection) {
           try {
             const users = await vplaySyncPasswords(connection);
             let updated = 0;
             for (const u of users) {
-              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password);
+              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive);
               updated += ids.length;
             }
             results.vplay = { total: users.length, updated };
