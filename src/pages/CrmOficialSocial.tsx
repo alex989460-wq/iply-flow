@@ -111,14 +111,15 @@ export default function CrmOficialSocial({ embed = false }: { embed?: boolean } 
             <span className="hidden sm:inline">Atualizar</span>
           </Button>
           <Button
-            variant="ghost"
+            variant="default"
             size="sm"
             className="h-7 px-2 text-[11px]"
             disabled={!url}
             onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
+            title="Alguns links (como conectar Facebook/Instagram) só funcionam fora do painel. Use este botão para abrir no site original."
           >
             <ExternalLink className="w-3.5 h-3.5 mr-1" />
-            <span className="hidden sm:inline">Nova aba</span>
+            <span className="hidden sm:inline">Abrir no site original</span>
           </Button>
         </div>
       </div>
