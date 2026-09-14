@@ -558,13 +558,27 @@ export default function ResellerApiSettings() {
       const serverIds = selectedServers.filter((server) => panelForServer(server) === panel).map((server) => server.id);
       setSyncProgress({ done: i, total: panels.length, current: PANEL_LABELS[panel] });
       try {
-        const { data, error } = await supabase.functions.invoke('panel-password-manager', {
-          body: { action: 'sync-passwords', panels: [panel], server_ids: serverIds, only_active: syncOnlyActive },
-        });
-        if (error) throw error;
-        if (!data?.success) throw new Error(data?.error || 'Falha na sincronização');
-        const r = (data.results || {})[panel] || { total: 0, updated: 0 };
-        collected.push({ panel, updated: r.updated || 0, total: r.total || 0, error: r.error });
+        // Painéis que consultam cliente por cliente (NATV) voltam em blocos:
+        // repetimos a chamada até o painel dizer que não há mais ninguém.
+        let offset = 0;
+        let totalAll = 0;
+        let updatedAll = 0;
+        let lastError: string | undefined;
+        for (let round = 0; round < 50; round++) {
+          const { data, error } = await supabase.functions.invoke('panel-password-manager', {
+            body: { action: 'sync-passwords', panels: [panel], server_ids: serverIds, only_active: syncOnlyActive, offset },
+          });
+          if (error) throw error;
+          if (!data?.success) throw new Error(data?.error || 'Falha na sincronização');
+          const r = (data.results || {})[panel] || { total: 0, updated: 0 };
+          totalAll += r.total || 0;
+          updatedAll += r.updated || 0;
+          lastError = r.error;
+          setSyncResults([...collected, { panel, updated: updatedAll, total: totalAll, error: lastError }]);
+          if (r.next_offset == null) break;
+          offset = r.next_offset;
+        }
+        collected.push({ panel, updated: updatedAll, total: totalAll, error: lastError });
       } catch (e: any) {
         collected.push({ panel, updated: 0, total: 0, error: e?.message || 'Erro desconhecido' });
       }

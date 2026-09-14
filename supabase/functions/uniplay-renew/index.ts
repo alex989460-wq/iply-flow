@@ -262,7 +262,7 @@ async function browserFullFlow(opts: {
         }
 
         if (!sess.token) return done({ error: "login_sem_token", status: 0, body: "painel nao liberou sessao" });
-        if (onlyLogin) return done({ ok: true, token: sess.token, id: sess.id, username: sess.username || USER });
+        if (onlyLogin) return done({ ok: true, token: sess.token, crypt_pass: sess.crypt_pass || "", id: sess.id, username: sess.username || USER });
 
         const auth = { Authorization: "Bearer " + sess.token };
 
@@ -689,18 +689,29 @@ serve(async (req) => {
         });
 
         if (flow?.token && sessionOwnerId) {
+          const update: Record<string, unknown> = {
+            uniplay_session_token: flow.token,
+            uniplay_session_at: new Date().toISOString(),
+          };
+          if (flow?.crypt_pass) update.uniplay_session_pass = String(flow.crypt_pass);
           await admin
             .from("reseller_api_settings")
-            .update({
-              uniplay_session_token: flow.token,
-              uniplay_session_at: new Date().toISOString(),
-            })
+            .update(update)
             .eq("user_id", sessionOwnerId);
         }
 
         if (action === "test") {
           return new Response(
-            JSON.stringify({ success: true, via: "navegador", message: "Login Uniplay OK (via navegador da VPS)" }),
+            JSON.stringify({
+              success: !!flow?.token,
+              via: "navegador",
+              token: flow?.token || "",
+              crypt_pass: flow?.crypt_pass || "",
+              message: flow?.token
+                ? "Login Uniplay OK (via navegador da VPS)"
+                : "O navegador abriu o Uniplay, mas o painel não liberou a sessão.",
+              error: flow?.token ? undefined : "O painel Uniplay não liberou uma sessão pelo navegador da VPS.",
+            }),
             { headers: jsonHeaders },
           );
         }
@@ -733,11 +744,25 @@ serve(async (req) => {
 
 
     if (action === "test") {
+      // Guarda a sessão válida para que a sincronização de senhas possa reusá-la.
+      if (sessionOwnerId && session?.access_token) {
+        await admin
+          .from("reseller_api_settings")
+          .update({
+            uniplay_session_token: session.access_token,
+            uniplay_session_pass: String(session.crypt_pass || ""),
+            uniplay_session_at: new Date().toISOString(),
+          })
+          .eq("user_id", sessionOwnerId)
+          .then(() => undefined, () => undefined);
+      }
       return new Response(
         JSON.stringify({
           success: true,
           id: session.id,
           username: session.username,
+          token: session.access_token,
+          crypt_pass: session.crypt_pass || "",
           apiBaseUrl: uBase,
           message: "Login Uniplay OK",
         }),
