@@ -204,8 +204,38 @@ async function natvSyncPasswords(
   // orçamento de tempo para nunca estourar o limite da função (que devolvia
   // "non-2xx" quando a revenda tinha milhares de clientes).
   const started = Date.now();
-  const BUDGET_MS = 50_000;
-  const CONCURRENCY = 8;
+  const BUDGET_MS = 45_000;
+  const CONCURRENCY = 25;
+
+  // Descobre uma única vez qual endereço do painel responde, evitando repetir
+  // tentativas lentas (duas bases x várias variantes) para cada cliente.
+  const normalized = normalizeBaseUrl(baseUrl);
+  const candidateBases = normalized.endsWith("/api")
+    ? [normalized, normalized.replace(/\/api$/, "")]
+    : [normalized, `${normalized}/api`];
+
+  const searchOnce = async (base: string, username: string) => {
+    const res = await fetch(`${base}/user/search`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ username }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) return null;
+    return extractList(await res.json().catch(() => null));
+  };
+
+  let workingBase = candidateBases[0];
+  for (const base of candidateBases) {
+    try {
+      const list = await searchOnce(base, customers[Math.max(0, offset)]?.username || customers[0].username);
+      if (list) { workingBase = base; break; }
+    } catch { /* tenta o próximo endereço */ }
+  }
 
   let found = 0;
   let updated = 0;
@@ -215,7 +245,15 @@ async function natvSyncPasswords(
     const slice = customers.slice(index, index + CONCURRENCY);
     await Promise.all(slice.map(async (customer) => {
       try {
-        const raw = await natvFindUserRaw(baseUrl, apiKey, customer.username);
+        const variants = buildUsernameVariants(customer.username);
+        const lower = variants.map((v) => v.toLowerCase());
+        let raw: any = null;
+        for (const v of variants) {
+          const list = await searchOnce(workingBase, v);
+          if (!list) continue;
+          raw = list.find((u: any) => lower.includes(String(u?.username || u?.login || u?.user || "").toLowerCase())) || null;
+          if (raw) break;
+        }
         const password = pickPassword(raw);
         if (!password) return;
         found++;
