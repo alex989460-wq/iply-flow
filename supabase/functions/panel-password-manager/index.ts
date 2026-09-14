@@ -58,14 +58,22 @@ async function getResellerSettings(admin: any, ownerId: string) {
   return data || {};
 }
 
-async function updateCustomerPassword(admin: any, ownerId: string, username: string, password: string) {
+async function updateCustomerPassword(
+  admin: any,
+  ownerId: string,
+  username: string,
+  password: string,
+  onlyActive = false,
+) {
   const variants = buildUsernameVariants(username);
-  const { data: customers } = await admin
+  let query = admin
     .from("customers")
     .select("id, username")
     .eq("created_by", ownerId)
     .in("username", variants)
     .limit(10);
+  if (onlyActive) query = query.eq("status", "ativa");
+  const { data: customers } = await query;
 
   const updated: string[] = [];
   for (const c of customers || []) {
@@ -912,6 +920,8 @@ const GetPasswordSchema = z.object({
 const SyncPasswordsSchema = z.object({
   action: z.literal("sync-passwords"),
   owner_id: z.union([z.string().uuid(), z.literal("all")]).optional(),
+  panels: z.array(z.enum(["natv", "natv2", "rush", "p2cine", "vplay", "the_best", "uniplay"])).optional(),
+  only_active: z.boolean().optional(),
 });
 
 
@@ -968,16 +978,16 @@ serve(async (req) => {
     }
 
     if (isCron && action !== "sync-passwords") {
-      return json({ success: false, error: "Acesso cron limitado à sincronização." }, 403);
+      return json({ success: false, error: "Acesso cron limitado à sincronização." }, 200);
     }
 
     if (action === "change-password") {
       const parsed = ChangePasswordSchema.safeParse(rawBody);
-      if (!parsed.success) return json({ success: false, error: parsed.error.flatten().fieldErrors }, 400);
+      if (!parsed.success) return json({ success: false, error: parsed.error.flatten().fieldErrors }, 200);
       const { username, new_password: newPassword, panel } = parsed.data;
 
       const formatError = validatePanelPassword(panel, newPassword);
-      if (formatError) return json({ success: false, error: formatError }, 400);
+      if (formatError) return json({ success: false, error: formatError }, 200);
 
 
 
@@ -986,14 +996,14 @@ serve(async (req) => {
         case "natv": {
           const key = settings.natv_api_key || Deno.env.get("NATV_API_KEY") || "";
           const base = settings.natv_base_url || Deno.env.get("NATV_BASE_URL") || "";
-          if (!key || !base) return json({ success: false, error: "Credenciais NATV não configuradas." }, 400);
+          if (!key || !base) return json({ success: false, error: "Credenciais NATV não configuradas." }, 200);
           result = await natvChangePassword(base, key, username, newPassword);
           break;
         }
         case "natv2": {
           const key = settings.natv2_api_key || Deno.env.get("NATV2_API_KEY") || "";
           const base = settings.natv2_base_url || Deno.env.get("NATV2_BASE_URL") || "";
-          if (!key || !base) return json({ success: false, error: "Credenciais NATV2 não configuradas." }, 400);
+          if (!key || !base) return json({ success: false, error: "Credenciais NATV2 não configuradas." }, 200);
           result = await natvChangePassword(base, key, username, newPassword);
           break;
         }
@@ -1002,7 +1012,7 @@ serve(async (req) => {
           const rPass = settings.rush_password || "";
           const rToken = settings.rush_token || "";
           const rBase = settings.rush_base_url || "";
-          if (!rUser || !rPass || !rToken || !rBase) return json({ success: false, error: "Credenciais Rush não configuradas." }, 400);
+          if (!rUser || !rPass || !rToken || !rBase) return json({ success: false, error: "Credenciais Rush não configuradas." }, 200);
           const token = await rushAuth(rBase, rUser, rPass, rToken);
           result = await rushChangePassword(rBase, token, username, newPassword);
           break;
@@ -1011,7 +1021,7 @@ serve(async (req) => {
           const pUser = settings.p2cine_username || "";
           const pKey = settings.p2cine_api_key || "";
           const pBase = settings.p2cine_base_url || "";
-          if (!pUser || !pKey || !pBase) return json({ success: false, error: "Credenciais P2Cine não configuradas." }, 400);
+          if (!pUser || !pKey || !pBase) return json({ success: false, error: "Credenciais P2Cine não configuradas." }, 200);
           const login = await p2cineApiLogin(pBase, pUser, pKey);
           const clientId = await p2cineFindClientId(pBase, login.token, username, login.uid);
           if (!clientId) throw new Error(`Usuário "${username}" não encontrado no painel P2Cine.`);
@@ -1020,7 +1030,7 @@ serve(async (req) => {
         }
         case "vplay": {
           const connection = await vplayConnection(settings);
-          if (!connection) return json({ success: false, error: "Credenciais MySQL do VPlay não configuradas." }, 400);
+          if (!connection) return json({ success: false, error: "Credenciais MySQL do VPlay não configuradas." }, 200);
           try {
             result = await vplayChangePassword(connection, username, newPassword);
           } finally {
@@ -1041,7 +1051,7 @@ serve(async (req) => {
           break;
         }
         default:
-          return json({ success: false, error: `Painel '${panel}' não suportado para troca de senha.` }, 400);
+          return json({ success: false, error: `Painel '${panel}' não suportado para troca de senha.` }, 200);
       }
 
       const updatedIds = await updateCustomerPassword(admin, ownerId, username, newPassword);
@@ -1050,7 +1060,7 @@ serve(async (req) => {
 
     if (action === "get-password") {
       const parsed = GetPasswordSchema.safeParse(rawBody);
-      if (!parsed.success) return json({ success: false, error: parsed.error.flatten().fieldErrors }, 400);
+      if (!parsed.success) return json({ success: false, error: parsed.error.flatten().fieldErrors }, 200);
       const { username, panel } = parsed.data;
 
       let found: { username: string; password: string } | undefined;
@@ -1060,44 +1070,44 @@ serve(async (req) => {
           const prefix = panel === "natv" ? "natv" : "natv2";
           const key = settings[`${prefix}_api_key`] || Deno.env.get(prefix.toUpperCase() + "_API_KEY") || "";
           const base = settings[`${prefix}_base_url`] || Deno.env.get(prefix.toUpperCase() + "_BASE_URL") || "";
-          if (!key || !base) return json({ success: false, error: `Credenciais ${prefix.toUpperCase()} não configuradas.` }, 400);
+          if (!key || !base) return json({ success: false, error: `Credenciais ${prefix.toUpperCase()} não configuradas.` }, 200);
           const raw = await natvFindUserRaw(base, key, username);
-          if (!raw) return json({ success: false, error: `Usuário "${username}" não encontrado no painel ${prefix.toUpperCase()}.` }, 404);
+          if (!raw) return json({ success: false, error: `Usuário "${username}" não encontrado no painel ${prefix.toUpperCase()}.` }, 200);
           const pwd = pickPassword(raw);
           if (!pwd) {
-            return json({ success: false, error: `O painel ${prefix.toUpperCase()} não devolve a senha desse usuário. Use "Alterar senha" para definir uma nova.` }, 404);
+            return json({ success: false, error: `O painel ${prefix.toUpperCase()} não devolve a senha desse usuário. Use "Alterar senha" para definir uma nova.` }, 200);
           }
           found = { username, password: pwd };
           break;
         }
         case "rush": {
           const { rush_username: rUser, rush_password: rPass, rush_token: rToken, rush_base_url: rBase } = settings;
-          if (!rUser || !rPass || !rToken || !rBase) return json({ success: false, error: "Credenciais Rush não configuradas." }, 400);
+          if (!rUser || !rPass || !rToken || !rBase) return json({ success: false, error: "Credenciais Rush não configuradas." }, 200);
           const token = await rushAuth(rBase, rUser, rPass, rToken);
           const raw = await rushFindUserRaw(rBase, token, username);
-          if (!raw) return json({ success: false, error: `Usuário "${username}" não encontrado no painel Rush.` }, 404);
+          if (!raw) return json({ success: false, error: `Usuário "${username}" não encontrado no painel Rush.` }, 200);
           const pwd = pickPassword(raw);
           if (!pwd) {
-            return json({ success: false, error: `O painel Rush não devolve a senha desse usuário. Use "Alterar senha" para definir uma nova.` }, 404);
+            return json({ success: false, error: `O painel Rush não devolve a senha desse usuário. Use "Alterar senha" para definir uma nova.` }, 200);
           }
           found = { username, password: pwd };
           break;
         }
         case "p2cine": {
           const { p2cine_username: pUser, p2cine_api_key: pKey, p2cine_base_url: pBase } = settings;
-          if (!pUser || !pKey || !pBase) return json({ success: false, error: "Credenciais P2Cine não configuradas." }, 400);
+          if (!pUser || !pKey || !pBase) return json({ success: false, error: "Credenciais P2Cine não configuradas." }, 200);
           const login = await p2cineApiLogin(pBase, pUser, pKey);
           const row = await p2cineFindClientRow(pBase, login.token, username, login.uid);
-          if (!row) return json({ success: false, error: `Usuário "${username}" não encontrado no painel P2Cine.` }, 404);
+          if (!row) return json({ success: false, error: `Usuário "${username}" não encontrado no painel P2Cine.` }, 200);
           if (!row.password) {
-            return json({ success: false, error: `O painel P2Cine não mostra a senha desse usuário. Use "Alterar senha" para definir uma nova.` }, 404);
+            return json({ success: false, error: `O painel P2Cine não mostra a senha desse usuário. Use "Alterar senha" para definir uma nova.` }, 200);
           }
           found = { username, password: row.password };
           break;
         }
         case "vplay": {
           const connection = await vplayConnection(settings);
-          if (!connection) return json({ success: false, error: "Credenciais MySQL do VPlay não configuradas." }, 400);
+          if (!connection) return json({ success: false, error: "Credenciais MySQL do VPlay não configuradas." }, 200);
 
           try {
             const row = await vplayFindUser(connection, username);
@@ -1114,25 +1124,25 @@ serve(async (req) => {
           const key = settings.the_best_api_key || Deno.env.get("THE_BEST_API_KEY") || "";
           const auth = await theBestAuth(base, key, settings.the_best_username || "", settings.the_best_password || "");
           const line = await theBestFindLine(base, auth, username);
-          if (!line) return json({ success: false, error: `Usuário "${username}" não encontrado no painel The Best.` }, 404);
+          if (!line) return json({ success: false, error: `Usuário "${username}" não encontrado no painel The Best.` }, 200);
           const pwd = pickPassword(line);
-          if (!pwd) return json({ success: false, error: `O painel The Best não devolve a senha desse usuário. Use "Alterar senha" para definir uma nova.` }, 404);
+          if (!pwd) return json({ success: false, error: `O painel The Best não devolve a senha desse usuário. Use "Alterar senha" para definir uma nova.` }, 200);
           found = { username, password: pwd };
           break;
         }
         case "uniplay": {
           const session = await uniplaySession(admin, ownerId, settings);
           const raw = await uniplayFindUser(session, username);
-          if (!raw) return json({ success: false, error: `Usuário "${username}" não encontrado no painel Uniplay.` }, 404);
+          if (!raw) return json({ success: false, error: `Usuário "${username}" não encontrado no painel Uniplay.` }, 200);
           const pwd = pickPassword(raw);
-          if (!pwd) return json({ success: false, error: `O painel Uniplay não devolve a senha desse usuário. Use "Alterar senha" para definir uma nova.` }, 404);
+          if (!pwd) return json({ success: false, error: `O painel Uniplay não devolve a senha desse usuário. Use "Alterar senha" para definir uma nova.` }, 200);
           found = { username, password: pwd };
           break;
         }
       }
 
       if (!found || !found.password) {
-        return json({ success: false, error: `Senha de "${username}" não encontrada no painel selecionado.` }, 404);
+        return json({ success: false, error: `Senha de "${username}" não encontrada no painel selecionado.` }, 200);
       }
 
       const updatedIds = await updateCustomerPassword(admin, ownerId, username, found.password);
@@ -1148,10 +1158,14 @@ serve(async (req) => {
 
     if (action === "sync-passwords") {
       const parsed = SyncPasswordsSchema.safeParse(rawBody);
-      if (!parsed.success) return json({ success: false, error: parsed.error.flatten().fieldErrors }, 400);
+      if (!parsed.success) return json({ success: false, error: parsed.error.flatten().fieldErrors }, 200);
       if (parsed.data.owner_id === "all" && !adminNow) {
-        return json({ success: false, error: "Apenas administradores podem sincronizar todos os revendedores." }, 403);
+        return json({ success: false, error: "Apenas administradores podem sincronizar todos os revendedores." }, 200);
       }
+
+      const onlyActive = parsed.data.only_active !== false;
+      const wanted = parsed.data.panels && parsed.data.panels.length ? new Set(parsed.data.panels) : null;
+      const want = (p: string) => !wanted || wanted.has(p);
 
       const results: Record<string, { total: number; updated: number; error?: string }> = {};
       const owners = ownerId === "all"
@@ -1162,12 +1176,12 @@ serve(async (req) => {
         const s = await getResellerSettings(admin, currentOwner);
 
         // NATV
-        if (s.natv_api_key && s.natv_base_url) {
+        if (want("natv") && s.natv_api_key && s.natv_base_url) {
           try {
             const users = await natvSyncPasswords(s.natv_base_url, s.natv_api_key);
             let updated = 0;
             for (const u of users) {
-              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password);
+              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive);
               updated += ids.length;
             }
             results.natv = { total: users.length, updated };
@@ -1177,12 +1191,12 @@ serve(async (req) => {
         }
 
         // NATV2
-        if (s.natv2_api_key && s.natv2_base_url) {
+        if (want("natv2") && s.natv2_api_key && s.natv2_base_url) {
           try {
             const users = await natvSyncPasswords(s.natv2_base_url, s.natv2_api_key);
             let updated = 0;
             for (const u of users) {
-              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password);
+              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive);
               updated += ids.length;
             }
             results.natv2 = { total: users.length, updated };
@@ -1192,13 +1206,13 @@ serve(async (req) => {
         }
 
         // Rush
-        if (s.rush_username && s.rush_password && s.rush_token && s.rush_base_url) {
+        if (want("rush") && s.rush_username && s.rush_password && s.rush_token && s.rush_base_url) {
           try {
             const token = await rushAuth(s.rush_base_url, s.rush_username, s.rush_password, s.rush_token);
             const users = await rushSyncPasswords(s.rush_base_url, token);
             let updated = 0;
             for (const u of users) {
-              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password);
+              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive);
               updated += ids.length;
             }
             results.rush = { total: users.length, updated };
@@ -1208,13 +1222,13 @@ serve(async (req) => {
         }
 
         // P2Cine
-        if (s.p2cine_username && s.p2cine_api_key && s.p2cine_base_url) {
+        if (want("p2cine") && s.p2cine_username && s.p2cine_api_key && s.p2cine_base_url) {
           try {
             const login = await p2cineApiLogin(s.p2cine_base_url, s.p2cine_username, s.p2cine_api_key);
             const users = await p2cineSyncPasswords(s.p2cine_base_url, login.token, login.uid);
             let updated = 0;
             for (const u of users) {
-              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password);
+              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive);
               updated += ids.length;
             }
             results.p2cine = { total: users.length, updated };
@@ -1224,14 +1238,14 @@ serve(async (req) => {
         }
 
         // The Best
-        if (s.the_best_api_key || (s.the_best_username && s.the_best_password)) {
+        if (want("the_best") && (s.the_best_api_key || (s.the_best_username && s.the_best_password))) {
           try {
             const base = normalizeBaseUrl(s.the_best_base_url, THE_BEST_DEFAULT);
             const auth = await theBestAuth(base, s.the_best_api_key || "", s.the_best_username || "", s.the_best_password || "");
             const users = await theBestSyncPasswords(base, auth);
             let updated = 0;
             for (const u of users) {
-              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password);
+              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive);
               updated += ids.length;
             }
             results.the_best = { total: users.length, updated };
@@ -1241,7 +1255,7 @@ serve(async (req) => {
         }
 
         // Uniplay
-        if (s.uniplay_username && s.uniplay_password) {
+        if (want("uniplay") && s.uniplay_username && s.uniplay_password) {
           try {
             const session = await uniplaySession(admin, currentOwner, s);
             const users = await uniplayListUsers(session);
@@ -1252,7 +1266,7 @@ serve(async (req) => {
               const pwd = pickPassword(u);
               if (!name || !pwd) continue;
               total++;
-              const ids = await updateCustomerPassword(admin, currentOwner, name, pwd);
+              const ids = await updateCustomerPassword(admin, currentOwner, name, pwd, onlyActive);
               updated += ids.length;
             }
             results.uniplay = { total, updated };
@@ -1262,13 +1276,16 @@ serve(async (req) => {
         }
 
         // VPlay
-        const connection = await vplayConnection(s);
+        const connection = want("vplay") ? await vplayConnection(s).catch((e) => {
+          results.vplay = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
+          return null;
+        }) : null;
         if (connection) {
           try {
             const users = await vplaySyncPasswords(connection);
             let updated = 0;
             for (const u of users) {
-              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password);
+              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive);
               updated += ids.length;
             }
             results.vplay = { total: users.length, updated };
@@ -1283,10 +1300,10 @@ serve(async (req) => {
       return json({ success: true, results });
     }
 
-    return json({ success: false, error: "Ação inválida. Use 'change-password', 'get-password' ou 'sync-passwords'." }, 400);
+    return json({ success: false, error: "Ação inválida. Use 'change-password', 'get-password' ou 'sync-passwords'." }, 200);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[panel-password-manager] error:", err);
-    return json({ success: false, error: message }, 500);
+    return json({ success: false, error: message }, 200);
   }
 });
