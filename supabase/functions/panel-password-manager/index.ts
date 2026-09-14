@@ -1327,26 +1327,43 @@ serve(async (req) => {
           } catch (e) {
             results.uniplay = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
           }
+        } else if (want("uniplay")) {
+          results.uniplay = { total: 0, updated: 0, error: "Usuário e senha do Uniplay não configurados." };
         }
 
         // VPlay
-        const connection = want("vplay") ? await vplayConnection(s).catch((e) => {
-          results.vplay = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
-          return null;
-        }) : null;
-        if (connection) {
-          try {
-            const users = await vplaySyncPasswords(connection);
-            let updated = 0;
-            for (const u of users) {
-              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive);
-              updated += ids.length;
-            }
-            results.vplay = { total: users.length, updated };
-          } catch (e) {
+        if (want("vplay")) {
+          const connection = await vplayConnection(s).catch((e) => {
             results.vplay = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
-          } finally {
-            await connection.end().catch(() => undefined);
+            return null;
+          });
+
+          if (!connection) {
+            if (!results.vplay) {
+              results.vplay = {
+                total: 0,
+                updated: 0,
+                error: "Dados de acesso ao banco do VPlay não configurados (endereço, usuário, senha e banco).",
+              };
+            }
+          } else {
+            try {
+              const users = await vplaySyncPasswords(connection);
+              if (!users.length) {
+                results.vplay = { total: 0, updated: 0, error: "O banco do VPlay não devolveu nenhum usuário com senha." };
+              } else {
+                let updated = 0;
+                for (const u of users) {
+                  const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive);
+                  updated += ids.length;
+                }
+                results.vplay = { total: users.length, updated };
+              }
+            } catch (e) {
+              results.vplay = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
+            } finally {
+              await connection.end().catch(() => undefined);
+            }
           }
         }
       }
