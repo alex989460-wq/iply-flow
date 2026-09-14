@@ -1262,7 +1262,9 @@ serve(async (req) => {
             for (const u of users) {
               const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive);
               updated += ids.length;
-            }
+        } else if (want("rush")) {
+          results.rush = { total: 0, updated: 0, error: "Credenciais do Rush não configuradas (usuário, senha, token e endereço)." };
+        }
             results.rush = { total: users.length, updated };
           } catch (e) {
             results.rush = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
