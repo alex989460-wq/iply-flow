@@ -153,25 +153,52 @@ async function natvSyncPasswords(baseUrl: string, apiKey: string) {
   else bases.add(`${normalized}/api`);
 
   const users: any[] = [];
+  const attempts: string[] = [];
+  const authVariants: Record<string, string>[] = [
+    { Authorization: `Bearer ${apiKey}` },
+    { "Api-Key": apiKey },
+    { "x-api-key": apiKey },
+  ];
+
+  outer:
   for (const b of [...bases]) {
-    for (const path of ["/users", "/user"]) {
-      try {
-        const res = await fetch(`${b}${path}`, { headers: { Authorization: `Bearer ${apiKey}` } });
-        if (!res.ok) continue;
-        const data = await res.json().catch(() => null);
-        const list = Array.isArray(data) ? data : data?.data || data?.users || [];
-        if (list.length) {
-          users.push(...list);
-          break;
+    for (const path of ["/users", "/user", "/lines", "/clients"]) {
+      for (const headers of authVariants) {
+        try {
+          const res = await fetch(`${b}${path}?limit=10000`, { headers: { Accept: "application/json", ...headers } });
+          if (!res.ok) {
+            attempts.push(`${path} -> HTTP ${res.status}`);
+            continue;
+          }
+          const data = await res.json().catch(() => null);
+          const list = Array.isArray(data) ? data : data?.data || data?.users || data?.results || [];
+          if (Array.isArray(list) && list.length) {
+            users.push(...list);
+            break outer;
+          }
+          attempts.push(`${path} -> lista vazia`);
+        } catch (e) {
+          attempts.push(`${path} -> ${e instanceof Error ? e.message : String(e)}`);
         }
-      } catch { /* ignore */ }
+      }
     }
-    if (users.length) break;
   }
-  return users.map((u: any) => ({
+
+  if (!users.length) {
+    throw new Error(
+      `O painel NATV não devolveu nenhum usuário. Tentativas: ${attempts.slice(0, 6).join(" | ") || "nenhuma resposta"}`,
+    );
+  }
+
+  const mapped = users.map((u: any) => ({
     username: String(u.username || u.login || u.user || "").trim(),
     password: String(u.password || u.senha || "").trim(),
   })).filter((u) => u.username && u.password);
+
+  if (!mapped.length) {
+    throw new Error(`O painel NATV devolveu ${users.length} usuário(s), mas nenhum com senha visível pela API.`);
+  }
+  return mapped;
 }
 
 // ─── RUSH ───
