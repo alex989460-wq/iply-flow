@@ -64,6 +64,7 @@ async function updateCustomerPassword(
   username: string,
   password: string,
   onlyActive = false,
+  serverIds: string[] = [],
 ) {
   const variants = buildUsernameVariants(username);
   let query = admin
@@ -73,6 +74,7 @@ async function updateCustomerPassword(
     .in("username", variants)
     .limit(10);
   if (onlyActive) query = query.eq("status", "ativa");
+  if (serverIds.length) query = query.in("server_id", serverIds);
   const { data: customers } = await query;
 
   const updated: string[] = [];
@@ -146,59 +148,68 @@ async function natvChangePassword(
 }
 
 
-async function natvSyncPasswords(baseUrl: string, apiKey: string) {
-  const normalized = normalizeBaseUrl(baseUrl);
-  const bases = new Set<string>([normalized]);
-  if (normalized.endsWith("/api")) bases.add(normalized.replace(/\/api$/, ""));
-  else bases.add(`${normalized}/api`);
-
-  const users: any[] = [];
-  const attempts: string[] = [];
-  const authVariants: Record<string, string>[] = [
-    { Authorization: `Bearer ${apiKey}` },
-    { "Api-Key": apiKey },
-    { "x-api-key": apiKey },
-  ];
-
-  outer:
-  for (const b of [...bases]) {
-    for (const path of ["/users", "/user", "/lines", "/clients"]) {
-      for (const headers of authVariants) {
-        try {
-          const res = await fetch(`${b}${path}?limit=10000`, { headers: { Accept: "application/json", ...headers } });
-          if (!res.ok) {
-            attempts.push(`${path} -> HTTP ${res.status}`);
-            continue;
-          }
-          const data = await res.json().catch(() => null);
-          const list = Array.isArray(data) ? data : data?.data || data?.users || data?.results || [];
-          if (Array.isArray(list) && list.length) {
-            users.push(...list);
-            break outer;
-          }
-          attempts.push(`${path} -> lista vazia`);
-        } catch (e) {
-          attempts.push(`${path} -> ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
+async function getLocalSyncCustomers(
+  admin: any,
+  ownerId: string,
+  panel: string,
+  onlyActive: boolean,
+  serverIds: string[],
+) {
+  const rows: { id: string; username: string }[] = [];
+  const pageSize = 500;
+  for (let from = 0; ; from += pageSize) {
+    let query = admin
+      .from("customers")
+      .select("id, username, server_id, servers!inner(panel_type, server_name, host)")
+      .eq("created_by", ownerId)
+      .not("username", "is", null)
+      .range(from, from + pageSize - 1);
+    if (onlyActive) query = query.eq("status", "ativa");
+    if (serverIds.length) query = query.in("server_id", serverIds);
+    const { data, error } = await query;
+    if (error) throw new Error(`Não foi possível carregar os clientes deste servidor: ${error.message}`);
+    const page = (data || []).filter((customer: any) => {
+      if (serverIds.length) return true;
+      const server = Array.isArray(customer.servers) ? customer.servers[0] : customer.servers;
+      const marker = `${server?.panel_type || ""} ${server?.server_name || ""} ${server?.host || ""}`.toLowerCase();
+      if (panel === "natv2") return marker.includes("natv2") || marker.includes("natv²");
+      if (panel === "natv") return marker.includes("natv") && !marker.includes("natv2") && !marker.includes("natv²");
+      if (panel === "the_best") return marker.includes("best");
+      if (panel === "p2cine") return marker.includes("p2cine") || marker.includes("koffice");
+      return marker.includes(panel.replace("_", " "));
+    });
+    for (const customer of page) {
+      const username = String(customer.username || "").trim();
+      if (username) rows.push({ id: customer.id, username });
     }
+    if ((data || []).length < pageSize) break;
   }
+  return rows;
+}
 
-  if (!users.length) {
-    throw new Error(
-      `O painel NATV não devolveu nenhum usuário. Tentativas: ${attempts.slice(0, 6).join(" | ") || "nenhuma resposta"}`,
-    );
+async function natvSyncPasswords(
+  admin: any,
+  ownerId: string,
+  panel: string,
+  baseUrl: string,
+  apiKey: string,
+  onlyActive: boolean,
+  serverIds: string[],
+) {
+  const customers = await getLocalSyncCustomers(admin, ownerId, panel, onlyActive, serverIds);
+  if (!customers.length) return { total: 0, found: 0, updated: 0 };
+
+  let found = 0;
+  let updated = 0;
+  for (const customer of customers) {
+    const raw = await natvFindUserRaw(baseUrl, apiKey, customer.username);
+    const password = pickPassword(raw);
+    if (!password) continue;
+    found++;
+    const { error } = await admin.from("customers").update({ password }).eq("id", customer.id).eq("created_by", ownerId);
+    if (!error) updated++;
   }
-
-  const mapped = users.map((u: any) => ({
-    username: String(u.username || u.login || u.user || "").trim(),
-    password: String(u.password || u.senha || "").trim(),
-  })).filter((u) => u.username && u.password);
-
-  if (!mapped.length) {
-    throw new Error(`O painel NATV devolveu ${users.length} usuário(s), mas nenhum com senha visível pela API.`);
-  }
-  return mapped;
+  return { total: customers.length, found, updated };
 }
 
 // ─── RUSH ───
@@ -848,8 +859,14 @@ async function solveUniplayCaptcha(): Promise<string> {
 async function uniplaySession(admin: any, ownerId: string, settings: any): Promise<{ token: string; cryptPass: string }> {
   const savedAt = settings.uniplay_session_at ? new Date(settings.uniplay_session_at).getTime() : 0;
   const fresh = savedAt && Date.now() - savedAt < 20 * 60 * 60 * 1000;
-  if (fresh && settings.uniplay_session_token) {
-    return { token: String(settings.uniplay_session_token), cryptPass: String(settings.uniplay_session_pass || "") };
+  if (settings.uniplay_session_token) {
+    const saved = { token: String(settings.uniplay_session_token), cryptPass: String(settings.uniplay_session_pass || "") };
+    if (fresh) return saved;
+    const stillValid = await uniplayListUsers(saved).then((users) => users.length > 0).catch(() => false);
+    if (stillValid) {
+      await admin.from("reseller_api_settings").update({ uniplay_session_at: new Date().toISOString() }).eq("user_id", ownerId);
+      return saved;
+    }
   }
 
   const username = String(settings.uniplay_username || "");
@@ -878,6 +895,39 @@ async function uniplaySession(admin: any, ownerId: string, settings: any): Promi
     }).eq("user_id", ownerId);
   }
   return { token, cryptPass };
+}
+
+async function uniplaySessionWithBrowserFallback(
+  admin: any,
+  ownerId: string,
+  settings: any,
+  authHeader: string,
+) {
+  try {
+    return await uniplaySession(admin, ownerId, settings);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes("reCAPTCHA") || !authHeader.startsWith("Bearer ")) throw error;
+
+    const response = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/uniplay-renew`, {
+      method: "POST",
+      headers: { Authorization: authHeader, "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "test" }),
+      signal: AbortSignal.timeout(45000),
+    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok || !result?.success) {
+      throw new Error(result?.error || "O navegador da VPS não conseguiu renovar a sessão do Uniplay.");
+    }
+    const refreshed = await getResellerSettings(admin, ownerId);
+    if (!refreshed.uniplay_session_token) {
+      throw new Error("O navegador entrou no Uniplay, mas o painel não devolveu uma sessão reutilizável.");
+    }
+    return {
+      token: String(refreshed.uniplay_session_token),
+      cryptPass: String(refreshed.uniplay_session_pass || ""),
+    };
+  }
 }
 
 async function uniplayListUsers(session: { token: string; cryptPass: string }) {
@@ -966,6 +1016,7 @@ const SyncPasswordsSchema = z.object({
   owner_id: z.union([z.string().uuid(), z.literal("all")]).optional(),
   panels: z.array(z.enum(["natv", "natv2", "rush", "p2cine", "vplay", "the_best", "uniplay"])).optional(),
   only_active: z.boolean().optional(),
+  server_ids: z.array(z.string().uuid()).max(100).optional(),
 });
 
 
@@ -1208,6 +1259,7 @@ serve(async (req) => {
       }
 
       const onlyActive = parsed.data.only_active !== false;
+      const serverIds = parsed.data.server_ids || [];
       const wanted = parsed.data.panels && parsed.data.panels.length ? new Set(parsed.data.panels) : null;
       const want = (p: string) => !wanted || wanted.has(p);
 
@@ -1222,13 +1274,8 @@ serve(async (req) => {
         // NATV
         if (want("natv") && s.natv_api_key && s.natv_base_url) {
           try {
-            const users = await natvSyncPasswords(s.natv_base_url, s.natv_api_key);
-            let updated = 0;
-            for (const u of users) {
-              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive);
-              updated += ids.length;
-            }
-            results.natv = { total: users.length, updated };
+            const synced = await natvSyncPasswords(admin, currentOwner, "natv", s.natv_base_url, s.natv_api_key, onlyActive, serverIds);
+            results.natv = { total: synced.total, updated: synced.updated };
           } catch (e) {
             results.natv = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
           }
@@ -1239,13 +1286,8 @@ serve(async (req) => {
         // NATV2
         if (want("natv2") && s.natv2_api_key && s.natv2_base_url) {
           try {
-            const users = await natvSyncPasswords(s.natv2_base_url, s.natv2_api_key);
-            let updated = 0;
-            for (const u of users) {
-              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive);
-              updated += ids.length;
-            }
-            results.natv2 = { total: users.length, updated };
+            const synced = await natvSyncPasswords(admin, currentOwner, "natv2", s.natv2_base_url, s.natv2_api_key, onlyActive, serverIds);
+            results.natv2 = { total: synced.total, updated: synced.updated };
           } catch (e) {
             results.natv2 = { total: 0, updated: 0, error: e instanceof Error ? e.message : String(e) };
           }
@@ -1260,7 +1302,7 @@ serve(async (req) => {
             const users = await rushSyncPasswords(s.rush_base_url, token);
             let updated = 0;
             for (const u of users) {
-              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive);
+              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive, serverIds);
               updated += ids.length;
             }
             results.rush = { total: users.length, updated };
@@ -1278,7 +1320,7 @@ serve(async (req) => {
             const users = await p2cineSyncPasswords(s.p2cine_base_url, login.token, login.uid);
             let updated = 0;
             for (const u of users) {
-              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive);
+              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive, serverIds);
               updated += ids.length;
             }
             results.p2cine = { total: users.length, updated };
@@ -1297,7 +1339,7 @@ serve(async (req) => {
             const users = await theBestSyncPasswords(base, auth);
             let updated = 0;
             for (const u of users) {
-              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive);
+              const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive, serverIds);
               updated += ids.length;
             }
             results.the_best = { total: users.length, updated };
@@ -1311,7 +1353,7 @@ serve(async (req) => {
         // Uniplay
         if (want("uniplay") && s.uniplay_username && s.uniplay_password) {
           try {
-            const session = await uniplaySession(admin, currentOwner, s);
+            const session = await uniplaySessionWithBrowserFallback(admin, currentOwner, s, authHeader);
             const users = await uniplayListUsers(session);
             let updated = 0;
             let total = 0;
@@ -1320,7 +1362,7 @@ serve(async (req) => {
               const pwd = pickPassword(u);
               if (!name || !pwd) continue;
               total++;
-              const ids = await updateCustomerPassword(admin, currentOwner, name, pwd, onlyActive);
+              const ids = await updateCustomerPassword(admin, currentOwner, name, pwd, onlyActive, serverIds);
               updated += ids.length;
             }
             results.uniplay = { total, updated };
@@ -1354,7 +1396,7 @@ serve(async (req) => {
               } else {
                 let updated = 0;
                 for (const u of users) {
-                  const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive);
+                  const ids = await updateCustomerPassword(admin, currentOwner, u.username, u.password, onlyActive, serverIds);
                   updated += ids.length;
                 }
                 results.vplay = { total: users.length, updated };

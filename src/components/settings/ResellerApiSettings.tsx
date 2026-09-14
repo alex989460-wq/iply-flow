@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import MaskedUrlField from '@/components/ui/masked-url';
 import { Progress } from '@/components/ui/progress';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export default function ResellerApiSettings() {
   const { user } = useAuth();
@@ -35,6 +36,8 @@ export default function ResellerApiSettings() {
   const [syncOnlyActive, setSyncOnlyActive] = useState(true);
   const [syncProgress, setSyncProgress] = useState<{ done: number; total: number; current: string }>({ done: 0, total: 0, current: '' });
   const [syncResults, setSyncResults] = useState<{ panel: string; updated: number; total: number; error?: string }[]>([]);
+  const [syncServers, setSyncServers] = useState<{ id: string; server_name: string; panel_type: string | null; host: string }[]>([]);
+  const [selectedSyncServers, setSelectedSyncServers] = useState<Set<string>>(new Set());
 
   const [testingUniplay, setTestingUniplay] = useState(false);
   const [botApiKey, setBotApiKey] = useState('');
@@ -153,15 +156,19 @@ export default function ResellerApiSettings() {
 
   const fetchSettings = async () => {
     try {
-      const [{ data, error }, { data: kofficeRows, error: connectionsError }] = await Promise.all([
+      const [{ data, error }, { data: kofficeRows, error: connectionsError }, { data: serverRows, error: serversError }] = await Promise.all([
         supabase.from('reseller_api_settings' as any).select('*').eq('user_id', user?.id).maybeSingle(),
         supabase.from('koffice_panel_connections' as any).select('*').eq('user_id', user?.id).order('created_at'),
+        supabase.from('servers').select('id, server_name, panel_type, host').order('server_name').range(0, 999),
       ]);
 
       if (error) throw error;
       if (connectionsError) throw connectionsError;
+      if (serversError) throw serversError;
       
       setKofficeConnections(kofficeRows || []);
+      setSyncServers(serverRows || []);
+      setSelectedSyncServers(new Set((serverRows || []).map((server) => server.id)));
 
 
       if (data) {
@@ -522,22 +529,23 @@ export default function ResellerApiSettings() {
     vplay: 'VPlay',
   };
 
-  const configuredPanels = (): string[] => {
-    const list: string[] = [];
-    if (settings.natv_api_key && settings.natv_base_url) list.push('natv');
-    if (settings.natv2_api_key && settings.natv2_base_url) list.push('natv2');
-    if (settings.rush_username && settings.rush_password && settings.rush_token && settings.rush_base_url) list.push('rush');
-    if (settings.p2cine_username && settings.p2cine_api_key && settings.p2cine_base_url) list.push('p2cine');
-    if (settings.the_best_api_key || (settings.the_best_username && settings.the_best_password)) list.push('the_best');
-    if (settings.uniplay_username && settings.uniplay_password) list.push('uniplay');
-    if (settings.vplay_mysql_host || settings.vplay_mysql_user || settings.vplay_mysql_database) list.push('vplay');
-    return list;
+  const panelForServer = (server: { panel_type: string | null; server_name: string; host: string }) => {
+    const marker = `${server.panel_type || ''} ${server.server_name} ${server.host}`.toLowerCase();
+    if (marker.includes('natv2') || marker.includes('natv²')) return 'natv2';
+    if (marker.includes('natv')) return 'natv';
+    if (marker.includes('rush')) return 'rush';
+    if (marker.includes('p2cine') || marker.includes('koffice')) return 'p2cine';
+    if (marker.includes('best')) return 'the_best';
+    if (marker.includes('uniplay') || marker.includes('searchdefense')) return 'uniplay';
+    if (marker.includes('vplay') || marker.includes('vplat')) return 'vplay';
+    return '';
   };
 
   const handleSyncPasswords = async () => {
-    const panels = configuredPanels();
+    const selectedServers = syncServers.filter((server) => selectedSyncServers.has(server.id) && panelForServer(server));
+    const panels = Array.from(new Set(selectedServers.map(panelForServer)));
     if (!panels.length) {
-      toast({ title: 'Nenhum painel configurado', description: 'Preencha os dados de algum painel acima antes de sincronizar.', variant: 'destructive' });
+      toast({ title: 'Nenhum servidor selecionado', description: 'Selecione pelo menos um servidor para sincronizar.', variant: 'destructive' });
       return;
     }
     setSyncingPasswords(true);
@@ -547,10 +555,11 @@ export default function ResellerApiSettings() {
     const collected: { panel: string; updated: number; total: number; error?: string }[] = [];
     for (let i = 0; i < panels.length; i++) {
       const panel = panels[i];
+      const serverIds = selectedServers.filter((server) => panelForServer(server) === panel).map((server) => server.id);
       setSyncProgress({ done: i, total: panels.length, current: PANEL_LABELS[panel] });
       try {
         const { data, error } = await supabase.functions.invoke('panel-password-manager', {
-          body: { action: 'sync-passwords', panels: [panel], only_active: syncOnlyActive },
+          body: { action: 'sync-passwords', panels: [panel], server_ids: serverIds, only_active: syncOnlyActive },
         });
         if (error) throw error;
         if (!data?.success) throw new Error(data?.error || 'Falha na sincronização');
@@ -1239,6 +1248,50 @@ export default function ResellerApiSettings() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <Label>Servidores para sincronizar</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={syncingPasswords || !syncServers.length}
+                onClick={() => setSelectedSyncServers(
+                  selectedSyncServers.size === syncServers.filter((server) => panelForServer(server)).length
+                    ? new Set()
+                    : new Set(syncServers.filter((server) => panelForServer(server)).map((server) => server.id)),
+                )}
+              >
+                {selectedSyncServers.size ? 'Limpar' : 'Selecionar todos'}
+              </Button>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {syncServers.filter((server) => panelForServer(server)).map((server) => {
+                const panel = panelForServer(server);
+                return (
+                  <label key={server.id} className="flex cursor-pointer items-center gap-3 rounded-md border p-3">
+                    <Checkbox
+                      checked={selectedSyncServers.has(server.id)}
+                      disabled={syncingPasswords}
+                      onCheckedChange={(checked) => setSelectedSyncServers((current) => {
+                        const next = new Set(current);
+                        if (checked) next.add(server.id); else next.delete(server.id);
+                        return next;
+                      })}
+                    />
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium">{server.server_name}</span>
+                      <span className="block text-xs text-muted-foreground">{PANEL_LABELS[panel] || panel}</span>
+                    </span>
+                  </label>
+                );
+              })}
+              {!syncServers.some((server) => panelForServer(server)) && (
+                <p className="text-sm text-muted-foreground">Nenhum servidor compatível cadastrado.</p>
+              )}
+            </div>
+          </div>
+
           <div className="flex items-center justify-between rounded-lg border p-3">
             <div className="space-y-0.5 pr-4">
               <Label>Somente clientes ativos</Label>
@@ -1267,7 +1320,7 @@ export default function ResellerApiSettings() {
                   <div key={r.panel} className="flex items-start justify-between gap-3 text-xs rounded-md border p-2">
                     <span className="font-medium">{PANEL_LABELS[r.panel] || r.panel}</span>
                     {r.error ? (
-                      <span className="text-destructive text-right">{r.error.slice(0, 120)}</span>
+                      <span className="max-w-[75%] whitespace-normal text-right text-destructive">{r.error}</span>
                     ) : (
                       <span className="text-muted-foreground">{r.updated} atualizada(s) de {r.total} encontrada(s)</span>
                     )}
