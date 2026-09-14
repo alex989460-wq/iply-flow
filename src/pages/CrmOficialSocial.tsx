@@ -60,6 +60,22 @@ export default function CrmOficialSocial({ embed = false }: { embed?: boolean } 
     return () => { cancelled = true; };
   }, []);
 
+  // Ouve pedidos do site embutido para abrir links externos fora do painel.
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.origin !== CRM_BASE) return;
+      const data: any = event.data;
+      if (!data || typeof data !== "object") return;
+      const type = String(data.type || data.event || "");
+      const url = typeof data.url === "string" ? data.url : null;
+      if (url && /^(open|external|navigate|link)/i.test(type) && /^https:\/\//i.test(url)) {
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
+
   // Trava o scroll da página para o iframe ocupar a tela sem "pulos".
   useEffect(() => {
     const prevBody = document.body.style.overflow;
