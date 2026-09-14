@@ -10,6 +10,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Loader2, Save, Eye, EyeOff, AlertCircle, CheckCircle2, Key, Copy, ExternalLink, Plus, Trash2, Zap, Monitor } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import MaskedUrlField from '@/components/ui/masked-url';
+import { Progress } from '@/components/ui/progress';
+import { Switch } from '@/components/ui/switch';
 
 export default function ResellerApiSettings() {
   const { user } = useAuth();
@@ -30,6 +32,9 @@ export default function ResellerApiSettings() {
   const [showVplayDbPassword, setShowVplayDbPassword] = useState(false);
   const [testingVplay, setTestingVplay] = useState(false);
   const [syncingPasswords, setSyncingPasswords] = useState(false);
+  const [syncOnlyActive, setSyncOnlyActive] = useState(true);
+  const [syncProgress, setSyncProgress] = useState<{ done: number; total: number; current: string }>({ done: 0, total: 0, current: '' });
+  const [syncResults, setSyncResults] = useState<{ panel: string; updated: number; total: number; error?: string }[]>([]);
 
   const [testingUniplay, setTestingUniplay] = useState(false);
   const [botApiKey, setBotApiKey] = useState('');
@@ -507,23 +512,65 @@ export default function ResellerApiSettings() {
     }
   };
 
+  const PANEL_LABELS: Record<string, string> = {
+    natv: 'NATV',
+    natv2: 'NATV²',
+    rush: 'Rush',
+    p2cine: 'P2Cine',
+    the_best: 'The Best',
+    uniplay: 'Uniplay',
+    vplay: 'VPlay',
+  };
+
+  const configuredPanels = (): string[] => {
+    const list: string[] = [];
+    if (settings.natv_api_key && settings.natv_base_url) list.push('natv');
+    if (settings.natv2_api_key && settings.natv2_base_url) list.push('natv2');
+    if (settings.rush_username && settings.rush_password && settings.rush_token && settings.rush_base_url) list.push('rush');
+    if (settings.p2cine_username && settings.p2cine_api_key && settings.p2cine_base_url) list.push('p2cine');
+    if (settings.the_best_api_key || (settings.the_best_username && settings.the_best_password)) list.push('the_best');
+    if (settings.uniplay_username && settings.uniplay_password) list.push('uniplay');
+    if (settings.vplay_mysql_host && settings.vplay_mysql_user && settings.vplay_mysql_database) list.push('vplay');
+    return list;
+  };
+
   const handleSyncPasswords = async () => {
-    setSyncingPasswords(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('panel-password-manager', {
-        body: { action: 'sync-passwords' },
-      });
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || 'Falha ao sincronizar senhas');
-      const summary = Object.entries(data.results as Record<string, { total: number; updated: number; error?: string }>)
-        .map(([panel, r]) => `${panel.toUpperCase()}: ${r.updated}/${r.total}${r.error ? ` (erro: ${r.error.slice(0, 40)})` : ''}`)
-        .join(' | ');
-      toast({ title: 'Sincronização concluída', description: summary || 'Nenhum painel configurado.' });
-    } catch (e: any) {
-      toast({ title: 'Erro na sincronização', description: e?.message || 'Não foi possível sincronizar.', variant: 'destructive' });
-    } finally {
-      setSyncingPasswords(false);
+    const panels = configuredPanels();
+    if (!panels.length) {
+      toast({ title: 'Nenhum painel configurado', description: 'Preencha os dados de algum painel acima antes de sincronizar.', variant: 'destructive' });
+      return;
     }
+    setSyncingPasswords(true);
+    setSyncResults([]);
+    setSyncProgress({ done: 0, total: panels.length, current: PANEL_LABELS[panels[0]] });
+
+    const collected: { panel: string; updated: number; total: number; error?: string }[] = [];
+    for (let i = 0; i < panels.length; i++) {
+      const panel = panels[i];
+      setSyncProgress({ done: i, total: panels.length, current: PANEL_LABELS[panel] });
+      try {
+        const { data, error } = await supabase.functions.invoke('panel-password-manager', {
+          body: { action: 'sync-passwords', panels: [panel], only_active: syncOnlyActive },
+        });
+        if (error) throw error;
+        if (!data?.success) throw new Error(data?.error || 'Falha na sincronização');
+        const r = (data.results || {})[panel] || { total: 0, updated: 0 };
+        collected.push({ panel, updated: r.updated || 0, total: r.total || 0, error: r.error });
+      } catch (e: any) {
+        collected.push({ panel, updated: 0, total: 0, error: e?.message || 'Erro desconhecido' });
+      }
+      setSyncResults([...collected]);
+      setSyncProgress({ done: i + 1, total: panels.length, current: PANEL_LABELS[panels[i + 1]] || '' });
+    }
+
+    const totalUpdated = collected.reduce((a, r) => a + r.updated, 0);
+    const failed = collected.filter((r) => r.error).length;
+    toast({
+      title: 'Sincronização concluída',
+      description: `${totalUpdated} senha(s) atualizada(s)${failed ? ` — ${failed} painel(is) com erro.` : '.'}`,
+      variant: failed && !totalUpdated ? 'destructive' : undefined,
+    });
+    setSyncingPasswords(false);
   };
 
 
@@ -1191,11 +1238,44 @@ export default function ResellerApiSettings() {
             Atualiza as senhas salvas no SuperGestor com as senhas reais dos painéis configurados acima.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <div className="space-y-0.5 pr-4">
+              <Label>Somente clientes ativos</Label>
+              <p className="text-xs text-muted-foreground">
+                Recomendado: evita consultas desnecessárias e reduz a carga nas APIs dos painéis.
+              </p>
+            </div>
+            <Switch checked={syncOnlyActive} onCheckedChange={setSyncOnlyActive} disabled={syncingPasswords} />
+          </div>
+
           <Button variant="outline" onClick={handleSyncPasswords} disabled={syncingPasswords}>
             {syncingPasswords ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Key className="w-4 h-4 mr-2" />}
             Sincronizar senhas agora
           </Button>
+
+          {(syncingPasswords || syncResults.length > 0) && (
+            <div className="space-y-2">
+              <Progress value={syncProgress.total ? (syncProgress.done / syncProgress.total) * 100 : 0} />
+              <p className="text-xs text-muted-foreground">
+                {syncingPasswords
+                  ? `Sincronizando ${syncProgress.current || '...'} (${syncProgress.done}/${syncProgress.total})`
+                  : `Concluído (${syncProgress.done}/${syncProgress.total} painéis)`}
+              </p>
+              <div className="space-y-1">
+                {syncResults.map((r) => (
+                  <div key={r.panel} className="flex items-start justify-between gap-3 text-xs rounded-md border p-2">
+                    <span className="font-medium">{PANEL_LABELS[r.panel] || r.panel}</span>
+                    {r.error ? (
+                      <span className="text-destructive text-right">{r.error.slice(0, 120)}</span>
+                    ) : (
+                      <span className="text-muted-foreground">{r.updated} atualizada(s) de {r.total} encontrada(s)</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
