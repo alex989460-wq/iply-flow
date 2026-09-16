@@ -500,18 +500,28 @@ export default function ActivationApps() {
                                      {format(new Date(req.created_at), 'dd MMM, HH:mm', { locale: ptBR })}
                                   </TableCell>
                                   <TableCell className="py-4 px-6 text-right">
-                                     {!['activated', 'rejected'].includes(req.status) ? (
-                                        <div className="flex gap-1 justify-end">
-                                           <Button size="sm" variant="outline" className="h-8 rounded-lg text-[10px] font-black uppercase border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10" disabled={updateRequestStatus.isPending} onClick={() => updateRequestStatus.mutate({ id: req.id, action: 'activate' })}>
-                                              <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> {req.status === 'failed' ? 'Tentar de novo' : 'Ativar'}
-                                           </Button>
-                                           <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-lg" disabled={updateRequestStatus.isPending} onClick={() => updateRequestStatus.mutate({ id: req.id, action: 'reject' })}>
-                                              <XCircle className="w-4 h-4" />
-                                           </Button>
-                                        </div>
-                                     ) : (
-                                        <span className="text-[10px] font-bold uppercase text-muted-foreground/40">—</span>
-                                     )}
+                                     <div className="flex gap-1 justify-end">
+                                        {!['activated', 'rejected'].includes(req.status) && (
+                                           <>
+                                              <Button size="sm" variant="outline" className="h-8 rounded-lg text-[10px] font-black uppercase border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10" disabled={updateRequestStatus.isPending} onClick={() => updateRequestStatus.mutate({ id: req.id, action: 'activate' })}>
+                                                 <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> {req.status === 'failed' ? 'Tentar de novo' : 'Ativar'}
+                                              </Button>
+                                              <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-lg" disabled={updateRequestStatus.isPending} onClick={() => updateRequestStatus.mutate({ id: req.id, action: 'reject' })}>
+                                                 <XCircle className="w-4 h-4" />
+                                              </Button>
+                                           </>
+                                        )}
+                                        <Button
+                                           size="sm"
+                                           variant="outline"
+                                           title="Reenviar confirmação no WhatsApp do cliente"
+                                           className="h-8 rounded-lg text-[10px] font-black uppercase border-primary/30 text-primary hover:bg-primary/10"
+                                           disabled={updateRequestStatus.isPending}
+                                           onClick={() => updateRequestStatus.mutate({ id: req.id, action: 'resend' })}
+                                        >
+                                           <Send className="w-3.5 h-3.5 mr-1" /> Reenviar
+                                        </Button>
+                                     </div>
                                   </TableCell>
 
                                </TableRow>
