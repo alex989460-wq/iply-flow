@@ -1587,14 +1587,26 @@ serve(async (req) => {
       }), { headers: jsonHeaders });
     }
 
-    // ── Detect multi-screen: same person with multiple records (same name) ──
+    // ── Detect multi-screen: same person with multiple records ──
+    // Same name is the strongest signal, but the SAME phone under the SAME reseller
+    // is also treated as the same person (telas extras normalmente têm nomes diferentes).
     const primaryName = allMatchedCustomers[0]?.name?.trim().toUpperCase() || '';
-    const samePersonCustomers = allMatchedCustomers.filter((c: any) => 
+    const ownersSet = new Set(allMatchedCustomers.map((c: any) => c.created_by || ''));
+    const singleOwner = ownersSet.size === 1;
+    const sameNameCustomers = allMatchedCustomers.filter((c: any) =>
       c.name?.trim().toUpperCase() === primaryName
     );
-    
+    const samePersonCustomers =
+      sameNameCustomers.length === allMatchedCustomers.length || !singleOwner
+        ? sameNameCustomers
+        : allMatchedCustomers;
+
+    // Resolved purely by the paid amount (skips the manual "qual renovar?" question)
+    let resolvedByAmount = false;
+
     // Validate if paid amount covers ALL screens before batch-renewing
     let isMultiScreen = samePersonCustomers.length > 1 && samePersonCustomers.length === allMatchedCustomers.length;
+    
     
     if (isMultiScreen && amountNumeric > 0) {
       // Compute per-customer price (custom_price or plan price). Records may have
@@ -1623,7 +1635,8 @@ serve(async (req) => {
         console.log(`[Cakto] 🖥️ Multi-tela: valor pago R$ ${amountNumeric.toFixed(2)} ≈ soma R$ ${expectedMultiTotal.toFixed(2)} (${samePersonCustomers.length} registros: ${perPrices.map((p:number)=>p.toFixed(2)).join('+')}). Renovando TODOS.`);
       } else if (paidForSingle) {
         isMultiScreen = false;
-        console.log(`[Cakto] 🖥️ Multi-tela detectado MAS valor pago R$ ${amountNumeric.toFixed(2)} ≈ individual R$ ${firstPrice.toFixed(2)}. Renovando apenas 1 (mais urgente).`);
+        resolvedByAmount = true;
+        console.log(`[Cakto] 🖥️ Multi-tela detectado MAS valor pago R$ ${amountNumeric.toFixed(2)} ≈ individual R$ ${firstPrice.toFixed(2)}. Renovando apenas 1 (mais urgente), sem pergunta.`);
       } else {
         isMultiScreen = false;
         console.log(`[Cakto] 🖥️ Multi-tela detectado MAS valor pago R$ ${amountNumeric.toFixed(2)} não corresponde a individual R$ ${firstPrice.toFixed(2)} nem à soma R$ ${expectedMultiTotal.toFixed(2)} [${perPrices.map((p:number)=>p.toFixed(2)).join('+')}]. Enviando para fila manual (segurança).`);
@@ -2137,7 +2150,7 @@ serve(async (req) => {
     }
 
     // ── Conflict detection: multiple customers for same phone without trusted pre-selection ──
-    if (allMatchedCustomers.length > 1 && !isMultiScreen && !multiRenewalCompleted && !hasPreSelection && !(globalThis as any).FORCE_MULTI_RENEWAL) {
+    if (allMatchedCustomers.length > 1 && !isMultiScreen && !resolvedByAmount && !multiRenewalCompleted && !hasPreSelection && !(globalThis as any).FORCE_MULTI_RENEWAL) {
       const todayStr = today.toISOString().split('T')[0];
       const sameDueCustomers = allMatchedCustomers.filter((c: any) => {
         const d = c.due_date || '';

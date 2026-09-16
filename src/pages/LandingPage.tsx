@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { MetaLogo } from '@/components/ui/meta-logo';
 import { Shield, Zap, Users, MessageSquare, BarChart3, Clock, CheckCircle2, ArrowRight, Star, ChevronDown, Smartphone, Lock, Server, CreditCard, Send, FileText, Bot, Sparkles, Play, Menu, X } from 'lucide-react';
 import logoSg from '@/assets/logo-sg.png';
+import { resetThemeVars } from '@/lib/panel-theme';
 const features = [{
   icon: Shield,
   title: 'API Oficial META',
@@ -82,7 +83,13 @@ export default function LandingPage() {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-  return <div className="min-h-screen bg-background">
+
+  // A homepage pública nunca herda o tema escolhido pelo revendedor.
+  useEffect(() => {
+    resetThemeVars();
+  }, []);
+
+  return <div className="landing-scope min-h-screen bg-background">
       {/* Header */}
       <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? 'bg-background/95 backdrop-blur-xl shadow-lg border-b border-border' : 'bg-transparent'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -133,40 +140,42 @@ export default function LandingPage() {
       {/* Hero Section */}
       <section className="relative pt-24 md:pt-32 pb-16 md:pb-24 overflow-hidden">
         {/* Background Effects */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-1/2 -right-1/4 w-[800px] h-[800px] rounded-full bg-gradient-to-br from-primary/20 to-orange-500/10 blur-3xl" />
-          <div className="absolute -bottom-1/4 -left-1/4 w-[600px] h-[600px] rounded-full bg-gradient-to-tr from-blue-500/10 to-primary/10 blur-3xl" />
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute inset-0 lp-grid" />
+          <div className="lp-aurora absolute -top-1/2 -right-1/4 w-[800px] h-[800px] rounded-full bg-gradient-to-br from-primary/30 to-orange-500/10 blur-3xl" />
+          <div className="lp-aurora-slow absolute -bottom-1/4 -left-1/4 w-[600px] h-[600px] rounded-full bg-gradient-to-tr from-blue-500/20 to-primary/15 blur-3xl" />
+          <div className="lp-aurora absolute top-1/4 left-1/3 w-[420px] h-[420px] rounded-full bg-emerald-500/10 blur-3xl" />
         </div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-4xl mx-auto">
             {/* Badge */}
-            <Badge className="mb-6 px-4 py-2 text-sm font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20">
+            <Badge className="lp-rise mb-6 px-4 py-2 text-sm font-medium bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20 backdrop-blur">
               <Shield className="w-4 h-4 mr-2" />
               API Oficial META - 100% Seguro
             </Badge>
 
             {/* Title */}
-            <h1 className="text-4xl md:text-5xl lg:text-7xl font-extrabold tracking-tight mb-6">
+            <h1 className="lp-rise text-4xl md:text-5xl lg:text-7xl font-extrabold tracking-tight mb-6" style={{ animationDelay: '.08s' }}>
               Gerencie seu negócio de
-              <span className="block bg-gradient-to-r from-primary via-orange-500 to-amber-500 bg-clip-text text-transparent">
+              <span className="lp-gradient-text block bg-gradient-to-r from-primary via-amber-400 to-emerald-400 bg-clip-text text-transparent">
                 forma inteligente
               </span>
             </h1>
 
             {/* Subtitle */}
-            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
+            <p className="lp-rise text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-8" style={{ animationDelay: '.16s' }}>
               O sistema completo para revendedores que querem automatizar cobranças, 
               organizar clientes e crescer sem preocupações. <strong>Sem risco de banimentos.</strong>
             </p>
 
             {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-              <Button size="lg" onClick={() => navigate('/auth')} className="bg-gradient-to-r from-primary to-orange-500 hover:from-primary/90 hover:to-orange-500/90 text-lg px-8 py-6 shadow-xl shadow-primary/25">
+            <div className="lp-rise flex flex-col sm:flex-row gap-4 justify-center mb-12" style={{ animationDelay: '.24s' }}>
+              <Button size="lg" onClick={() => navigate('/auth')} className="lp-shine bg-gradient-to-r from-primary to-amber-500 hover:from-primary/90 hover:to-amber-500/90 text-lg px-8 py-6 shadow-2xl shadow-primary/30 transition-transform duration-300 hover:-translate-y-0.5">
                 Começar Gratuitamente
                 <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
-              <Button size="lg" variant="outline" className="text-lg px-8 py-6">
+              <Button size="lg" variant="outline" className="lp-shine text-lg px-8 py-6 border-foreground/15 bg-foreground/5 backdrop-blur hover:bg-foreground/10">
                 <Play className="mr-2 w-5 h-5" />
                 Ver Demonstração
               </Button>
@@ -192,7 +201,7 @@ export default function LandingPage() {
           {/* Hero Image/Mockup */}
           <div className="mt-16 relative">
             <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent z-10 pointer-events-none" />
-            <div className="relative rounded-2xl overflow-hidden border border-border/50 shadow-2xl shadow-primary/10 bg-card">
+            <div className="lp-float relative rounded-2xl overflow-hidden border border-foreground/10 shadow-2xl shadow-primary/20 bg-card">
               <div className="bg-gradient-to-r from-card to-muted/50 p-2 border-b border-border flex items-center gap-2">
                 <div className="flex gap-1.5">
                   <div className="w-3 h-3 rounded-full bg-red-500" />
@@ -323,7 +332,7 @@ export default function LandingPage() {
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {features.map((feature, i) => <Card key={i} className="group relative overflow-hidden p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-border/50">
+            {features.map((feature, i) => <Card key={i} className="lp-card lp-shine group relative overflow-hidden p-6" style={{ animationDelay: `${i * 0.06}s` }}>
                 <div className={`absolute inset-0 bg-gradient-to-br ${feature.color} opacity-0 group-hover:opacity-5 transition-opacity duration-300`} />
                 <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-4 shadow-lg`}>
                   <feature.icon className="w-7 h-7 text-white" />
@@ -352,7 +361,7 @@ export default function LandingPage() {
           </div>
 
           <div className="grid md:grid-cols-2 gap-6">
-            {screenshots.map((screen, i) => <Card key={i} className={`group relative overflow-hidden p-8 bg-gradient-to-br ${screen.gradient} border-border/50 hover:shadow-xl transition-all duration-300`}>
+            {screenshots.map((screen, i) => <Card key={i} className={`lp-card group relative overflow-hidden p-8 bg-gradient-to-br ${screen.gradient}`}>
                 <div className="aspect-video bg-card/80 backdrop-blur rounded-xl border border-border/50 flex items-center justify-center mb-4 overflow-hidden">
                   <div className="text-center p-4">
                     <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-orange-500 flex items-center justify-center mx-auto mb-4">
@@ -443,7 +452,7 @@ export default function LandingPage() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-6">
-            {testimonials.map((testimonial, i) => <Card key={i} className="p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+            {testimonials.map((testimonial, i) => <Card key={i} className="lp-card p-6">
                 <div className="flex gap-1 mb-4">
                   {Array.from({
                 length: testimonial.rating
@@ -467,7 +476,7 @@ export default function LandingPage() {
       {/* CTA Section */}
       <section className="py-16 md:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <Card className="relative overflow-hidden p-8 md:p-16 bg-gradient-to-br from-primary/10 via-orange-500/10 to-amber-500/10 border-primary/20">
+          <Card className="lp-card relative overflow-hidden p-8 md:p-16 bg-gradient-to-br from-primary/15 via-amber-500/10 to-emerald-500/10 border-primary/25">
             <div className="absolute inset-0 overflow-hidden">
               <div className="absolute -top-1/2 -right-1/4 w-[600px] h-[600px] rounded-full bg-gradient-to-br from-primary/10 to-orange-500/5 blur-3xl" />
             </div>
