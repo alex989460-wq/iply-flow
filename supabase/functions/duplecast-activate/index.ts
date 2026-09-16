@@ -21,8 +21,13 @@ const corsHeaders = {
 
 const BASE = "https://duplecast.com";
 
-const PROXY_URL = String(Deno.env.get("SIGMA_PROXY_URL") || "").trim().replace(/\/+$/, "");
-const PROXY_SECRET = String(Deno.env.get("SIGMA_PROXY_SECRET") || "").trim();
+// Prioriza o agente caseiro (PC residencial) — o Cloudflare do Duplecast bloqueia datacenter.
+const HOME_URL = String(Deno.env.get("HOME_AGENT_URL") || "").trim().replace(/\/+$/, "");
+const HOME_SECRET = String(Deno.env.get("HOME_AGENT_SECRET") || "").trim();
+const PROXY_URL = HOME_URL || String(Deno.env.get("SIGMA_PROXY_URL") || "").trim().replace(/\/+$/, "");
+const PROXY_SECRET = HOME_URL
+  ? HOME_SECRET
+  : String(Deno.env.get("SIGMA_PROXY_SECRET") || "").trim();
 
 function buildScript(opts: { code: string; mac: string; test: boolean }) {
   const cfg = JSON.stringify(opts);
