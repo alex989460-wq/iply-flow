@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { MetaLogo } from '@/components/ui/meta-logo';
 import { Shield, Zap, Users, MessageSquare, BarChart3, Clock, CheckCircle2, ArrowRight, Star, ChevronDown, Smartphone, Lock, Server, CreditCard, Send, FileText, Bot, Sparkles, Play, Menu, X } from 'lucide-react';
 import logoSg from '@/assets/logo-sg.png';
+import { resetThemeVars } from '@/lib/panel-theme';
 const features = [{
   icon: Shield,
   title: 'API Oficial META',
@@ -82,7 +83,13 @@ export default function LandingPage() {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-  return <div className="min-h-screen bg-background">
+
+  // A homepage pública nunca herda o tema escolhido pelo revendedor.
+  useEffect(() => {
+    resetThemeVars();
+  }, []);
+
+  return <div className="landing-scope min-h-screen bg-background">
       {/* Header */}
       <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? 'bg-background/95 backdrop-blur-xl shadow-lg border-b border-border' : 'bg-transparent'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
