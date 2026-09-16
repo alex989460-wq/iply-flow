@@ -36,8 +36,9 @@ const done = arguments[arguments.length - 1];
 const CFG = ${cfg};
 const BASE = ${JSON.stringify(BASE)};
 const log = [];
+const rel = (u) => u.indexOf(BASE) === 0 ? u.slice(BASE.length) : u;
 const get = async (u) => {
-  const r = await fetch(u, { credentials: 'include' });
+  const r = await fetch(rel(u), { credentials: 'include' });
   const t = await r.text();
   log.push(u + ' -> ' + r.status);
   return { status: r.status, text: t };
@@ -49,6 +50,10 @@ const csrf = (html) => {
 };
 (async () => {
   try {
+    if (location.origin.indexOf('duplecast.com') < 0) {
+      done({ ok: false, stage: 'origin', message: 'O navegador nao esta na pagina do Duplecast (' + location.href + ')', log });
+      return;
+    }
     const home = await get(BASE + '/plugin/duplecast/device_main/');
     const loggedIn = !/name=["']password["']/i.test(home.text) && home.status === 200;
     if (!loggedIn) { done({ ok: false, stage: 'login', message: 'Login não concluído', log }); return; }
@@ -78,7 +83,7 @@ const csrf = (html) => {
     if (!token) { done({ ok: false, stage: 'csrf', message: 'Não foi possível ler o token da tela de ativação', log }); return; }
 
     const body = new URLSearchParams({ _csrf_token: token, mac: String(CFG.mac).toUpperCase().trim(), code });
-    const res = await fetch(actUrl, {
+    const res = await fetch(rel(actUrl), {
       method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString()
