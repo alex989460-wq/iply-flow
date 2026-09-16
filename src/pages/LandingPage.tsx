@@ -140,40 +140,42 @@ export default function LandingPage() {
       {/* Hero Section */}
       <section className="relative pt-24 md:pt-32 pb-16 md:pb-24 overflow-hidden">
         {/* Background Effects */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-1/2 -right-1/4 w-[800px] h-[800px] rounded-full bg-gradient-to-br from-primary/20 to-orange-500/10 blur-3xl" />
-          <div className="absolute -bottom-1/4 -left-1/4 w-[600px] h-[600px] rounded-full bg-gradient-to-tr from-blue-500/10 to-primary/10 blur-3xl" />
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute inset-0 lp-grid" />
+          <div className="lp-aurora absolute -top-1/2 -right-1/4 w-[800px] h-[800px] rounded-full bg-gradient-to-br from-primary/30 to-orange-500/10 blur-3xl" />
+          <div className="lp-aurora-slow absolute -bottom-1/4 -left-1/4 w-[600px] h-[600px] rounded-full bg-gradient-to-tr from-blue-500/20 to-primary/15 blur-3xl" />
+          <div className="lp-aurora absolute top-1/4 left-1/3 w-[420px] h-[420px] rounded-full bg-emerald-500/10 blur-3xl" />
         </div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-4xl mx-auto">
             {/* Badge */}
-            <Badge className="mb-6 px-4 py-2 text-sm font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20">
+            <Badge className="lp-rise mb-6 px-4 py-2 text-sm font-medium bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20 backdrop-blur">
               <Shield className="w-4 h-4 mr-2" />
               API Oficial META - 100% Seguro
             </Badge>
 
             {/* Title */}
-            <h1 className="text-4xl md:text-5xl lg:text-7xl font-extrabold tracking-tight mb-6">
+            <h1 className="lp-rise text-4xl md:text-5xl lg:text-7xl font-extrabold tracking-tight mb-6" style={{ animationDelay: '.08s' }}>
               Gerencie seu negócio de
-              <span className="block bg-gradient-to-r from-primary via-orange-500 to-amber-500 bg-clip-text text-transparent">
+              <span className="lp-gradient-text block bg-gradient-to-r from-primary via-amber-400 to-emerald-400 bg-clip-text text-transparent">
                 forma inteligente
               </span>
             </h1>
 
             {/* Subtitle */}
-            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
+            <p className="lp-rise text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-8" style={{ animationDelay: '.16s' }}>
               O sistema completo para revendedores que querem automatizar cobranças, 
               organizar clientes e crescer sem preocupações. <strong>Sem risco de banimentos.</strong>
             </p>
 
             {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-              <Button size="lg" onClick={() => navigate('/auth')} className="bg-gradient-to-r from-primary to-orange-500 hover:from-primary/90 hover:to-orange-500/90 text-lg px-8 py-6 shadow-xl shadow-primary/25">
+            <div className="lp-rise flex flex-col sm:flex-row gap-4 justify-center mb-12" style={{ animationDelay: '.24s' }}>
+              <Button size="lg" onClick={() => navigate('/auth')} className="lp-shine bg-gradient-to-r from-primary to-amber-500 hover:from-primary/90 hover:to-amber-500/90 text-lg px-8 py-6 shadow-2xl shadow-primary/30 transition-transform duration-300 hover:-translate-y-0.5">
                 Começar Gratuitamente
                 <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
-              <Button size="lg" variant="outline" className="text-lg px-8 py-6">
+              <Button size="lg" variant="outline" className="lp-shine text-lg px-8 py-6 border-foreground/15 bg-foreground/5 backdrop-blur hover:bg-foreground/10">
                 <Play className="mr-2 w-5 h-5" />
                 Ver Demonstração
               </Button>
