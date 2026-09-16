@@ -43,6 +43,128 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Solicitação não encontrada' }), { status: 404, headers: jsonHeaders });
     }
 
+    // ─────────────── Mensagens ao cliente (canal único reutilizável) ───────────────
+    const SB_URL = Deno.env.get('SUPABASE_URL')!;
+    const SRK = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    const normalizedPhone = (() => {
+      const raw = String(request.customer_phone || '').trim();
+      const hasPlus = raw.startsWith('+');
+      let p = raw.replace(/\D/g, '');
+      if (!hasPlus && !p.startsWith('55') && p.length >= 10 && p.length <= 11) p = '55' + p;
+      return p;
+    })();
+
+    const infoLines =
+      `📱 Aplicativo: *${request.app_name}*\n👤 Cliente: *${request.customer_name}*\n` +
+      `${request.mac_address ? `🖥 MAC: *${request.mac_address}*\n` : ''}` +
+      `${request.email ? `📧 E-mail: *${request.email}*\n` : ''}`;
+
+    const buildMessage = (kind: 'received' | 'activated' | 'processing' | 'rejected') => {
+      if (kind === 'rejected') {
+        return `❌ *Solicitação de Ativação Recusada*\n\n${infoLines}\nEntre em contato conosco para mais informações.`;
+      }
+      if (kind === 'activated') {
+        return `✅ *APLICATIVO ATIVADO COM SUCESSO*\n\nSeu acesso foi liberado e o aplicativo já está pronto para uso.\n\n${infoLines}\n🎬 Agora é só abrir o aplicativo e aproveitar todo o conteúdo disponível.\n\nCaso precise de suporte, estamos à disposição.\nBom entretenimento! 🍿`;
+      }
+      if (kind === 'received') {
+        return `🛎 *PEDIDO RECEBIDO*\n\nRecebemos seu pedido de ativação e já estamos processando! 🎉\n\n${infoLines}\n⏳ A ativação está *em andamento* e leva apenas alguns minutos.\nAssim que estiver liberado, você recebe outra mensagem confirmando.\n\nObrigado pela preferência!`;
+      }
+      return `✅ *PAGAMENTO CONFIRMADO*\n\nRecebemos seu pagamento com sucesso! 🎉\n\n${infoLines}\n⏳ Sua ativação está sendo processada e será concluída em instantes.\nAssim que estiver pronto, você recebe outra mensagem confirmando a liberação.\n\nObrigado pela preferência!`;
+    };
+
+    const sendWhatsApp = async (message: string, logType: string) => {
+      if (!normalizedPhone || !request.user_id) return { notified: false, channel: '' };
+
+      const { data: crmSettings } = await supabaseAdmin
+        .from('crm_oficial_settings')
+        .select('enabled, api_key')
+        .eq('user_id', request.user_id)
+        .maybeSingle();
+
+      const sendEvolution = async () => {
+        try {
+          const resp = await fetch(`${SB_URL}/functions/v1/evolution-send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SRK}`, 'x-internal-token': SRK },
+            body: JSON.stringify({ action: 'send', phone: normalizedPhone, text: message, user_id: request.user_id }),
+          });
+          const j = await resp.json().catch(() => ({} as any));
+          const ok = resp.ok && !j?.error;
+          console.log(`[ActivationAction] Evolution → ${normalizedPhone}: ok=${ok} ${j?.error || ''}`);
+          return ok;
+        } catch (e) {
+          console.error('[ActivationAction] Erro Evolution:', e);
+          return false;
+        }
+      };
+
+      const sendOfficial = async () => {
+        if (!(crmSettings?.enabled && crmSettings?.api_key)) return false;
+        try {
+          const resp = await fetch(`${SB_URL}/functions/v1/crm-oficial-sync`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SRK}` },
+            body: JSON.stringify({ action: 'sendText', number: normalizedPhone, text: message, user_id: request.user_id }),
+          });
+          const j = await resp.json().catch(() => ({} as any));
+          const raw = JSON.stringify(j || '').toLowerCase();
+          const reengagement = raw.includes('131047') || raw.includes('re-engagement') || raw.includes('24 hours');
+          const ok = resp.ok && j?.error === undefined && j?.success !== false && !reengagement;
+          console.log(`[ActivationAction] CRM oficial → ${normalizedPhone}: ok=${ok}`);
+          return ok;
+        } catch (e) {
+          console.error('[ActivationAction] Erro CRM oficial:', e);
+          return false;
+        }
+      };
+
+      let notified = await sendEvolution();
+      let channel = notified ? 'evolution' : '';
+      if (!notified) {
+        notified = await sendOfficial();
+        channel = notified ? 'crm_oficial' : '';
+      }
+
+      try {
+        await supabaseAdmin.from('message_logs').insert({
+          user_id: request.user_id,
+          customer_name: request.customer_name,
+          customer_phone: normalizedPhone,
+          message_type: logType,
+          source: 'confirm-activation',
+          status: notified ? 'sent' : 'failed',
+          error_message: notified ? null : 'Nenhum canal WhatsApp disponível para o envio',
+          metadata: { request_id, app_name: request.app_name },
+        });
+      } catch { /* ignore */ }
+
+      return { notified, channel };
+    };
+
+    // ── Reenviar confirmação (botão em Apps) ──
+    if (action === 'resend') {
+      if (!normalizedPhone) {
+        return new Response(JSON.stringify({ error: 'Cliente sem WhatsApp cadastrado nesta solicitação' }), { status: 400, headers: jsonHeaders });
+      }
+      const kind =
+        request.status === 'rejected' ? 'rejected'
+        : ['completed', 'activated'].includes(String(request.status)) ? 'activated'
+        : 'processing';
+      const r = await sendWhatsApp(buildMessage(kind as any), 'activation_resend');
+      return new Response(JSON.stringify({
+        success: r.notified,
+        error: r.notified ? undefined : 'Nenhum canal WhatsApp disponível para o envio',
+        message: r.notified ? 'Confirmação reenviada ao cliente' : undefined,
+      }), { headers: jsonHeaders });
+    }
+
+    // ── Aviso imediato de "pedido em andamento" para painéis lentos (Duplecast) ──
+    if (action === 'activate' && normalizedPhone && /DUPLECAST/i.test(String(request.app_name || '')) && !['completed', 'activated'].includes(String(request.status))) {
+      await sendWhatsApp(buildMessage('received'), 'activation_received');
+    }
+
+
     // ── Auto-activate on external panel when applicable (Duplecast / Clouddy) ──
     let autoActivationError: string | null = null;
     let autoActivationOk = false;
