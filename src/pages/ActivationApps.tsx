@@ -333,7 +333,7 @@ export default function ActivationApps() {
 
 
   const updateRequestStatus = useMutation({
-    mutationFn: async ({ id, action }: { id: string; action: 'activate' | 'reject' }) => {
+    mutationFn: async ({ id, action }: { id: string; action: 'activate' | 'reject' | 'resend' }) => {
       const { data, error } = await supabase.functions.invoke('confirm-activation', {
         body: { request_id: id, action },
       });
