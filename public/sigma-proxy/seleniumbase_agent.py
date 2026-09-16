@@ -206,6 +206,39 @@ def browser_session(payload):
             except Exception:
                 captured = []
 
+        # Navegacao direta (evita fetch bloqueado pelo Cloudflare).
+        visits = []
+        for u in (payload.get("visit") or []):
+            try:
+                sb.uc_open_with_reconnect(str(u), reconnect_time=6)
+                sb.sleep(2)
+                visits.append({"url": sb.get_current_url(), "html": sb.get_page_source()[:200000]})
+            except Exception as exc:
+                visits.append({"url": str(u), "error": str(exc)})
+
+        submitted = None
+        sub = payload.get("submit")
+        if isinstance(sub, dict) and sub.get("url"):
+            try:
+                sb.uc_open_with_reconnect(str(sub["url"]), reconnect_time=6)
+                sb.sleep(2)
+                sb.execute_script(
+                    "const c=arguments[0];const f=document.createElement('form');"
+                    "f.method='POST';f.action=c.url;"
+                    "if(c.csrf_from_page){const t=document.querySelector('input[name=_csrf_token]');"
+                    "if(t){const i=document.createElement('input');i.type='hidden';"
+                    "i.name='_csrf_token';i.value=t.value;f.appendChild(i);}}"
+                    "for(const k in c.fields){const i=document.createElement('input');"
+                    "i.type='hidden';i.name=k;i.value=c.fields[k];f.appendChild(i);}"
+                    "document.body.appendChild(f);f.submit();",
+                    {"url": str(sub["url"]), "fields": sub.get("fields") or {},
+                     "csrf_from_page": bool(sub.get("csrf_from_page"))},
+                )
+                sb.sleep(7)
+                submitted = {"url": sb.get_current_url(), "html": sb.get_page_source()[:200000]}
+            except Exception as exc:
+                submitted = {"error": str(exc)}
+
         js_result = None
         js_code = payload.get("js")
         if js_code:
@@ -228,7 +261,8 @@ def browser_session(payload):
 
         return {"final_url": final_url, "cookies": cookies, "html": html, "captcha": captcha,
                 "storage": storage, "captured": captured, "steps": steps_log, "fields": fields,
-                "js_result": js_result, "engine": "seleniumbase"}
+                "js_result": js_result, "visits": visits, "submitted": submitted,
+                "engine": "seleniumbase"}
 
 
 def relay_fetch(payload):
@@ -291,7 +325,7 @@ class Handler(BaseHTTPRequestHandler):
             except BaseException as exc:  # SeleniumBase pode chamar sys.exit()
                 return self._send(502, {"ok": False, "browser": "falhou",
                                         "error": f"{type(exc).__name__}: {exc}"})
-        self._send(200, {"ok": True, "engine": "seleniumbase", "version": "1.4.0"})
+        self._send(200, {"ok": True, "engine": "seleniumbase", "version": "1.5.0"})
 
     def do_POST(self):
         if self.headers.get("x-sigma-proxy-secret", "") != SECRET:
