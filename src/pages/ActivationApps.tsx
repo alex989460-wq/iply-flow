@@ -17,7 +17,7 @@ import CreateClouddyUserDialog from '@/components/activation/CreateClouddyUserDi
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Smartphone, Mail, Monitor, Clock, CheckCircle2, XCircle, AlertCircle, Settings2, Eye, EyeOff, Zap, ListPlus, ShieldCheck, Loader2, Image as ImageIcon, Wand2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Smartphone, Mail, Monitor, Clock, CheckCircle2, XCircle, AlertCircle, Settings2, Eye, EyeOff, Zap, ListPlus, ShieldCheck, Loader2, Image as ImageIcon, Wand2, Send } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import PlaylistTemplatesCard from '@/components/playlist/PlaylistTemplatesCard';
@@ -333,7 +333,7 @@ export default function ActivationApps() {
 
 
   const updateRequestStatus = useMutation({
-    mutationFn: async ({ id, action }: { id: string; action: 'activate' | 'reject' }) => {
+    mutationFn: async ({ id, action }: { id: string; action: 'activate' | 'reject' | 'resend' }) => {
       const { data, error } = await supabase.functions.invoke('confirm-activation', {
         body: { request_id: id, action },
       });
@@ -500,18 +500,28 @@ export default function ActivationApps() {
                                      {format(new Date(req.created_at), 'dd MMM, HH:mm', { locale: ptBR })}
                                   </TableCell>
                                   <TableCell className="py-4 px-6 text-right">
-                                     {!['activated', 'rejected'].includes(req.status) ? (
-                                        <div className="flex gap-1 justify-end">
-                                           <Button size="sm" variant="outline" className="h-8 rounded-lg text-[10px] font-black uppercase border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10" disabled={updateRequestStatus.isPending} onClick={() => updateRequestStatus.mutate({ id: req.id, action: 'activate' })}>
-                                              <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> {req.status === 'failed' ? 'Tentar de novo' : 'Ativar'}
-                                           </Button>
-                                           <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-lg" disabled={updateRequestStatus.isPending} onClick={() => updateRequestStatus.mutate({ id: req.id, action: 'reject' })}>
-                                              <XCircle className="w-4 h-4" />
-                                           </Button>
-                                        </div>
-                                     ) : (
-                                        <span className="text-[10px] font-bold uppercase text-muted-foreground/40">—</span>
-                                     )}
+                                     <div className="flex gap-1 justify-end">
+                                        {!['activated', 'rejected'].includes(req.status) && (
+                                           <>
+                                              <Button size="sm" variant="outline" className="h-8 rounded-lg text-[10px] font-black uppercase border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10" disabled={updateRequestStatus.isPending} onClick={() => updateRequestStatus.mutate({ id: req.id, action: 'activate' })}>
+                                                 <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> {req.status === 'failed' ? 'Tentar de novo' : 'Ativar'}
+                                              </Button>
+                                              <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-lg" disabled={updateRequestStatus.isPending} onClick={() => updateRequestStatus.mutate({ id: req.id, action: 'reject' })}>
+                                                 <XCircle className="w-4 h-4" />
+                                              </Button>
+                                           </>
+                                        )}
+                                        <Button
+                                           size="sm"
+                                           variant="outline"
+                                           title="Reenviar confirmação no WhatsApp do cliente"
+                                           className="h-8 rounded-lg text-[10px] font-black uppercase border-primary/30 text-primary hover:bg-primary/10"
+                                           disabled={updateRequestStatus.isPending}
+                                           onClick={() => updateRequestStatus.mutate({ id: req.id, action: 'resend' })}
+                                        >
+                                           <Send className="w-3.5 h-3.5 mr-1" /> Reenviar
+                                        </Button>
+                                     </div>
                                   </TableCell>
 
                                </TableRow>
