@@ -95,8 +95,24 @@ serve(async (request) => {
   const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
 
   try {
-    const { email, password, code, mac, test } = await request.json();
+    const { email, password, code, mac, test, probe } = await request.json();
     const isTest = !!test;
+
+    if (probe) {
+      const url = PROXY_URL.startsWith("http") ? PROXY_URL : `https://${PROXY_URL}`;
+      if (!PROXY_URL) {
+        return new Response(JSON.stringify({ ok: false, error: "agente_nao_configurado" }), { headers: jsonHeaders });
+      }
+      try {
+        const r = await fetch(url.replace(/\/$/, "") + "/diag", {
+          signal: AbortSignal.timeout(20000),
+        });
+        const t = (await r.text()).slice(0, 500);
+        return new Response(JSON.stringify({ ok: r.ok, status: r.status, body: t }), { headers: jsonHeaders });
+      } catch (e) {
+        return new Response(JSON.stringify({ ok: false, error: String(e) }), { headers: jsonHeaders });
+      }
+    }
     if (!email || !password || (!isTest && !mac)) {
       return new Response(
         JSON.stringify({ error: "email, password e mac são obrigatórios" }),
