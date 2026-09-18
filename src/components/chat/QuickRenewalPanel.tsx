@@ -610,26 +610,40 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
               console.log('[P2Cine] Sucesso:', pcResult);
             }
           } else if (isUniplay) {
-            const { error: queueError } = await supabase.from('pending_manual_renewals' as any).insert({
-              owner_id: (customer as any).created_by || user?.id,
-              customer_id: customer.id,
-              customer_name: customer.name,
-              customer_phone: customer.phone,
-              username: xuiUsername,
-              server_id: (customer as any).server_id || customer.server?.id || null,
-              server_name: serverName,
-              server_host: serverHost,
-              plan_name: planName,
-              amount,
-              new_due_date: newDueDateStr,
-              reason: isP2Cine ? 'p2cine_extension_pending' : 'uniplay_extension_pending',
-              source: isP2Cine ? 'frontend_p2cine_quick_renew' : 'frontend_uniplay_quick_renew',
-              error_details: { message: isP2Cine
-                ? 'Aguardando extensão SuperGestor em aba logada no daily3.news / painelacesso1.com'
-                : 'Aguardando extensão SuperGestor em aba logada no searchdefense.top' },
+            const months = Math.max(1, Math.round(durationDays / 30));
+            const { data: upResult, error: upError } = await supabase.functions.invoke('uniplay-renew', {
+              body: { action: 'renew', username: xuiUsername, months, customer_id: customer.id },
             });
-            if (queueError) console.error('[Extensão] Erro ao enfileirar:', queueError);
-            else toast.info('Renovação enviada para a extensão do navegador.');
+            const upMessage = upError?.message || (upResult as any)?.error;
+
+            if (!upError && (upResult as any)?.success) {
+              console.log('[Uniplay] Sucesso via API:', upResult);
+              await supabase
+                .from('pending_manual_renewals' as any)
+                .delete()
+                .eq('customer_id', customer.id)
+                .eq('reason', 'uniplay_extension_pending');
+            } else {
+              console.error('[Uniplay] Falha na API:', upMessage);
+              toast.warning('Renovado localmente, mas ' + describePanelError('Uniplay', upMessage));
+              const { error: queueError } = await supabase.from('pending_manual_renewals' as any).insert({
+                owner_id: (customer as any).created_by || user?.id,
+                customer_id: customer.id,
+                customer_name: customer.name,
+                customer_phone: customer.phone,
+                username: xuiUsername,
+                server_id: (customer as any).server_id || customer.server?.id || null,
+                server_name: serverName,
+                server_host: serverHost,
+                plan_name: planName,
+                amount,
+                new_due_date: newDueDateStr,
+                reason: 'uniplay_api_failed',
+                source: 'frontend_uniplay_quick_renew',
+                error_details: { message: upMessage || 'Falha na API do painel Uniplay' },
+              });
+              if (queueError) console.error('[Uniplay] Erro ao registrar pendência:', queueError);
+            }
           } else {
             const { data: xuiResult, error: xuiError } = await supabase.functions.invoke('xui-renew', {
               body: { username: xuiUsername, new_due_date: newDueDateStr, customer_id: customer.id },
