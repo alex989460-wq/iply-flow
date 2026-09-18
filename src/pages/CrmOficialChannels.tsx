@@ -221,16 +221,16 @@ export default function CrmOficialChannels({ embed = false }: { embed?: boolean 
 
   if (loading) {
     return (
-      <DashboardLayout>
+      <Shell>
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-6 h-6 animate-spin text-primary" />
         </div>
-      </DashboardLayout>
+      </Shell>
     );
   }
 
   return (
-    <DashboardLayout>
+    <Shell>
       <div className="space-y-5 max-w-6xl mx-auto p-4 md:p-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
