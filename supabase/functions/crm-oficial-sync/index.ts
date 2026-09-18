@@ -1278,8 +1278,8 @@ async function doSendWhatsapp(payload: {
       || (paramNames.length > 0 && paramNames.every((n) => n));
     const inferredBodyParameters = paramNames.length
       ? paramNames.map((name, i) => isNamed && name
-        ? { type: "text", parameter_name: name, text: String(params[i] ?? "Cliente") }
-        : { type: "text", text: String(params[i] ?? "Cliente") })
+        ? { type: "text", parameter_name: name, text: String(params[i] ?? "-") }
+        : { type: "text", text: String(params[i] ?? "-") })
       : params.map((p) => ({ type: "text", text: String(p) }));
     const requestedComponents = Array.isArray(payload.components) && payload.components.length
       ? payload.components
@@ -1886,7 +1886,7 @@ Deno.serve(async (req) => {
           while (padded.length < expected) {
             const idx = padded.length;
             const name = paramNames[idx] || `p${idx + 1}`;
-            padded.push(isNamed ? { type: "text", parameter_name: name, text: "Cliente" } : { type: "text", text: "Cliente" });
+            padded.push(isNamed ? { type: "text", parameter_name: name, text: "-" } : { type: "text", text: "-" });
           }
           const retryComps = components.filter((c) => String(c?.type).toLowerCase() !== "body").concat([{ type: "body", parameters: padded }]);
           console.log(`[crm-oficial-sync sendTemplate] retry com ${expected} params (${isNamed ? "named" : "positional"})`);
