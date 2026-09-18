@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, Star, ExternalLink, Plus, Zap, Settings } from 'lucide-react';
+import { Loader2, RefreshCw, Star, ExternalLink, Plus, Zap, Settings, QrCode, RotateCw } from 'lucide-react';
 import { MetaLogo } from '@/components/ui/meta-logo';
 import whatsappLogo from '@/assets/whatsapp-logo.png';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Link } from 'react-router-dom';
-import AddChannelEmbedDialog from '@/components/crm/AddChannelEmbedDialog';
+import AddChannelDialog from '@/components/crm/AddChannelDialog';
+import ReconnectQrDialog from '@/components/crm/ReconnectQrDialog';
 import { cn } from '@/lib/utils';
 
 interface WAChannel {
@@ -85,6 +86,8 @@ export default function CrmChannelsInline() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [channels, setChannels] = useState<WAChannel[]>([]);
+  const [syncing, setSyncing] = useState(false);
+  const [reconnect, setReconnect] = useState<{ id: string; name: string } | null>(null);
 
   const load = useCallback(async (key: string) => {
     if (!key) return;
@@ -196,6 +199,23 @@ export default function CrmChannelsInline() {
     }
   }, [toast]);
 
+  const syncNumbers = useCallback(async () => {
+    if (!apiKey) return;
+    setSyncing(true);
+    try {
+      const { error } = await supabase.functions.invoke('crm-oficial-sync', {
+        body: { action: 'sync-channels', data: { apiKey } },
+      });
+      if (error) throw error;
+      await load(apiKey);
+      toast({ title: 'Números sincronizados', description: 'Os números das conexões foram atualizados.' });
+    } catch (e: any) {
+      toast({ title: 'Erro ao sincronizar', description: e.message, variant: 'destructive' });
+    } finally {
+      setSyncing(false);
+    }
+  }, [apiKey, load, toast]);
+
   useEffect(() => {
     if (!user) return;
     (async () => {
@@ -226,7 +246,11 @@ export default function CrmChannelsInline() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <AddChannelEmbedDialog apiKey={apiKey} onCreated={() => load(apiKey)} />
+          <AddChannelDialog apiKey={apiKey} onCreated={() => load(apiKey)} />
+          <Button variant="outline" size="sm" onClick={syncNumbers} disabled={syncing}>
+            {syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RotateCw className="w-4 h-4 mr-2" />}
+            Sincronizar números
+          </Button>
           <Button variant="outline" size="sm" onClick={() => load(apiKey)} disabled={refreshing}>
             {refreshing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
             Atualizar
@@ -328,6 +352,17 @@ export default function CrmChannelsInline() {
               )}
             </div>
 
+            {!ch.official && !ch.is_active && !ch.id.startsWith('local-') && (
+              <Button
+                size="sm"
+                variant="default"
+                className="w-full"
+                onClick={() => setReconnect({ id: ch.id, name: ch.verified_name || ch.name || 'WhatsApp' })}
+              >
+                <QrCode className="w-4 h-4 mr-2" /> Reconectar (ler QR Code)
+              </Button>
+            )}
+
             {!ch.official && (
               <Button asChild size="sm" variant="outline" className="w-full">
                 <Link to={`/evolution-instances?settings=${encodeURIComponent(ch.instance_name || ch.name || '')}`}>
@@ -339,7 +374,7 @@ export default function CrmChannelsInline() {
           </div>
         ))}
 
-        <AddChannelEmbedDialog
+        <AddChannelDialog
           apiKey={apiKey}
           onCreated={() => load(apiKey)}
           trigger={
