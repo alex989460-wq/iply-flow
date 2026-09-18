@@ -509,38 +509,77 @@ async function enrichChannelsWithMetaNumbers(listed: any, apiKey?: string) {
         tokenByPhoneId.set(String(r.phone_number_id), String(r.system_user_token));
       }
     }
-    const fallbackToken = rows?.find((r: any) => r?.system_user_token)?.system_user_token;
+
+    // O canal principal antigo fica na tabela legada; sem ela o número dele
+    // nunca é resolvido e o cartão mostra "Confirmando número...".
+    try {
+      const legacy = await crmRest(
+        `whatsapp_settings?select=phone_number_id,system_user_token,waba_id`,
+        accessToken,
+      ) as any[];
+      for (const r of legacy || []) {
+        if (r?.phone_number_id && r?.system_user_token && !tokenByPhoneId.has(String(r.phone_number_id))) {
+          tokenByPhoneId.set(String(r.phone_number_id), String(r.system_user_token));
+        }
+      }
+    } catch (_e) { /* tabela legada pode não existir */ }
+
+    const allTokens = Array.from(new Set(Array.from(tokenByPhoneId.values())));
+
+    // Fotos da Meta expiram e bloqueiam acesso direto do navegador; o CRM já
+    // expõe um proxy que entrega a mesma imagem de forma estável.
+    const proxied = (url: unknown) => {
+      const raw = String(url || "");
+      if (!raw) return "";
+      if (raw.startsWith("/api/")) return raw;
+      if (/^https?:\/\//i.test(raw) && /(whatsapp\.net|fbcdn\.net|lookaside)/i.test(raw)) {
+        return `/api/public/media/proxy?url=${encodeURIComponent(raw)}`;
+      }
+      return raw;
+    };
 
     await Promise.all(
       official.map(async (c) => {
         const pid = String(c.phone_number_id || c.phoneNumberId);
-        const token = tokenByPhoneId.get(pid) || fallbackToken;
-        if (!token) return;
-        try {
-          const res = await fetch(
-            `https://graph.facebook.com/v21.0/${pid}?fields=display_phone_number,verified_name,quality_rating`,
-            { headers: { Authorization: `Bearer ${token}` } },
-          );
-          const meta = await res.json().catch(() => ({}));
-          if (!res.ok) return;
-          if (meta?.display_phone_number) c.display_phone_number = meta.display_phone_number;
-          if (meta?.verified_name && !c.verified_name) c.verified_name = meta.verified_name;
-          if (meta?.quality_rating && !c.quality_rating) c.quality_rating = meta.quality_rating;
+        const preferred = tokenByPhoneId.get(pid);
+        const candidates = preferred ? [preferred, ...allTokens.filter((t) => t !== preferred)] : allTokens;
+        for (const token of candidates) {
+          try {
+            const res = await fetch(
+              `https://graph.facebook.com/v21.0/${pid}?fields=display_phone_number,verified_name,quality_rating`,
+              { headers: { Authorization: `Bearer ${token}` } },
+            );
+            const meta = await res.json().catch(() => ({}));
+            if (!res.ok || !meta?.display_phone_number) continue;
+            c.display_phone_number = meta.display_phone_number;
+            c.phone_number = c.phone_number || meta.display_phone_number;
+            if (meta?.verified_name && !c.verified_name) c.verified_name = meta.verified_name;
+            if (meta?.quality_rating && !c.quality_rating) c.quality_rating = meta.quality_rating;
 
-          // A foto comercial fica em um recurso separado do número na API da Meta.
-          // Ela é usada apenas para apresentar o canal e não altera a conexão.
-          const profileRes = await fetch(
-            `https://graph.facebook.com/v21.0/${pid}/whatsapp_business_profile?fields=profile_picture_url`,
-            { headers: { Authorization: `Bearer ${token}` } },
-          );
-          if (profileRes.ok) {
-            const profile = await profileRes.json().catch(() => ({}));
-            const profileRow = Array.isArray(profile?.data) ? profile.data[0] : profile;
-            if (profileRow?.profile_picture_url) c.avatar_url = profileRow.profile_picture_url;
-          }
-        } catch (_e) { /* ignora falha de enriquecimento */ }
+            // A foto comercial fica em um recurso separado do número na API da Meta.
+            // Ela é usada apenas para apresentar o canal e não altera a conexão.
+            const profileRes = await fetch(
+              `https://graph.facebook.com/v21.0/${pid}/whatsapp_business_profile?fields=profile_picture_url`,
+              { headers: { Authorization: `Bearer ${token}` } },
+            );
+            if (profileRes.ok) {
+              const profile = await profileRes.json().catch(() => ({}));
+              const profileRow = Array.isArray(profile?.data) ? profile.data[0] : profile;
+              if (profileRow?.profile_picture_url) c.avatar_url = profileRow.profile_picture_url;
+            }
+            break;
+          } catch (_e) { /* tenta o próximo token */ }
+        }
       }),
     );
+
+    for (const c of arr) {
+      const pic = proxied(c?.avatar_url || c?.profile_picture_url);
+      if (pic) {
+        c.avatar_url = pic;
+        c.profile_picture_url = pic;
+      }
+    }
 
     return listed;
   } catch (e) {

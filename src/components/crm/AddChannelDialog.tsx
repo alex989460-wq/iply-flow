@@ -106,9 +106,23 @@ export default function AddChannelDialog({ apiKey, onCreated, trigger }: Props) 
     setMode('cloud'); setErr(null); setSignupStep('waiting');
     signupRef.current = {};
     try {
-      const res = await call('meta-embed-config', apiKey);
-      const cfg = res?.results?.config?.body || {};
-      if (!cfg.app_id || !cfg.config_id) throw new Error('Cadastro da Meta indisponível no momento.');
+      // Uma falha momentânea de rede não deve bloquear o cadastro: tenta de novo.
+      let cfg: any = {};
+      let lastDetail = '';
+      for (let attempt = 0; attempt < 2 && !(cfg.app_id && cfg.config_id); attempt++) {
+        if (attempt) await new Promise((r) => setTimeout(r, 1500));
+        try {
+          const res = await call('meta-embed-config', apiKey);
+          const wrapper = res?.results?.config ?? res?.config ?? {};
+          cfg = wrapper?.body ?? wrapper ?? {};
+          if (!cfg.app_id) lastDetail = wrapper?.body?.error || `HTTP ${wrapper?.status ?? '?'}`;
+        } catch (e: any) {
+          lastDetail = e?.message || '';
+        }
+      }
+      if (!cfg.app_id || !cfg.config_id) {
+        throw new Error(`Cadastro da Meta indisponível no momento.${lastDetail ? ` (${lastDetail})` : ''}`);
+      }
       await loadFbSdk(cfg.app_id, cfg.graph_version || 'v21.0');
       if (!window.FB) throw new Error('Não foi possível carregar o login da Meta.');
 
