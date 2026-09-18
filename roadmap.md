@@ -1,9 +1,9 @@
 # Roadmap
 
 ## Em andamento
-- [ ] Padronizar visualmente todas as ferramentas com o mesmo sistema do Dashboard
-- [ ] Corrigir geração de teste Uniplay: evitar carregamento infinito e usar acesso protegido com fallback
-- [ ] Modernizar o Dashboard mantendo todos os dados e ações atuais
+- [x] Padronizar visualmente todas as ferramentas com o mesmo sistema do Dashboard
+- [x] Corrigir geração de teste Uniplay: evitar carregamento infinito e usar acesso protegido com fallback
+- [x] Modernizar o Dashboard mantendo todos os dados e ações atuais
 - [x] Corrigir renovação manual rápida do Uniplay para chamar a API antes de criar pendência
 - [x] Corrigir renovação Clouddy para descobrir a tarifa real do cliente e explicar quando o plano não está vinculado
 - [ ] Automatizar compra e transferência de créditos por painel, com isolamento por revendedor e novo visual da loja
