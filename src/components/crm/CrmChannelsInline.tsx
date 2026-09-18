@@ -389,6 +389,14 @@ export default function CrmChannelsInline() {
         />
 
       </div>
+
+      <ReconnectQrDialog
+        apiKey={apiKey}
+        channelId={reconnect?.id ?? null}
+        channelName={reconnect?.name}
+        onClose={() => setReconnect(null)}
+        onConnected={() => load(apiKey)}
+      />
     </div>
   );
 }
