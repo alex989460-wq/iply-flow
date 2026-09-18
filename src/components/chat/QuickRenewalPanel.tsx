@@ -212,6 +212,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
   }
 
   const selectedVplayServer = vplayServers.find(s => s.id === selectedVplayServerId);
+  const isUniplayTestSelected = selectedVplayServerId === UNIPLAY_TEST_OPTION;
 
   // Fetch zap responder settings for WhatsApp messaging
   const { data: zapSettings } = useQuery({
