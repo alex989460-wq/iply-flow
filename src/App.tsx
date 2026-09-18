@@ -155,10 +155,10 @@ function AppRoutes() {
       <Route path="/activation-apps" element={<ProtectedRoute><ActivationApps /></ProtectedRoute>} />
       <Route path="/meta-templates" element={<ProtectedRoute><MetaTemplates /></ProtectedRoute>} />
       <Route path="/meta-chat" element={<ProtectedRoute><MetaChat /></ProtectedRoute>} />
-      <Route path="/chat-evolution" element={<Navigate to="/chat?tab=evolution" replace />} />
-      <Route path="/evolution-instances" element={<ProtectedRoute><EvolutionInstances /></ProtectedRoute>} />
-      <Route path="/chat-crm-oficial" element={<Navigate to="/chat?tab=oficial" replace />} />
-      <Route path="/crm-oficial-channels" element={<ProtectedRoute><CrmOficialChannels /></ProtectedRoute>} />
+      <Route path="/chat-evolution" element={<Navigate to="/chat" replace />} />
+      <Route path="/evolution-instances" element={<ProtectedRoute><WhatsappConnections /></ProtectedRoute>} />
+      <Route path="/chat-crm-oficial" element={<Navigate to="/chat" replace />} />
+      <Route path="/crm-oficial-channels" element={<Navigate to="/evolution-instances?tab=oficial" replace />} />
       <Route path="/crm-oficial-templates" element={<ProtectedRoute><CrmOficialTemplates /></ProtectedRoute>} />
       <Route path="/crm-oficial-chatbots" element={<ProtectedRoute><CrmOficialChatbots /></ProtectedRoute>} />
       <Route path="/social-midia" element={<ProtectedRoute><CrmOficialSocial /></ProtectedRoute>} />
