@@ -1056,18 +1056,20 @@ export default function Billing() {
   return (
     <DashboardLayout>
       <div className="space-y-5 animate-fade-in">
-        <div className="relative overflow-hidden rounded-3xl border border-border/50 bg-card/60 backdrop-blur-xl p-5 sm:p-6">
-          <div className="pointer-events-none absolute -top-24 -right-16 w-64 h-64 rounded-full bg-primary/15 blur-3xl" />
-          <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
-                <MessageSquare className="w-5 h-5 text-primary" />
+        <div className="relative overflow-hidden rounded-3xl border border-border/50 bg-card px-5 py-6 shadow-sm sm:px-7 sm:py-7">
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-2/5 bg-gradient-to-l from-primary/10 to-transparent" />
+          <div className="pointer-events-none absolute -right-14 -top-24 h-52 w-52 rounded-full border-[32px] border-primary/10" />
+          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-2xl border border-border/60 bg-background/80 text-primary shadow-sm">
+                <MessageSquare className="h-5 w-5" />
               </div>
               <div>
-                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground tracking-tight">
+                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary">Comunicação</span>
+                <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
                   Cobranças & WhatsApp
                 </h1>
-                <p className="text-muted-foreground text-sm mt-1">
+                <p className="mt-1 text-sm text-muted-foreground">
                   Gerencie cobranças automáticas e comunicações via WhatsApp
                 </p>
               </div>
