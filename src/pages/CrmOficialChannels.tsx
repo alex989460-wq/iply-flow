@@ -7,7 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { AlertCircle, Loader2, Plus, RefreshCw, Star, Zap, Trash2, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import AddChannelEmbedDialog from '@/components/crm/AddChannelEmbedDialog';
+import AddChannelDialog from '@/components/crm/AddChannelDialog';
 import { ProviderBadge } from '@/components/ui/provider-badge';
 import { MetaLogo } from '@/components/ui/meta-logo';
 import logoSg from '@/assets/logo-sg.png';
@@ -133,6 +133,7 @@ export default function CrmOficialChannels({ embed = false }: { embed?: boolean 
   const [enabled, setEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [whatsapp, setWhatsapp] = useState<WhatsAppChannel[]>([]);
   const [webchat, setWebchat] = useState<WebchatChannel | null>(null);
 
@@ -163,6 +164,29 @@ export default function CrmOficialChannels({ embed = false }: { embed?: boolean 
       setRefreshing(false);
     }
   }, [toast]);
+
+  const syncChannels = useCallback(async () => {
+    if (!apiKey) return;
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('crm-oficial-sync', {
+        body: { action: 'sync-channels', data: { apiKey } },
+      });
+      if (error) throw error;
+      const body = data?.results?.channels?.body;
+      if (!data?.results?.channels?.ok || !body) {
+        throw new Error('O CRM não devolveu os dados atualizados dos canais.');
+      }
+      const normalized = normalizeChannelLists(body);
+      setWhatsapp(normalized.whatsapp);
+      setWebchat(normalized.webchat);
+      toast({ title: 'Canais sincronizados', description: 'Números, nomes e imagens foram atualizados.' });
+    } catch (e: any) {
+      toast({ title: 'Erro ao sincronizar canais', description: e.message, variant: 'destructive' });
+    } finally {
+      setSyncing(false);
+    }
+  }, [apiKey, toast]);
 
   useEffect(() => {
     if (!user) return;
@@ -243,7 +267,11 @@ export default function CrmOficialChannels({ embed = false }: { embed?: boolean 
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <AddChannelEmbedDialog apiKey={apiKey} onCreated={() => loadChannels(apiKey)} />
+            <AddChannelDialog apiKey={apiKey} onCreated={() => loadChannels(apiKey)} />
+            <Button variant="outline" size="sm" onClick={syncChannels} disabled={!apiKey || syncing}>
+              {syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+              Sincronizar números
+            </Button>
             <Button variant="outline" size="sm" onClick={() => loadChannels(apiKey)} disabled={!apiKey || refreshing}>
               {refreshing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
               Atualizar
@@ -434,7 +462,7 @@ export default function CrmOficialChannels({ embed = false }: { embed?: boolean 
 
 
           {/* Add new channel tile */}
-          <AddChannelEmbedDialog
+          <AddChannelDialog
             apiKey={apiKey}
             onCreated={() => loadChannels(apiKey)}
             trigger={

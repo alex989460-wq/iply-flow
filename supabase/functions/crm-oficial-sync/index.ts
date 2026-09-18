@@ -508,6 +508,18 @@ async function enrichChannelsWithMetaNumbers(listed: any, apiKey?: string) {
           if (meta?.display_phone_number) c.display_phone_number = meta.display_phone_number;
           if (meta?.verified_name && !c.verified_name) c.verified_name = meta.verified_name;
           if (meta?.quality_rating && !c.quality_rating) c.quality_rating = meta.quality_rating;
+
+          // A foto comercial fica em um recurso separado do número na API da Meta.
+          // Ela é usada apenas para apresentar o canal e não altera a conexão.
+          const profileRes = await fetch(
+            `https://graph.facebook.com/v21.0/${pid}/whatsapp_business_profile?fields=profile_picture_url`,
+            { headers: { Authorization: `Bearer ${token}` } },
+          );
+          if (profileRes.ok) {
+            const profile = await profileRes.json().catch(() => ({}));
+            const profileRow = Array.isArray(profile?.data) ? profile.data[0] : profile;
+            if (profileRow?.profile_picture_url) c.avatar_url = profileRow.profile_picture_url;
+          }
         } catch (_e) { /* ignora falha de enriquecimento */ }
       }),
     );
