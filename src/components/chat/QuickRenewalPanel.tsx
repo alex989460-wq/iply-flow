@@ -63,6 +63,9 @@ import { PhoneFlagBadge } from '@/components/ui/phone-flag-badge';
 
 type PaymentMethod = 'pix' | 'dinheiro' | 'transferencia' | 'cartao_credito';
 
+// Opção virtual do Uniplay dentro da lista de servidores de teste
+const UNIPLAY_TEST_OPTION = '__uniplay_api__';
+
 interface Customer {
   id: string;
   name: string;
