@@ -123,7 +123,10 @@ function normalizeChannelLists(body: any) {
   return { whatsapp: whatsapp.sort((a, b) => Number(!!b.primary || !!b.is_primary) - Number(!!a.primary || !!a.is_primary)), webchat: webRaw[0] || null };
 }
 
-export default function CrmOficialChannels() {
+export default function CrmOficialChannels({ embed = false }: { embed?: boolean }) {
+  const Shell = embed
+    ? ({ children }: { children: React.ReactNode }) => <>{children}</>
+    : DashboardLayout;
   const { user } = useAuth();
   const { toast } = useToast();
   const [apiKey, setApiKey] = useState('');
