@@ -1094,15 +1094,19 @@ Obrigado pela preferência! 🙏`;
     setIsGeneratingTest(true);
     setVplayTestResult(null);
     try {
-      const { data, error } = await supabase.functions.invoke('uniplay-generate-test', {
+      const request = supabase.functions.invoke('uniplay-generate-test', {
         body: {
           hours: Number(uniplayTestHours) || 6,
           kind: 'iptv',
           note: vplayTestName.trim() || 'Teste SuperGestor',
         },
       });
+      const timeout = new Promise<never>((_, reject) => {
+        window.setTimeout(() => reject(new Error('O painel Uniplay não respondeu em 55 segundos. Tente novamente.')), 55_000);
+      });
+      const { data, error } = await Promise.race([request, timeout]);
       if (error) throw new Error(error.message || 'Erro na edge function');
-      if ((data as any)?.error) throw new Error((data as any).error);
+      if (!(data as any)?.success || (data as any)?.error) throw new Error((data as any)?.error || 'O painel não confirmou a criação do teste.');
       setVplayTestResult((data as any)?.message || JSON.stringify(data));
       toast.success('Teste Uniplay gerado com sucesso!');
     } catch (error) {
