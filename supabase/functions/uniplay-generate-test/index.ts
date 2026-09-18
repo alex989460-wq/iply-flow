@@ -15,7 +15,7 @@ const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
 const DEFAULT_BASE_URL = "https://gesapioffice.com";
 const PANEL_HOST = "searchdefense.top";
 const ALLOWED_HOURS = [1, 2, 3, 6];
-const REQUEST_TIMEOUT_MS = 35_000;
+const REQUEST_TIMEOUT_MS = 12_000;
 
 const BodySchema = z.object({
   hours: z.coerce.number().int().refine((value) => ALLOWED_HOURS.includes(value)).default(6),
@@ -122,23 +122,21 @@ async function browserGenerateTest(opts: {
   note: string;
   packageId: string;
   productId: string;
-}): Promise<any> {
+}): Promise<{ result: any; token?: string; cryptPass?: string }> {
   const proxy = proxyConfig();
   if (!proxy) throw new Error("O acesso protegido do Uniplay não está configurado.");
 
   const js = `
     const done = arguments[arguments.length - 1];
     (async () => {
-      const USER = ${JSON.stringify(opts.username)};
-      const PASS = ${JSON.stringify(opts.password)};
       const kind = ${JSON.stringify(opts.kind)};
-      const payload = ${JSON.stringify(opts.kind === "p2p"
+      const createPayload = ${JSON.stringify(opts.kind === "p2p"
         ? { isOficial: false, productid: opts.productId, credits: 1, nota: opts.note, test_hours: opts.hours }
         : { isOficial: false, package: opts.packageId, credits: 1, isCustomPackage: false, nota: opts.note, test_hours: opts.hours })};
-      const bases = ["", ${JSON.stringify(DEFAULT_BASE_URL)}];
+      const apiBase = ${JSON.stringify(DEFAULT_BASE_URL)};
       const request = async (base, path, init) => {
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 12000);
+        const timer = setTimeout(() => controller.abort(), 10000);
         try {
           const response = await fetch(base + path, Object.assign({ credentials: "include", signal: controller.signal }, init || {}));
           const text = await response.text();
@@ -146,51 +144,40 @@ async function browserGenerateTest(opts: {
           return { status: response.status, ok: response.ok, json, text: text.slice(0, 500) };
         } finally { clearTimeout(timer); }
       };
-      const readToken = () => {
+      const readSession = () => {
+        const out = { token: "", crypt_pass: "" };
         for (const store of [window.localStorage, window.sessionStorage]) {
           for (let index = 0; index < store.length; index++) {
             const raw = String(store.getItem(store.key(index)) || "");
-            if (/^ey[A-Za-z0-9_\\-]+\\./.test(raw)) return raw;
+            if (!out.token && /^ey[A-Za-z0-9_\\-]+\\./.test(raw)) out.token = raw;
             if (raw.trim().startsWith("{")) {
               try {
                 const parsed = JSON.parse(raw);
                 const data = parsed && parsed.data && typeof parsed.data === "object" ? parsed.data : parsed;
-                if (data.access_token || data.token) return String(data.access_token || data.token);
+                out.token = out.token || String(data.access_token || data.token || "");
+                out.crypt_pass = out.crypt_pass || String(data.crypt_pass || "");
               } catch (_) {}
             }
           }
         }
-        return "";
+        return out;
       };
       try {
-        let token = readToken();
-        let apiBase = "";
-        if (!token) {
-          for (const base of bases) {
-            for (const path of ["/api/login", "/api/auth/login", "/api/reseller/login"]) {
-              const login = await request(base, path, {
-                method: "POST",
-                headers: { "Content-Type": "application/json;charset=UTF-8" },
-                body: JSON.stringify({ username: USER, password: PASS, code: "" }),
-              });
-              const data = login.json && (login.json.data || login.json);
-              token = String((data && (data.access_token || data.token)) || "");
-              if (token) { apiBase = base; break; }
-            }
-            if (token) break;
-          }
-        }
-        if (!token) return done({ success: false, error: "O painel não liberou a sessão de acesso." });
-        for (const base of [...new Set([apiBase, ...bases])]) {
+        const session = readSession();
+        if (!session.token) return done({ success: false, error: "login_sem_token" });
+        const auth = { "Content-Type": "application/json;charset=UTF-8", Authorization: "Bearer " + session.token };
+        let last = "";
+        for (const base of [apiBase, ""]) {
           const created = await request(base, "/api/users-" + kind, {
-            method: "POST",
-            headers: { "Content-Type": "application/json;charset=UTF-8", Authorization: "Bearer " + token },
-            body: JSON.stringify(payload),
+            method: "POST", headers: auth, body: JSON.stringify(createPayload),
           });
           const data = created.json && (created.json.data || created.json);
-          if (created.ok && data && (data.username || data.name)) return done({ success: true, result: data });
+          if (created.ok && data && (data.username || data.name)) {
+            return done({ success: true, result: data, token: session.token, crypt_pass: session.crypt_pass });
+          }
+          last = created.status + ": " + created.text;
         }
-        done({ success: false, error: "O painel recusou a criação do teste." });
+        done({ success: false, error: "criacao_recusada", detail: last });
       } catch (error) { done({ success: false, error: String(error) }); }
     })();
   `;
@@ -201,23 +188,27 @@ async function browserGenerateTest(opts: {
     body: JSON.stringify({
       browser: true,
       url: `https://${PANEL_HOST}/#/login`,
-      wait_ms: 8_000,
+      wait_ms: 3_000,
       force_captcha: true,
-      capture: "login|auth|token|signin",
       steps: [
-        { selector: "input[name='username'], input[type='text'], #username", value: opts.username, wait_ms: 500 },
-        { selector: "input[name='password'], input[type='password'], #password", value: opts.password, wait_ms: 500 },
-        { selector: "button[type='submit'], .btn-login, form button, button", click: true, wait_ms: 8_000 },
+        { selector: "input[type='text'], input[name='username'], #username", value: opts.username, wait_ms: 300 },
+        { selector: "input[type='password'], input[name='password'], #password", value: opts.password, wait_ms: 300 },
+        { selector: "button[type='submit'], .btn-login, form button, button", click: true, wait_ms: 4_000 },
       ],
       js,
     }),
-  }, 45_000);
+  }, 38_000);
   const payload = await response.json().catch(() => null) as any;
   const result = payload?.js_result;
-  if (!response.ok || !result?.success || !result?.result) {
-    throw new Error(String(result?.error || payload?.message || payload?.error || `Acesso protegido respondeu ${response.status}`));
+  if (!response.ok) throw new Error(String(payload?.message || payload?.error || `Acesso protegido respondeu ${response.status}`));
+  if (result?.success && result?.result) {
+    return { result: result.result, token: String(result.token || ""), cryptPass: String(result.crypt_pass || "") };
   }
-  return result.result;
+  if (result?.error === "login_sem_token") {
+    const captcha = String(payload?.captcha?.status || "não resolvido");
+    throw new Error(`O login do Uniplay não liberou a sessão (captcha: ${captcha}). Confira as credenciais em APIs Externas.`);
+  }
+  throw new Error(String(result?.detail || result?.error || payload?.message || payload?.error || "O painel recusou a criação do teste."));
 }
 
 Deno.serve(async (req) => {
@@ -272,18 +263,7 @@ Deno.serve(async (req) => {
     }
 
     // Primeiro reaproveita a sessão salva pelas renovações; evita um novo login lento.
-    let token = String(settings?.uniplay_session_token || "");
-    if (!token) {
-      const loginRes = await pfetch(`${baseUrl}/api/login`, {
-        method: "POST",
-        headers: uniplayHeaders({ "Content-Type": "application/json;charset=UTF-8" }),
-        body: JSON.stringify({ username: uUser, password: uPass, code: "" }),
-      });
-      const loginText = await loginRes.text();
-      let loginJson: any = null;
-      try { loginJson = JSON.parse(loginText); } catch { /* ignore */ }
-      token = String(loginJson?.access_token || loginJson?.token || "");
-    }
+    const token = String(settings?.uniplay_session_token || "");
 
     const payload = kind === "p2p"
       ? { isOficial: false, productid: String(body.productid || "1"), credits: 1, nota: note, test_hours: hours }
@@ -305,7 +285,7 @@ Deno.serve(async (req) => {
     }
 
     if (!result) {
-      result = await browserGenerateTest({
+      const browserResult = await browserGenerateTest({
         username: uUser,
         password: uPass,
         hours,
@@ -314,6 +294,14 @@ Deno.serve(async (req) => {
         packageId: String(body.package || "1"),
         productId: String(body.productid || "1"),
       });
+      result = browserResult.result;
+      if (browserResult.token) {
+        await admin.from("reseller_api_settings").update({
+          uniplay_session_token: browserResult.token,
+          uniplay_session_pass: browserResult.cryptPass || "",
+          uniplay_session_at: new Date().toISOString(),
+        }).eq("user_id", user.id);
+      }
     }
 
     return new Response(JSON.stringify(buildResult(result, hours)), { headers: jsonHeaders });
