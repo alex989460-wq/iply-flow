@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
     if (!uUser || !uPass) {
       return new Response(
         JSON.stringify({ error: "Configure usuário e senha do Uniplay em Configurações > APIs Externas." }),
-        { status: 400, headers: jsonHeaders },
+        { status: 200, headers: jsonHeaders },
       );
     }
 
@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
     if (!loginRes.ok || !token) {
       return new Response(
         JSON.stringify({ error: `Não foi possível entrar no Uniplay (${loginRes.status}). ${String(loginText).slice(0, 200)}` }),
-        { status: 502, headers: jsonHeaders },
+        { status: 200, headers: jsonHeaders },
       );
     }
 
@@ -159,7 +159,7 @@ Deno.serve(async (req) => {
     if (!createRes.ok || !result?.username) {
       return new Response(
         JSON.stringify({ error: `Falha ao gerar teste no Uniplay (${createRes.status}): ${String(createText).slice(0, 300)}` }),
-        { status: 502, headers: jsonHeaders },
+        { status: 200, headers: jsonHeaders },
       );
     }
 
@@ -186,6 +186,6 @@ Deno.serve(async (req) => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Erro desconhecido";
     console.error("[uniplay-generate-test]", err);
-    return new Response(JSON.stringify({ error: msg }), { status: 500, headers: jsonHeaders });
+    return new Response(JSON.stringify({ error: msg }), { status: 200, headers: jsonHeaders });
   }
 });

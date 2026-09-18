@@ -63,6 +63,9 @@ import { PhoneFlagBadge } from '@/components/ui/phone-flag-badge';
 
 type PaymentMethod = 'pix' | 'dinheiro' | 'transferencia' | 'cartao_credito';
 
+// Opção virtual do Uniplay dentro da lista de servidores de teste
+const UNIPLAY_TEST_OPTION = '__uniplay_api__';
+
 interface Customer {
   id: string;
   name: string;
@@ -212,6 +215,7 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
   }
 
   const selectedVplayServer = vplayServers.find(s => s.id === selectedVplayServerId);
+  const isUniplayTestSelected = selectedVplayServerId === UNIPLAY_TEST_OPTION;
 
   // Fetch zap responder settings for WhatsApp messaging
   const { data: zapSettings } = useQuery({
@@ -996,6 +1000,12 @@ Obrigado pela preferência! 🙏`;
   const [vplayTestName, setVplayTestName] = useState('');
   
   const handleGenerateVplayTest = async () => {
+    // Uniplay entra na mesma lista de servidores e usa a API do painel
+    if (selectedVplayServerId === UNIPLAY_TEST_OPTION) {
+      await handleGenerateUniplayTest();
+      return;
+    }
+
     if (!selectedVplayServer) {
       toast.warning('Configure um servidor Vplay primeiro!', {
         action: {
@@ -1005,6 +1015,7 @@ Obrigado pela preferência! 🙏`;
       });
       return;
     }
+
 
     const serverType = (selectedVplayServer as any).server_type || 'vplay';
     const isNatvServer = serverType === 'natv' || serverType === 'natv2';
@@ -2542,30 +2553,43 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
               </div>
             </CardHeader>
             <CardContent className="p-3 pt-0 space-y-2 relative z-10">
-              {/* Server Selector */}
-              {vplayServers.length > 0 ? (
-                <Select
-                  value={selectedVplayServerId || ''}
-                  onValueChange={(value) => setSelectedVplayServerId(value)}
-                >
+              {/* Seletor de servidor (inclui o Uniplay pela API) */}
+              <Select
+                value={selectedVplayServerId || ''}
+                onValueChange={(value) => setSelectedVplayServerId(value)}
+              >
+                <SelectTrigger className="h-9 text-sm bg-background/40 border-violet-500/20 rounded-xl focus:ring-violet-500/20">
+                  <SelectValue placeholder="Selecione o servidor" />
+                </SelectTrigger>
+                <SelectContent>
+                  {vplayServers.map((server) => (
+                    <SelectItem key={server.id} value={server.id}>
+                      <div className="flex items-center gap-2">
+                        <span>{server.server_name}</span>
+                        {server.is_default && (
+                          <span className="text-[10px] text-violet-500">(padrão)</span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={UNIPLAY_TEST_OPTION}>Uniplay (API)</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {isUniplayTestSelected && (
+                <Select value={uniplayTestHours} onValueChange={setUniplayTestHours}>
                   <SelectTrigger className="h-9 text-sm bg-background/40 border-violet-500/20 rounded-xl focus:ring-violet-500/20">
-                    <SelectValue placeholder="Selecione o servidor" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {vplayServers.map((server) => (
-                      <SelectItem key={server.id} value={server.id}>
-                        <div className="flex items-center gap-2">
-                          <span>{server.server_name}</span>
-                          {server.is_default && (
-                            <span className="text-[10px] text-violet-500">(padrão)</span>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="1">1 hora</SelectItem>
+                    <SelectItem value="2">2 horas</SelectItem>
+                    <SelectItem value="3">3 horas</SelectItem>
+                    <SelectItem value="6">6 horas</SelectItem>
                   </SelectContent>
                 </Select>
-              ) : null}
-              
+              )}
+
               <Input
                 placeholder="Nome do cliente (opcional)"
                 value={vplayTestName}
@@ -2575,14 +2599,18 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
               <Button 
                 className="w-full h-10 rounded-xl font-semibold shadow-lg shadow-violet-500/20 bg-gradient-to-r from-violet-600 to-violet-500 hover:from-violet-500 hover:to-violet-400 text-white transition-all active:scale-[0.98]" 
                 onClick={handleGenerateVplayTest}
-                disabled={isGeneratingTest || vplayServers.length === 0}
+                disabled={isGeneratingTest || (!selectedVplayServerId)}
               >
                 {isGeneratingTest ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
                   <Play className="h-4 w-4 mr-2" />
                 )}
-                {isGeneratingTest ? 'Gerando...' : selectedVplayServer ? `Gerar (${selectedVplayServer.server_name})` : 'Gerar Teste'}
+                {isGeneratingTest
+                  ? 'Gerando...'
+                  : isUniplayTestSelected
+                    ? 'Gerar (Uniplay)'
+                    : selectedVplayServer ? `Gerar (${selectedVplayServer.server_name})` : 'Gerar Teste'}
               </Button>
               
               {vplayServers.length === 0 && (
@@ -2590,37 +2618,6 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
                   Configure servidores em Configurações &gt; Gerador de Teste
                 </p>
               )}
-
-              {/* Teste rápido Uniplay */}
-              <div className="pt-2 mt-1 border-t border-violet-500/20 space-y-2">
-                <p className="text-[10px] font-semibold text-violet-500/90">Uniplay</p>
-                <div className="flex gap-2">
-                  <Select value={uniplayTestHours} onValueChange={setUniplayTestHours}>
-                    <SelectTrigger className="h-9 w-24 text-sm bg-background/40 border-violet-500/20 rounded-xl focus:ring-violet-500/20">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">1 hora</SelectItem>
-                      <SelectItem value="2">2 horas</SelectItem>
-                      <SelectItem value="3">3 horas</SelectItem>
-                      <SelectItem value="6">6 horas</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    className="flex-1 h-9 rounded-xl font-semibold bg-violet-500/15 hover:bg-violet-500/25 text-violet-600 dark:text-violet-300 border border-violet-500/30 transition-all active:scale-[0.98]"
-                    variant="ghost"
-                    onClick={handleGenerateUniplayTest}
-                    disabled={isGeneratingTest}
-                  >
-                    {isGeneratingTest ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Play className="h-4 w-4 mr-2" />
-                    )}
-                    Gerar teste Uniplay
-                  </Button>
-                </div>
-              </div>
             </CardContent>
           </Card>
 
