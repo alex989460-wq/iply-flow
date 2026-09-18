@@ -443,6 +443,37 @@
   .tabular-nums {
     font-variant-numeric: tabular-nums;
   }
+
+  /* Shared visual language for every authenticated tool. */
+  .dashboard-shell .tool-page-header {
+    box-shadow: var(--shadow-sm);
+  }
+
+  .dashboard-shell .tool-section-heading {
+    @apply flex items-end gap-4;
+  }
+
+  .dashboard-shell .tool-section-heading::after {
+    content: '';
+    @apply hidden h-px flex-1 bg-border/70 sm:block;
+  }
+
+  .dashboard-shell .tool-kicker {
+    @apply text-[10px] font-bold uppercase text-primary;
+    letter-spacing: 0;
+  }
+
+  .dashboard-shell .tool-panel {
+    @apply rounded-lg border border-border/50 bg-card shadow-sm;
+  }
+
+  .dashboard-shell .tool-toolbar {
+    @apply flex flex-col gap-3 rounded-lg border border-border/50 bg-card p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between;
+  }
+
+  .dashboard-shell [data-radix-scroll-area-viewport] {
+    border-radius: inherit;
+  }
 }
 /* Mobile: evita o zoom automático do iOS/Safari ao focar campos pequenos. */
 @media (max-width: 767px) {

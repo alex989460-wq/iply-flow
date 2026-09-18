@@ -33,11 +33,11 @@ export default function DashboardLayout({ children, noPadding }: DashboardLayout
     <div className="min-h-screen bg-background flex selection:bg-primary/30">
       <Sidebar />
       <main className={cn(
-        "flex-1 min-w-0 pt-14 lg:pt-0 box-border relative",
+        "dashboard-shell flex-1 min-w-0 pt-14 lg:pt-0 box-border relative",
         isChatRoute ? "h-[100dvh] overflow-hidden" : "min-h-screen"
       )}>
         <div className={cn(
-          "w-full max-w-[2000px] mx-auto h-full",
+          "dashboard-content w-full max-w-[2000px] mx-auto h-full",
           noPadding ? (isChatRoute ? 'absolute inset-0 pt-14 lg:pt-0 overflow-hidden' : '') : 'p-3 pb-28 sm:p-4 sm:pb-24 lg:p-8 lg:pb-10 xl:p-10'
         )}>
           {children}
