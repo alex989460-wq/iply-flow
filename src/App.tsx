@@ -39,7 +39,7 @@ import EvolutionChat from "./pages/EvolutionChat";
 import EvolutionInstances from "./pages/EvolutionInstances";
 import CrmOficialChat from "./pages/CrmOficialChat";
 import UnifiedChat from "./pages/UnifiedChat";
-import CrmOficialChannels from "./pages/CrmOficialChannels";
+import WhatsappConnections from "./pages/WhatsappConnections";
 import CrmOficialTemplates from "./pages/CrmOficialTemplates";
 import CrmOficialChatbots from "./pages/CrmOficialChatbots";
 import CrmOficialSocial from "./pages/CrmOficialSocial";
