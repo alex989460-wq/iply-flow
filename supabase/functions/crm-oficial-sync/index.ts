@@ -1822,14 +1822,14 @@ Deno.serve(async (req) => {
       // possui N variáveis, envie exatamente N parâmetros — nunca componentes
       // extras que alterem a estrutura aprovada.
       let finalParams = officialTemplate ? parameters.slice(0, paramNames.length) : parameters.slice();
-      while (finalParams.length < paramNames.length) finalParams.push("Cliente");
+      while (finalParams.length < paramNames.length) finalParams.push("-");
 
       // Build body component explicitly so doSendWhatsapp uses our shape
       // (named -> { type:'text', parameter_name, text }, positional -> { type:'text', text }).
       const bodyParameters = paramNames.length
         ? paramNames.map((name, i) => isNamed && name
-            ? { type: "text", parameter_name: name, text: String(finalParams[i] ?? "Cliente") }
-            : { type: "text", text: String(finalParams[i] ?? "Cliente") })
+            ? { type: "text", parameter_name: name, text: String(finalParams[i] ?? "-") }
+            : { type: "text", text: String(finalParams[i] ?? "-") })
         : finalParams.map((p) => ({ type: "text", text: String(p) }));
 
       const components: any[] = [];
