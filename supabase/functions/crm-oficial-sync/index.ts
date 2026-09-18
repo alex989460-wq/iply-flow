@@ -2124,6 +2124,51 @@ Deno.serve(async (req) => {
       results.channel = created;
     }
 
+    if (action === "meta-embed-config") {
+      results.config = await crmFetch("/api/public/v1/meta-embed-config", { method: "GET", apiKey });
+    }
+
+    if (action === "meta-signup") {
+      await enforceChannelQuota("official");
+      results.signup = await crmFetch("/api/public/v1/meta-signup", {
+        method: "POST",
+        body: JSON.stringify((data as any)?.signup || data || {}),
+        apiKey,
+      });
+    }
+
+    if (action === "sync-channels") {
+      results.sync = await crmFetch("/api/public/v1/channels-sync", {
+        method: "POST",
+        body: JSON.stringify({}),
+        apiKey,
+      });
+      const listed = await crmFetch("/api/public/v1/channels", { method: "GET", apiKey });
+      results.channels = await enrichChannelsWithMetaNumbers(listed, apiKey);
+    }
+
+    if (action === "reconnect-channel") {
+      const channelId = String((data as any)?.channel_id || (data as any)?.id || "");
+      if (!channelId) throw new Error("channel_id é obrigatório");
+      results.reconnect = await crmFetch("/api/public/v1/channels-reconnect", {
+        method: "POST",
+        body: JSON.stringify({ channel_id: channelId, force: (data as any)?.force === true }),
+        apiKey,
+      });
+    }
+
+    if (action === "set-account-billing") {
+      results.billing = await crmFetch("/api/public/v1/account-billing", {
+        method: "POST",
+        body: JSON.stringify({
+          due_date: (data as any)?.due_date ?? null,
+          grace_days: (data as any)?.grace_days ?? 3,
+          auto_suspend: (data as any)?.auto_suspend !== false,
+        }),
+        apiKey,
+      });
+    }
+
     if (action === "channel-qr") {
       const channelId = String((data as any)?.channel_id || (data as any)?.id || "");
       if (!channelId) throw new Error("channel_id é obrigatório");
