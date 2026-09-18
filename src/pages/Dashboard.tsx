@@ -36,6 +36,18 @@ import {
 import { format, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
+function DashboardSection({ eyebrow, title }: { eyebrow: string; title: string }) {
+  return (
+    <div className="flex items-end justify-between gap-4">
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">{eyebrow}</p>
+        <h2 className="mt-1 text-lg font-semibold tracking-tight text-foreground sm:text-xl">{title}</h2>
+      </div>
+      <div className="hidden h-px flex-1 bg-gradient-to-r from-border/80 to-transparent sm:block" />
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
@@ -103,7 +115,7 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-4 sm:space-y-6 lg:space-y-10">
+      <div className="space-y-6 sm:space-y-8 lg:space-y-10">
         {/* Welcome Header */}
         <WelcomeHeader />
 
@@ -149,8 +161,9 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Stats Grid with staggered animations */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6">
+        <section className="space-y-4">
+          <DashboardSection eyebrow="Visão geral" title="Sua base de clientes" />
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5 lg:gap-4">
           <StatsCard
             title="Total de Clientes"
             value={stats?.totalCustomers || 0}
@@ -186,10 +199,13 @@ export default function Dashboard() {
             variant="success"
             animationDelay={175}
           />
-        </div>
+          </div>
+        </section>
 
         {/* Revenue Row */}
-        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+        <section className="space-y-4">
+          <DashboardSection eyebrow="Financeiro" title="Receita e rentabilidade" />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
           <StatsCard
             title="Recebidos Hoje"
             value={`R$ ${(stats?.todayRevenue || 0).toFixed(2)}`}
@@ -221,11 +237,14 @@ export default function Dashboard() {
             variant="primary"
             animationDelay={300}
           />
-        </div>
+          </div>
+        </section>
 
 
         {/* Due Dates Row - Clickable */}
-        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+        <section className="space-y-4">
+          <DashboardSection eyebrow="Atenção" title="Agenda de vencimentos" />
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
           <StatsCard
             title="Vencem Hoje"
             value={stats?.dueTodayCustomers || 0}
@@ -258,7 +277,8 @@ export default function Dashboard() {
             onClick={() => navigateToCustomers('overdue')}
             animationDelay={500}
           />
-        </div>
+          </div>
+        </section>
 
         {/* Activity Feed + Monthly Goals Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6 animate-fade-in" style={{ animationDelay: '550ms' }}>

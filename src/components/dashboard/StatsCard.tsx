@@ -17,16 +17,16 @@ interface StatsCardProps {
 }
 
 const accentColors = {
-  default: 'from-primary via-primary/80 to-primary/60',
-  primary: 'from-amber-500 via-amber-400 to-yellow-500',
-  success: 'from-emerald-500 via-green-400 to-teal-500',
-  warning: 'from-orange-500 via-amber-400 to-yellow-500',
-  destructive: 'from-rose-500 via-red-400 to-pink-500',
+  default: 'bg-primary',
+  primary: 'bg-primary',
+  success: 'bg-emerald-500',
+  warning: 'bg-amber-500',
+  destructive: 'bg-rose-500',
 };
 
 const iconBgStyles = {
   default: 'bg-primary/10 text-primary group-hover:bg-primary/20',
-  primary: 'bg-amber-500/10 text-amber-500 group-hover:bg-amber-500/20',
+  primary: 'bg-primary/10 text-primary group-hover:bg-primary/15',
   success: 'bg-emerald-500/10 text-emerald-500 group-hover:bg-emerald-500/20',
   warning: 'bg-orange-500/10 text-orange-500 group-hover:bg-orange-500/20',
   destructive: 'bg-rose-500/10 text-rose-500 group-hover:bg-rose-500/20',
@@ -34,7 +34,7 @@ const iconBgStyles = {
 
 const titleColors = {
   default: 'text-primary',
-  primary: 'text-amber-500',
+  primary: 'text-primary',
   success: 'text-emerald-500',
   warning: 'text-orange-500',
   destructive: 'text-rose-500',
@@ -42,7 +42,7 @@ const titleColors = {
 
 const glowColors = {
   default: 'group-hover:shadow-primary/20',
-  primary: 'group-hover:shadow-amber-500/20',
+  primary: 'group-hover:shadow-primary/10',
   success: 'group-hover:shadow-emerald-500/20',
   warning: 'group-hover:shadow-orange-500/20',
   destructive: 'group-hover:shadow-rose-500/20',
@@ -133,12 +133,12 @@ export default function StatsCard({
     <div 
       ref={cardRef}
       className={cn(
-        "group relative rounded-xl overflow-hidden",
-        "bg-gradient-to-br from-card via-card to-card/95",
-        "border border-border/30",
-        "transition-all duration-500 ease-out",
-        "hover:scale-[1.03] hover:-translate-y-1.5",
-        "hover:shadow-2xl",
+        "group relative overflow-hidden rounded-2xl",
+        "bg-card",
+        "border border-border/50",
+        "transition-all duration-300 ease-out",
+        "hover:-translate-y-0.5",
+        "hover:border-primary/20 hover:shadow-lg",
         glowColors[variant],
         "dark:hover:shadow-black/40",
         onClick && "cursor-pointer",
@@ -150,10 +150,9 @@ export default function StatsCard({
       }}
       onClick={onClick}
     >
-      {/* Left accent border with gradient */}
+      {/* Status accent */}
       <div className={cn(
-        "absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b transition-all duration-300",
-        "group-hover:w-1.5",
+        "absolute inset-x-0 top-0 h-0.5 transition-all duration-300 group-hover:h-1",
         accentColors[variant]
       )} />
       
@@ -167,21 +166,15 @@ export default function StatsCard({
         }}
       />
       
-      {/* Shine effect on hover */}
-      <div className={cn(
-        "absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700",
-        "bg-gradient-to-tr from-white/[0.04] via-transparent to-transparent"
-      )} />
-      
-      <div className="relative p-4 sm:p-5 lg:p-6 flex items-center justify-between gap-3">
+      <div className="relative flex items-start justify-between gap-3 p-4 sm:p-5">
         <div className="space-y-1.5 min-w-0 flex-1">
           <p className={cn(
-            "text-[10px] sm:text-[11px] font-bold uppercase tracking-widest leading-tight line-clamp-1 transition-colors duration-300 opacity-80",
+            "line-clamp-1 text-[10px] font-bold uppercase leading-tight tracking-[0.14em] transition-colors duration-300 opacity-80 sm:text-[11px]",
             titleColors[variant]
           )}>
             {title}
           </p>
-          <p className="text-lg sm:text-xl lg:text-2xl xl:text-3xl font-black text-foreground tracking-tighter tabular-nums leading-none break-words">
+          <p className="break-words text-xl font-bold leading-none tracking-tight text-foreground tabular-nums sm:text-2xl">
             {displayValue}
           </p>
           {description && (
@@ -204,12 +197,12 @@ export default function StatsCard({
         
         {/* Icon container with enhanced hover effects */}
         <div className={cn(
-          "w-9 h-9 sm:w-10 sm:h-10 lg:w-12 lg:h-12 rounded-xl flex items-center justify-center flex-shrink-0",
+          "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl",
           "transition-all duration-500 ease-out",
           iconBgStyles[variant],
-          "group-hover:scale-110 group-hover:rotate-3 group-hover:shadow-lg"
+          "group-hover:scale-105"
         )}>
-          <Icon className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 transition-transform duration-300 group-hover:scale-110" />
+          <Icon className="h-5 w-5 transition-transform duration-300" />
         </div>
       </div>
     </div>
