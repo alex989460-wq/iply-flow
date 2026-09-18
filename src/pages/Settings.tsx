@@ -16,6 +16,7 @@ import VplayServersManager from '@/components/settings/VplayServersManager';
 import GoalsSettingsCard from '@/components/settings/GoalsSettingsCard';
 import ResellerApiSettings from '@/components/settings/ResellerApiSettings';
 import AutoRenewServersCard from '@/components/settings/AutoRenewServersCard';
+import CreditAlertCard from '@/components/settings/CreditAlertCard';
 import BillingSettingsCard from '@/components/settings/BillingSettingsCard';
 import BackupManagerCard from '@/components/settings/BackupManagerCard';
 import EvolutionApiCard from '@/components/settings/EvolutionApiCard';
@@ -748,6 +749,7 @@ export default function Settings() {
           <TabsContent value="apis_externas" className="mt-6 space-y-6">
             <ResellerApiSettings />
             <AutoRenewServersCard />
+            <CreditAlertCard />
           </TabsContent>
 
           {/* Vplay Test Generator Tab */}

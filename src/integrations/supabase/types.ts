@@ -3524,6 +3524,10 @@ export type Database = {
           cakto_client_secret: string | null
           cakto_webhook_secret: string | null
           created_at: string
+          credit_alert_enabled: boolean
+          credit_alert_last_sent_at: string | null
+          credit_alert_phone: string | null
+          credit_alert_threshold: number
           id: string
           natv_api_key: string | null
           natv_base_url: string | null
@@ -3569,6 +3573,10 @@ export type Database = {
           cakto_client_secret?: string | null
           cakto_webhook_secret?: string | null
           created_at?: string
+          credit_alert_enabled?: boolean
+          credit_alert_last_sent_at?: string | null
+          credit_alert_phone?: string | null
+          credit_alert_threshold?: number
           id?: string
           natv_api_key?: string | null
           natv_base_url?: string | null
@@ -3614,6 +3622,10 @@ export type Database = {
           cakto_client_secret?: string | null
           cakto_webhook_secret?: string | null
           created_at?: string
+          credit_alert_enabled?: boolean
+          credit_alert_last_sent_at?: string | null
+          credit_alert_phone?: string | null
+          credit_alert_threshold?: number
           id?: string
           natv_api_key?: string | null
           natv_base_url?: string | null
