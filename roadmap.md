@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Em andamento
+- [x] Corrigir renovação manual rápida do Uniplay para chamar a API antes de criar pendência
 - [x] Corrigir renovação Clouddy para descobrir a tarifa real do cliente e explicar quando o plano não está vinculado
 - [ ] Automatizar compra e transferência de créditos por painel, com isolamento por revendedor e novo visual da loja
 - [ ] Concluir cópia e validação da VPS sem alterar o DNS ou interromper a produção
