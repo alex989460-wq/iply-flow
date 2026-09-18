@@ -748,6 +748,7 @@ export default function Settings() {
           <TabsContent value="apis_externas" className="mt-6 space-y-6">
             <ResellerApiSettings />
             <AutoRenewServersCard />
+            <CreditAlertCard />
           </TabsContent>
 
           {/* Vplay Test Generator Tab */}
