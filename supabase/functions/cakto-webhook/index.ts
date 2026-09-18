@@ -1316,6 +1316,14 @@ serve(async (req) => {
                   number: custPhone,
                   language: 'pt_BR',
                   user_id: pendingNew.owner_id,
+                  parameters: [
+                    newCustomer.name || '-',
+                    newDueDateStr.split('-').reverse().join('/'),
+                    newCustomer.username || '-',
+                    `R$ ${amountNumeric.toFixed(2)}`,
+                    newPlan?.plan_name || '-',
+                    templateVars['{{servidor}}'] || '-',
+                  ],
                 }),
               });
             }
