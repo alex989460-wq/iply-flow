@@ -25,7 +25,7 @@ export default function PageHeader({
   return (
     <div
       className={cn(
-        'relative overflow-hidden rounded-3xl border border-border/50 bg-card px-5 py-6 shadow-sm animate-fade-in sm:px-7 sm:py-7',
+        'tool-page-header relative overflow-hidden rounded-lg border border-border/50 bg-card px-5 py-6 shadow-sm animate-fade-in sm:px-7 sm:py-7',
         className,
       )}
     >
@@ -34,7 +34,7 @@ export default function PageHeader({
       <div className="relative z-10 flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
         <div className="flex items-center gap-4 min-w-0">
           {Icon && (
-            <div className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-2xl border border-border/60 bg-background/80 text-primary shadow-sm">
+            <div className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-lg border border-border/60 bg-background/80 text-primary shadow-sm">
               <Icon className="h-5 w-5" />
             </div>
           )}
