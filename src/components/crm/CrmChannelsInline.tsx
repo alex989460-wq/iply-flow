@@ -33,6 +33,12 @@ function pick(...values: unknown[]) {
   return '';
 }
 
+function mediaUrl(value?: string | null) {
+  if (!value) return '';
+  if (/^https?:\/\//i.test(value)) return value;
+  return `https://zapcrm.top${value.startsWith('/') ? value : `/${value}`}`;
+}
+
 function qualityClass(q?: string) {
   const v = (q || '').toUpperCase();
   if (v === 'GREEN') return 'text-emerald-400';
@@ -69,7 +75,7 @@ function normalize(body: any): WAChannel[] {
         phone_number: phone,
         phone_number_id: phoneId,
         quality_rating: pick(c.quality_rating, c.qualityRating),
-        avatar_url: pick(c.avatar_url, c.profile_pic_url, c.profile_picture_url, c.picture),
+        avatar_url: mediaUrl(pick(c.avatar_url, c.profile_pic_url, c.profile_picture_url, c.picture)),
         primary: !!(c.primary || c.is_primary || c.id === 'primary'),
         is_active: official
           ? Boolean(c.is_active ?? c.active ?? c.connected ?? c.primary)

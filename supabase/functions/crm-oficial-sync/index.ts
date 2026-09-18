@@ -419,6 +419,23 @@ async function enrichChannelsWithMetaNumbers(listed: any, apiKey?: string) {
     const allRows = await crmRest(`channels?select=*`, accessToken) as any[];
     const rows = (allRows || []).filter((r: any) => !!(r?.phone_number_id || r?.phoneNumberId));
 
+    // A listagem pública pode estar atrasada em relação à tabela de canais. Mescla
+    // os dados já sincronizados no CRM antes de consultar a Meta novamente.
+    const rowByPhoneId = new Map(
+      rows.map((row: any) => [String(row?.phone_number_id || row?.phoneNumberId), row]),
+    );
+    for (const channel of arr) {
+      const phoneId = String(channel?.phone_number_id || channel?.phoneNumberId || "");
+      const row = rowByPhoneId.get(phoneId);
+      if (!row) continue;
+      channel.display_phone_number ||= row?.display_phone_number || row?.phone_number;
+      channel.phone_number ||= row?.phone_number || row?.display_phone_number;
+      channel.verified_name ||= row?.verified_name;
+      channel.quality_rating ||= row?.quality_rating;
+      channel.avatar_url ||= row?.avatar_url || row?.profile_picture_url;
+      channel.profile_picture_url ||= row?.profile_picture_url || row?.avatar_url;
+    }
+
     const digits = (v: unknown) => String(v || "").replace(/\D/g, "");
     const sameNumber = (a: unknown, b: unknown) => {
       const x = digits(a), y = digits(b);
@@ -471,6 +488,7 @@ async function enrichChannelsWithMetaNumbers(listed: any, apiKey?: string) {
         waba_id: row?.waba_id,
         quality_rating: row?.quality_rating,
         avatar_url: row?.avatar_url,
+        profile_picture_url: row?.profile_picture_url,
         is_active: row?.is_active,
         primary: row?.primary,
         is_primary: row?.is_primary,
@@ -2155,7 +2173,10 @@ Deno.serve(async (req) => {
         body: JSON.stringify({}),
         apiKey,
       });
-      const listed = await crmFetch("/api/public/v1/channels", { method: "GET", apiKey });
+      const syncBody = (results.sync as any)?.body;
+      const listed = syncBody?.channels
+        ? { ok: true, status: 200, body: syncBody.channels }
+        : await crmFetch("/api/public/v1/channels", { method: "GET", apiKey });
       results.channels = await enrichChannelsWithMetaNumbers(listed, apiKey);
     }
 

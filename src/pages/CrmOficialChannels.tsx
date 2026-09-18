@@ -55,6 +55,12 @@ function pickString(...values: unknown[]) {
   return '';
 }
 
+function mediaUrl(value?: string | null) {
+  if (!value) return '';
+  if (/^https?:\/\//i.test(value)) return value;
+  return `https://zapcrm.top${value.startsWith('/') ? value : `/${value}`}`;
+}
+
 function normalizeChannelLists(body: any) {
   const fromChannels = Array.isArray(body) ? body : Array.isArray(body?.channels) ? body.channels : [];
   const whats = fromChannels.length
@@ -98,7 +104,7 @@ function normalizeChannelLists(body: any) {
       phone_number_id: isEvolution ? '' : phoneId,
       instance_name: pickString(c.instance_name, c.instance, c.instanceName, c.evolution_instance_name, c.evolutionInstanceName),
       evolution_status: evolutionStatus,
-      avatar_url: pickString(c.avatar_url, c.profile_pic_url, c.profile_picture_url, c.picture),
+      avatar_url: mediaUrl(pickString(c.avatar_url, c.profile_pic_url, c.profile_picture_url, c.picture)),
       primary: !!(c.primary || c.is_primary || c.id === 'primary'),
       is_active: isEvolution
         ? evolutionStatus === 'open' || Boolean(c.is_active ?? c.connected)
