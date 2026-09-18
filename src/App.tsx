@@ -35,8 +35,6 @@ import ActivationApps from "./pages/ActivationApps";
 import ConsultaDue from "./pages/ConsultaDue";
 import MetaTemplates from "./pages/MetaTemplates";
 import MetaChat from "./pages/MetaChat";
-import EvolutionChat from "./pages/EvolutionChat";
-import EvolutionInstances from "./pages/EvolutionInstances";
 import CrmOficialChat from "./pages/CrmOficialChat";
 import UnifiedChat from "./pages/UnifiedChat";
 import WhatsappConnections from "./pages/WhatsappConnections";
