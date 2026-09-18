@@ -626,12 +626,15 @@ export default function Expenses() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="relative isolate overflow-hidden rounded-3xl border border-border/50 bg-card px-5 py-6 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:px-7 sm:py-7">
+          <div className="pointer-events-none absolute inset-y-0 right-0 -z-10 w-2/5 bg-gradient-to-l from-primary/10 to-transparent" />
+          <div className="pointer-events-none absolute -right-14 -top-24 -z-10 h-52 w-52 rounded-full border-[32px] border-primary/10" />
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary">Controle</span>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               Minhas Despesas
             </h1>
-            <p className="text-muted-foreground mt-1">
+            <p className="mt-1 text-sm text-muted-foreground">
               Gerencie suas despesas pessoais e domésticas
             </p>
           </div>

@@ -211,15 +211,20 @@ export default function WhatsappUtility() {
     <DashboardLayout>
       <div className="space-y-6 max-w-7xl mx-auto p-4 md:p-6">
         {/* HEADER SECTION */}
-        <div className="rounded-3xl border border-primary/25 bg-gradient-to-br from-primary/15 via-card to-card p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <Badge variant="outline" className="border-primary/30 text-primary mb-3">
-              <ShieldCheck className="w-3 h-3 mr-1" /> Motor de Conformidade Meta (Core da IA)
-            </Badge>
-            <h1 className="text-3xl md:text-4xl font-bold">WhatsApp Utility Agent</h1>
-            <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-              Garante que seus templates sejam aprovados como **Utilidade** pela Meta, economizando custos e melhorando a entrega. O agente aprende com cada aprovação e rejeição.
-            </p>
+        <div className="relative isolate overflow-hidden rounded-3xl border border-border/50 bg-card px-5 py-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 sm:px-7 sm:py-7">
+          <div className="pointer-events-none absolute inset-y-0 right-0 -z-10 w-2/5 bg-gradient-to-l from-primary/10 to-transparent" />
+          <div className="pointer-events-none absolute -right-14 -top-24 -z-10 h-52 w-52 rounded-full border-[32px] border-primary/10" />
+          <div className="flex items-center gap-4">
+            <div className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-2xl border border-border/60 bg-background/80 text-primary shadow-sm">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary">Conformidade Meta</span>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">WhatsApp Utility Agent</h1>
+              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                Garante que seus templates sejam aprovados como Utilidade pela Meta, economizando custos e melhorando a entrega.
+              </p>
+            </div>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => window.location.href = '/ai-training?tab=automation'}>

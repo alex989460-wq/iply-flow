@@ -27,26 +27,25 @@ export default function BillingSettings() {
     <DashboardLayout>
       <div className="space-y-6 animate-fade-in max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         {/* Advanced Modern Header */}
-        <div className="relative overflow-hidden rounded-[2.5rem] border border-border/50 bg-card/40 backdrop-blur-2xl p-8 shadow-2xl">
-          <div className="pointer-events-none absolute -top-32 -right-32 w-96 h-96 rounded-full bg-primary/10 blur-[100px] animate-pulse" />
-          <div className="pointer-events-none absolute -bottom-32 -left-32 w-64 h-64 rounded-full bg-sky-500/5 blur-[80px]" />
-          
-          <div className="relative flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
-            <div className="relative group">
-              <div className="absolute -inset-1 bg-gradient-to-tr from-primary to-sky-500 rounded-[2rem] blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
-              <div className="relative w-20 h-20 rounded-[1.8rem] bg-background/80 border border-border/50 flex items-center justify-center shadow-2xl backdrop-blur-xl">
-                <Receipt className="w-10 h-10 text-primary" />
-              </div>
+        <div className="relative overflow-hidden rounded-3xl border border-border/50 bg-card px-5 py-6 shadow-sm sm:px-7 sm:py-7">
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-2/5 bg-gradient-to-l from-primary/10 to-transparent" />
+          <div className="pointer-events-none absolute -right-14 -top-24 h-52 w-52 rounded-full border-[32px] border-primary/10" />
+
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center gap-5">
+            <div className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-2xl border border-border/60 bg-background/80 text-primary shadow-sm">
+              <Receipt className="h-5 w-5" />
             </div>
-            
-            <div className="flex-1 space-y-2">
-              <h1 className="text-3xl md:text-4xl font-black text-foreground tracking-tight">
-                Configurações <span className="text-primary italic">Financeiras</span>
+
+            <div className="flex-1">
+              <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary">Financeiro</span>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+                Configurações de Cobrança
               </h1>
-              <p className="text-muted-foreground text-base font-medium max-w-2xl leading-relaxed">
+              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
                 Centralize o controle de suas mensagens, portais de pagamento e cupons em um único ecossistema automatizado.
               </p>
             </div>
+
 
             <div className="hidden lg:flex items-center gap-3 bg-background/40 backdrop-blur-md px-6 py-4 rounded-3xl border border-border/50">
                <div className="text-right">

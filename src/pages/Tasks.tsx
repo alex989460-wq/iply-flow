@@ -230,15 +230,18 @@ export default function Tasks() {
     <DashboardLayout>
       <div className="space-y-6 animate-fade-in">
         {/* Header */}
-        <div className="relative overflow-hidden rounded-3xl border border-border/50 bg-gradient-to-br from-primary/15 via-background/60 to-background/20 backdrop-blur-xl p-6 shadow-2xl">
-          <div className="flex flex-col md:flex-row md:items-center gap-4 justify-between">
+        <div className="relative overflow-hidden rounded-3xl border border-border/50 bg-card px-5 py-6 shadow-sm sm:px-7 sm:py-7">
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-2/5 bg-gradient-to-l from-primary/10 to-transparent" />
+          <div className="pointer-events-none absolute -right-14 -top-24 h-52 w-52 rounded-full border-[32px] border-primary/10" />
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center gap-4 justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center shadow-inner">
-                <ListChecks className="w-7 h-7 text-primary" />
+              <div className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-2xl border border-border/60 bg-background/80 text-primary shadow-sm">
+                <ListChecks className="h-5 w-5" />
               </div>
               <div>
-                <h1 className="text-2xl font-black tracking-tight">Tarefas &amp; Anotações</h1>
-                <p className="text-sm text-muted-foreground">Organize seu dia e receba avisos automáticos no WhatsApp e no celular.</p>
+                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary">Produtividade</span>
+                <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Tarefas &amp; Anotações</h1>
+                <p className="mt-1 text-sm text-muted-foreground">Organize seu dia e receba avisos automáticos no WhatsApp e no celular.</p>
               </div>
             </div>
             <Button
