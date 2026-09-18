@@ -996,6 +996,12 @@ Obrigado pela preferência! 🙏`;
   const [vplayTestName, setVplayTestName] = useState('');
   
   const handleGenerateVplayTest = async () => {
+    // Uniplay entra na mesma lista de servidores e usa a API do painel
+    if (selectedVplayServerId === UNIPLAY_TEST_OPTION) {
+      await handleGenerateUniplayTest();
+      return;
+    }
+
     if (!selectedVplayServer) {
       toast.warning('Configure um servidor Vplay primeiro!', {
         action: {
@@ -1005,6 +1011,7 @@ Obrigado pela preferência! 🙏`;
       });
       return;
     }
+
 
     const serverType = (selectedVplayServer as any).server_type || 'vplay';
     const isNatvServer = serverType === 'natv' || serverType === 'natv2';
