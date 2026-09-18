@@ -123,7 +123,10 @@ function normalizeChannelLists(body: any) {
   return { whatsapp: whatsapp.sort((a, b) => Number(!!b.primary || !!b.is_primary) - Number(!!a.primary || !!a.is_primary)), webchat: webRaw[0] || null };
 }
 
-export default function CrmOficialChannels() {
+export default function CrmOficialChannels({ embed = false }: { embed?: boolean }) {
+  const Shell = embed
+    ? ({ children }: { children: React.ReactNode }) => <>{children}</>
+    : DashboardLayout;
   const { user } = useAuth();
   const { toast } = useToast();
   const [apiKey, setApiKey] = useState('');
@@ -218,16 +221,16 @@ export default function CrmOficialChannels() {
 
   if (loading) {
     return (
-      <DashboardLayout>
+      <Shell>
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-6 h-6 animate-spin text-primary" />
         </div>
-      </DashboardLayout>
+      </Shell>
     );
   }
 
   return (
-    <DashboardLayout>
+    <Shell>
       <div className="space-y-5 max-w-6xl mx-auto p-4 md:p-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
@@ -450,6 +453,6 @@ export default function CrmOficialChannels() {
 
 
       </div>
-    </DashboardLayout>
+    </Shell>
   );
 }

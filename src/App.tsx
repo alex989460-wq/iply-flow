@@ -35,11 +35,9 @@ import ActivationApps from "./pages/ActivationApps";
 import ConsultaDue from "./pages/ConsultaDue";
 import MetaTemplates from "./pages/MetaTemplates";
 import MetaChat from "./pages/MetaChat";
-import EvolutionChat from "./pages/EvolutionChat";
-import EvolutionInstances from "./pages/EvolutionInstances";
 import CrmOficialChat from "./pages/CrmOficialChat";
 import UnifiedChat from "./pages/UnifiedChat";
-import CrmOficialChannels from "./pages/CrmOficialChannels";
+import WhatsappConnections from "./pages/WhatsappConnections";
 import CrmOficialTemplates from "./pages/CrmOficialTemplates";
 import CrmOficialChatbots from "./pages/CrmOficialChatbots";
 import CrmOficialSocial from "./pages/CrmOficialSocial";
@@ -155,10 +153,10 @@ function AppRoutes() {
       <Route path="/activation-apps" element={<ProtectedRoute><ActivationApps /></ProtectedRoute>} />
       <Route path="/meta-templates" element={<ProtectedRoute><MetaTemplates /></ProtectedRoute>} />
       <Route path="/meta-chat" element={<ProtectedRoute><MetaChat /></ProtectedRoute>} />
-      <Route path="/chat-evolution" element={<Navigate to="/chat?tab=evolution" replace />} />
-      <Route path="/evolution-instances" element={<ProtectedRoute><EvolutionInstances /></ProtectedRoute>} />
-      <Route path="/chat-crm-oficial" element={<Navigate to="/chat?tab=oficial" replace />} />
-      <Route path="/crm-oficial-channels" element={<ProtectedRoute><CrmOficialChannels /></ProtectedRoute>} />
+      <Route path="/chat-evolution" element={<Navigate to="/chat" replace />} />
+      <Route path="/evolution-instances" element={<ProtectedRoute><WhatsappConnections /></ProtectedRoute>} />
+      <Route path="/chat-crm-oficial" element={<Navigate to="/chat" replace />} />
+      <Route path="/crm-oficial-channels" element={<Navigate to="/evolution-instances?tab=oficial" replace />} />
       <Route path="/crm-oficial-templates" element={<ProtectedRoute><CrmOficialTemplates /></ProtectedRoute>} />
       <Route path="/crm-oficial-chatbots" element={<ProtectedRoute><CrmOficialChatbots /></ProtectedRoute>} />
       <Route path="/social-midia" element={<ProtectedRoute><CrmOficialSocial /></ProtectedRoute>} />
