@@ -332,13 +332,16 @@ export default function AiTraining() {
     <DashboardLayout>
       <div className="space-y-6 p-4 md:p-6">
         {/* HEADER */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="relative isolate overflow-hidden rounded-3xl border border-border/50 bg-card px-5 py-6 shadow-sm flex flex-wrap items-center justify-between gap-4 sm:px-7 sm:py-7">
+          <div className="pointer-events-none absolute inset-y-0 right-0 -z-10 w-2/5 bg-gradient-to-l from-violet-500/10 to-transparent" />
+          <div className="pointer-events-none absolute -right-14 -top-24 -z-10 h-52 w-52 rounded-full border-[32px] border-violet-500/10" />
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
-              <Brain className="h-7 w-7 text-violet-500" />
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-violet-500">Inteligência</span>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl flex items-center gap-2">
+              <Brain className="h-6 w-6 text-violet-500" />
               Central de Conhecimento IA
             </h1>
-            <p className="text-sm text-muted-foreground mt-1">Analisa atendimentos completos, cruza padrões e só publica automações após sua aprovação.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Analisa atendimentos completos, cruza padrões e só publica automações após sua aprovação.</p>
             <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
