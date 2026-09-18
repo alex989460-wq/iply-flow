@@ -453,6 +453,6 @@ export default function CrmOficialChannels({ embed = false }: { embed?: boolean 
 
 
       </div>
-    </DashboardLayout>
+    </Shell>
   );
 }
