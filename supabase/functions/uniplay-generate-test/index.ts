@@ -15,7 +15,7 @@ const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
 const DEFAULT_BASE_URL = "https://gesapioffice.com";
 const PANEL_HOST = "searchdefense.top";
 const ALLOWED_HOURS = [1, 2, 3, 6];
-const REQUEST_TIMEOUT_MS = 12_000;
+const REQUEST_TIMEOUT_MS = 10_000;
 
 const BodySchema = z.object({
   hours: z.coerce.number().int().refine((value) => ALLOWED_HOURS.includes(value)).default(6),
@@ -264,6 +264,12 @@ Deno.serve(async (req) => {
 
     // Primeiro reaproveita a sessão salva pelas renovações; evita um novo login lento.
     const token = String(settings?.uniplay_session_token || "");
+    if (!token) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: "A API do Uniplay está temporariamente indisponível e não há sessão salva. O teste não foi criado; tente novamente quando o painel voltar.",
+      }), { status: 200, headers: jsonHeaders });
+    }
 
     const payload = kind === "p2p"
       ? { isOficial: false, productid: String(body.productid || "1"), credits: 1, nota: note, test_hours: hours }
