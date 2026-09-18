@@ -1,7 +1,9 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useEffect, useState } from 'react';
-import { Sun, Moon, Sunset } from 'lucide-react';
+import { Sun, Moon, Sunset, CalendarDays, Sparkles } from 'lucide-react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
 export default function WelcomeHeader() {
@@ -34,22 +36,30 @@ export default function WelcomeHeader() {
   const displayName = profileName || user?.email?.split('@')[0] || 'Usuário';
 
   return (
-    <div className="flex items-center justify-between gap-4 p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-card/30 border border-primary/20 shadow-xl shadow-primary/5 animate-fade-in relative overflow-hidden group">
-      <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-3xl transition-transform duration-700 group-hover:scale-150" />
-      <div className="flex items-center gap-4 relative z-10">
-        <div className={cn("p-3 rounded-xl bg-background/80 backdrop-blur-md shadow-inner border border-white/10", greeting.color)}>
-          <GreetingIcon className="w-6 h-6 animate-pulse-slow" />
-        </div>
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className={cn("text-xs font-bold uppercase tracking-widest opacity-80", greeting.color)}>
-              {greeting.text}
-            </span>
-            <div className={cn("h-px w-8", greeting.color.replace('text', 'bg'), "opacity-30")} />
+    <div className="relative overflow-hidden rounded-3xl border border-border/50 bg-card px-5 py-6 shadow-sm animate-fade-in sm:px-7 sm:py-7">
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-2/5 bg-gradient-to-l from-primary/10 to-transparent" />
+      <div className="pointer-events-none absolute -right-14 -top-24 h-52 w-52 rounded-full border-[32px] border-primary/10" />
+      <div className="relative z-10 flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-4">
+          <div className={cn("grid h-12 w-12 place-items-center rounded-2xl border border-border/60 bg-background/80 shadow-sm", greeting.color)}>
+            <GreetingIcon className="h-5 w-5" />
           </div>
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-foreground tracking-tight leading-none">
-            Olá, <span className="text-primary drop-shadow-sm">{displayName}</span>! ✨
-          </h1>
+          <div>
+            <div className="mb-1 flex items-center gap-2">
+              <Sparkles className={cn("h-3.5 w-3.5", greeting.color)} />
+              <span className={cn("text-[11px] font-bold uppercase tracking-[0.18em]", greeting.color)}>
+                {greeting.text}
+              </span>
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+              Olá, {displayName}
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">Acompanhe o desempenho da sua operação em um só lugar.</p>
+          </div>
+        </div>
+        <div className="flex w-fit items-center gap-2 rounded-xl border border-border/60 bg-background/70 px-3 py-2 text-xs font-medium text-muted-foreground backdrop-blur-sm">
+          <CalendarDays className="h-4 w-4 text-primary" />
+          <span className="capitalize">{format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}</span>
         </div>
       </div>
     </div>

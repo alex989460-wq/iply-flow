@@ -3,7 +3,8 @@
 // de usuário da API (gesapioffice.com), enviando o campo `test_hours`.
 //   IPTV: POST /api/users-iptv  { isOficial, package, credits, isCustomPackage, nota, test_hours }
 //   P2P : POST /api/users-p2p   { isOficial, productid, credits, nota, test_hours }
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { z } from "npm:zod@3.25.76";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,6 +15,25 @@ const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
 const DEFAULT_BASE_URL = "https://gesapioffice.com";
 const PANEL_HOST = "searchdefense.top";
 const ALLOWED_HOURS = [1, 2, 3, 6];
+const REQUEST_TIMEOUT_MS = 10_000;
+
+const BodySchema = z.object({
+  hours: z.coerce.number().int().refine((value) => ALLOWED_HOURS.includes(value)).default(6),
+  kind: z.enum(["iptv", "p2p"]).default("iptv"),
+  note: z.string().trim().max(60).optional(),
+  package: z.union([z.string(), z.number()]).optional(),
+  productid: z.union([z.string(), z.number()]).optional(),
+});
+
+async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = REQUEST_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 function normalizeApiBaseUrl(raw: unknown): string {
   const value = String(raw || "").trim();
@@ -52,16 +72,16 @@ function proxyConfig(): { url: string; secret: string } | null {
 // O painel bloqueia IPs de datacenter: as chamadas passam pelo relay brasileiro.
 async function pfetch(url: string, init: { method?: string; headers?: Record<string, string>; body?: string } = {}): Promise<Response> {
   const proxy = proxyConfig();
-  if (!proxy) return await fetch(url, init as RequestInit);
+  if (!proxy) return await fetchWithTimeout(url, init as RequestInit);
   try {
-    const relayed = await fetch(proxy.url, {
+    const relayed = await fetchWithTimeout(proxy.url, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-sigma-proxy-secret": proxy.secret },
       body: JSON.stringify({ url, method: init.method || "GET", headers: init.headers || {}, body: init.body }),
     });
     const payload = await relayed.json().catch(() => null) as any;
     if (!relayed.ok || !payload || typeof payload.status !== "number" || payload.status === 0) {
-      return await fetch(url, init as RequestInit);
+      return await fetchWithTimeout(url, init as RequestInit);
     }
     const text = String(payload.body ?? "");
     const contentType = String(
@@ -70,8 +90,125 @@ async function pfetch(url: string, init: { method?: string; headers?: Record<str
     );
     return new Response(text, { status: payload.status, headers: { "content-type": contentType } });
   } catch {
-    return await fetch(url, init as RequestInit);
+    return await fetchWithTimeout(url, init as RequestInit);
   }
+}
+
+function buildResult(result: any, hours: number) {
+  const expTxt = result?.exp_date
+    ? new Date(result.exp_date).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })
+    : `${hours}h`;
+  const m3u = String(result?.M3U8 || result?.m3u || "");
+  const hls = String(result?.M3U8_2 || result?.SSIPTV_M3U8 || result?.hls || "");
+  const dns = String(result?.DNS_SMARTER || result?.dns || "");
+  const username = String(result?.username || result?.name || "");
+  const password = String(result?.password || "");
+  const message =
+    `🎬 *TESTE GERADO*\n\n` +
+    `👤 Usuário: ${username}\n` +
+    `🔑 Senha: ${password}\n` +
+    (dns ? `🌐 Servidor: ${dns}\n` : "") +
+    `⏰ Expira: ${expTxt}\n\n` +
+    (m3u ? `*Link (M3U)* 👉 ${m3u}\n\n` : "") +
+    (hls ? `*Link (HLS)* 👉 ${hls}` : "");
+  return { success: true, message, m3u, hls, dns, user: result };
+}
+
+async function browserGenerateTest(opts: {
+  username: string;
+  password: string;
+  hours: number;
+  kind: "iptv" | "p2p";
+  note: string;
+  packageId: string;
+  productId: string;
+}): Promise<{ result: any; token?: string; cryptPass?: string }> {
+  const proxy = proxyConfig();
+  if (!proxy) throw new Error("O acesso protegido do Uniplay não está configurado.");
+
+  const js = `
+    const done = arguments[arguments.length - 1];
+    (async () => {
+      const kind = ${JSON.stringify(opts.kind)};
+      const createPayload = ${JSON.stringify(opts.kind === "p2p"
+        ? { isOficial: false, productid: opts.productId, credits: 1, nota: opts.note, test_hours: opts.hours }
+        : { isOficial: false, package: opts.packageId, credits: 1, isCustomPackage: false, nota: opts.note, test_hours: opts.hours })};
+      const apiBase = ${JSON.stringify(DEFAULT_BASE_URL)};
+      const request = async (base, path, init) => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 10000);
+        try {
+          const response = await fetch(base + path, Object.assign({ credentials: "include", signal: controller.signal }, init || {}));
+          const text = await response.text();
+          let json = null; try { json = JSON.parse(text); } catch (_) {}
+          return { status: response.status, ok: response.ok, json, text: text.slice(0, 500) };
+        } finally { clearTimeout(timer); }
+      };
+      const readSession = () => {
+        const out = { token: "", crypt_pass: "" };
+        for (const store of [window.localStorage, window.sessionStorage]) {
+          for (let index = 0; index < store.length; index++) {
+            const raw = String(store.getItem(store.key(index)) || "");
+            if (!out.token && /^ey[A-Za-z0-9_\\-]+\\./.test(raw)) out.token = raw;
+            if (raw.trim().startsWith("{")) {
+              try {
+                const parsed = JSON.parse(raw);
+                const data = parsed && parsed.data && typeof parsed.data === "object" ? parsed.data : parsed;
+                out.token = out.token || String(data.access_token || data.token || "");
+                out.crypt_pass = out.crypt_pass || String(data.crypt_pass || "");
+              } catch (_) {}
+            }
+          }
+        }
+        return out;
+      };
+      try {
+        const session = readSession();
+        if (!session.token) return done({ success: false, error: "login_sem_token" });
+        const auth = { "Content-Type": "application/json;charset=UTF-8", Authorization: "Bearer " + session.token };
+        let last = "";
+        for (const base of [apiBase, ""]) {
+          const created = await request(base, "/api/users-" + kind, {
+            method: "POST", headers: auth, body: JSON.stringify(createPayload),
+          });
+          const data = created.json && (created.json.data || created.json);
+          if (created.ok && data && (data.username || data.name)) {
+            return done({ success: true, result: data, token: session.token, crypt_pass: session.crypt_pass });
+          }
+          last = created.status + ": " + created.text;
+        }
+        done({ success: false, error: "criacao_recusada", detail: last });
+      } catch (error) { done({ success: false, error: String(error) }); }
+    })();
+  `;
+
+  const response = await fetchWithTimeout(proxy.url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-sigma-proxy-secret": proxy.secret },
+    body: JSON.stringify({
+      browser: true,
+      url: `https://${PANEL_HOST}/#/login`,
+      wait_ms: 3_000,
+      force_captcha: true,
+      steps: [
+        { selector: "input[type='text'], input[name='username'], #username", value: opts.username, wait_ms: 300 },
+        { selector: "input[type='password'], input[name='password'], #password", value: opts.password, wait_ms: 300 },
+        { selector: "button[type='submit'], .btn-login, form button, button", click: true, wait_ms: 4_000 },
+      ],
+      js,
+    }),
+  }, 38_000);
+  const payload = await response.json().catch(() => null) as any;
+  const result = payload?.js_result;
+  if (!response.ok) throw new Error(String(payload?.message || payload?.error || `Acesso protegido respondeu ${response.status}`));
+  if (result?.success && result?.result) {
+    return { result: result.result, token: String(result.token || ""), cryptPass: String(result.crypt_pass || "") };
+  }
+  if (result?.error === "login_sem_token") {
+    const captcha = String(payload?.captcha?.status || "não resolvido");
+    throw new Error(`O login do Uniplay não liberou a sessão (captcha: ${captcha}). Confira as credenciais em APIs Externas.`);
+  }
+  throw new Error(String(result?.detail || result?.error || payload?.message || payload?.error || "O painel recusou a criação do teste."));
 }
 
 Deno.serve(async (req) => {
@@ -93,11 +230,14 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Não autorizado" }), { status: 401, headers: jsonHeaders });
     }
 
-    const body = await req.json().catch(() => ({}));
-    const rawHours = Number(body?.hours);
-    const hours = ALLOWED_HOURS.includes(rawHours) ? rawHours : 6;
-    const kind = String(body?.kind || "iptv").toLowerCase() === "p2p" ? "p2p" : "iptv";
-    const note = String(body?.note || "").trim().slice(0, 60) || "Teste SuperGestor";
+    const parsed = BodySchema.safeParse(await req.json().catch(() => ({})));
+    if (!parsed.success) {
+      return new Response(JSON.stringify({ success: false, error: "Dados inválidos para gerar o teste." }), { status: 200, headers: jsonHeaders });
+    }
+    const body = parsed.data;
+    const hours = body.hours;
+    const kind = body.kind;
+    const note = body.note || "Teste SuperGestor";
 
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -107,7 +247,7 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await admin
       .from("reseller_api_settings")
-      .select("uniplay_username, uniplay_password, uniplay_base_url")
+      .select("uniplay_username, uniplay_password, uniplay_base_url, uniplay_session_token")
       .eq("user_id", user.id)
       .maybeSingle();
 
@@ -117,75 +257,66 @@ Deno.serve(async (req) => {
 
     if (!uUser || !uPass) {
       return new Response(
-        JSON.stringify({ error: "Configure usuário e senha do Uniplay em Configurações > APIs Externas." }),
+        JSON.stringify({ success: false, error: "Configure usuário e senha do Uniplay em Configurações > APIs Externas." }),
         { status: 200, headers: jsonHeaders },
       );
     }
 
-    // 1) Login
-    const loginRes = await pfetch(`${baseUrl}/api/login`, {
-      method: "POST",
-      headers: uniplayHeaders({ "Content-Type": "application/json;charset=UTF-8" }),
-      body: JSON.stringify({ username: uUser, password: uPass, code: "" }),
-    });
-    const loginText = await loginRes.text();
-    let loginJson: any = null;
-    try { loginJson = JSON.parse(loginText); } catch { /* ignore */ }
-    const token = String(loginJson?.access_token || loginJson?.token || "");
-    if (!loginRes.ok || !token) {
-      return new Response(
-        JSON.stringify({ error: `Não foi possível entrar no Uniplay (${loginRes.status}). ${String(loginText).slice(0, 200)}` }),
-        { status: 200, headers: jsonHeaders },
-      );
+    // Primeiro reaproveita a sessão salva pelas renovações; evita um novo login lento.
+    const token = String(settings?.uniplay_session_token || "");
+    if (!token) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: "A API do Uniplay está temporariamente indisponível e não há sessão salva. O teste não foi criado; tente novamente quando o painel voltar.",
+      }), { status: 200, headers: jsonHeaders });
     }
 
-    // 2) Cria o teste
     const payload = kind === "p2p"
-      ? { isOficial: false, productid: String(body?.productid || "1"), credits: 1, nota: note, test_hours: hours }
-      : { isOficial: false, package: String(body?.package || "1"), credits: 1, isCustomPackage: false, nota: note, test_hours: hours };
+      ? { isOficial: false, productid: String(body.productid || "1"), credits: 1, nota: note, test_hours: hours }
+      : { isOficial: false, package: String(body.package || "1"), credits: 1, isCustomPackage: false, nota: note, test_hours: hours };
 
-    const createRes = await pfetch(`${baseUrl}/api/users-${kind}`, {
-      method: "POST",
-      headers: uniplayHeaders({
-        "Content-Type": "application/json;charset=UTF-8",
-        Authorization: `Bearer ${token}`,
-      }),
-      body: JSON.stringify(payload),
-    });
-    const createText = await createRes.text();
     let result: any = null;
-    try { result = JSON.parse(createText); } catch { /* ignore */ }
-
-    if (!createRes.ok || !result?.username) {
-      return new Response(
-        JSON.stringify({ error: `Falha ao gerar teste no Uniplay (${createRes.status}): ${String(createText).slice(0, 300)}` }),
-        { status: 200, headers: jsonHeaders },
-      );
+    if (token) {
+      try {
+        const createRes = await pfetch(`${baseUrl}/api/users-${kind}`, {
+          method: "POST",
+          headers: uniplayHeaders({ "Content-Type": "application/json;charset=UTF-8", Authorization: `Bearer ${token}` }),
+          body: JSON.stringify(payload),
+        });
+        const createText = await createRes.text();
+        try { result = JSON.parse(createText); } catch { /* browser fallback below */ }
+        result = result?.data || result;
+        if (!createRes.ok || !(result?.username || result?.name)) result = null;
+      } catch { /* browser fallback below */ }
     }
 
-    const expTxt = result.exp_date
-      ? new Date(result.exp_date).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })
-      : `${hours}h`;
-    const m3u = String(result.M3U8 || "");
-    const hls = String(result.M3U8_2 || result.SSIPTV_M3U8 || "");
-    const dns = String(result.DNS_SMARTER || "");
+    if (!result) {
+      const browserResult = await browserGenerateTest({
+        username: uUser,
+        password: uPass,
+        hours,
+        kind,
+        note,
+        packageId: String(body.package || "1"),
+        productId: String(body.productid || "1"),
+      });
+      result = browserResult.result;
+      if (browserResult.token) {
+        await admin.from("reseller_api_settings").update({
+          uniplay_session_token: browserResult.token,
+          uniplay_session_pass: browserResult.cryptPass || "",
+          uniplay_session_at: new Date().toISOString(),
+        }).eq("user_id", user.id);
+      }
+    }
 
-    const message =
-      `🎬 *TESTE GERADO*\n\n` +
-      `👤 Usuário: ${result.username}\n` +
-      `🔑 Senha: ${result.password}\n` +
-      (dns ? `🌐 Servidor: ${dns}\n` : "") +
-      `⏰ Expira: ${expTxt}\n\n` +
-      (m3u ? `*Link (M3U)* 👉 ${m3u}\n\n` : "") +
-      (hls ? `*Link (HLS)* 👉 ${hls}` : "");
-
-    return new Response(
-      JSON.stringify({ success: true, message, m3u, hls, dns, user: result }),
-      { headers: jsonHeaders },
-    );
+    return new Response(JSON.stringify(buildResult(result, hours)), { headers: jsonHeaders });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Erro desconhecido";
     console.error("[uniplay-generate-test]", err);
-    return new Response(JSON.stringify({ error: msg }), { status: 200, headers: jsonHeaders });
+    const friendly = /AbortError|aborted/i.test(msg)
+      ? "O painel Uniplay demorou demais para responder. Tente novamente em alguns segundos."
+      : msg;
+    return new Response(JSON.stringify({ success: false, error: friendly }), { status: 200, headers: jsonHeaders });
   }
 });
