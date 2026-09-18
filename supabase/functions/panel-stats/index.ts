@@ -110,15 +110,23 @@ Deno.serve(async (req) => {
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    const userClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: userData } = await userClient.auth.getUser();
-    const ownerId = userData?.user?.id;
-    if (!ownerId) return json({ error: "Não autorizado" }, 401);
-
     const body = await req.json().catch(() => ({} as any));
     const action = String(body?.action || "stats");
+
+    // Chamada interna (cron de créditos) usa a chave de serviço + owner_id explícito.
+    const token = authHeader.slice(7).trim();
+    const isService = token === (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "___");
+    let ownerId: string | undefined;
+    if (isService && body?.owner_id) {
+      ownerId = String(body.owner_id);
+    } else {
+      const userClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: userData } = await userClient.auth.getUser();
+      ownerId = userData?.user?.id;
+    }
+    if (!ownerId) return json({ error: "Não autorizado" }, 401);
 
     // ---- credenciais do revendedor ----
     const { data: cfg } = await admin.from("reseller_api_settings")
