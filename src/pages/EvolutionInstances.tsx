@@ -45,7 +45,10 @@ function stateBadge(state: string) {
   return { label: 'Desconectada', cls: 'bg-rose-500/15 text-rose-400 border-rose-500/30', icon: WifiOff };
 }
 
-export default function EvolutionInstances() {
+export default function EvolutionInstances({ embed = false }: { embed?: boolean }) {
+  const Shell = embed
+    ? ({ children }: { children: React.ReactNode }) => <>{children}</>
+    : DashboardLayout;
   const { toast } = useToast();
   const { user, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -430,7 +433,7 @@ export default function EvolutionInstances() {
 
 
   return (
-    <DashboardLayout>
+    <Shell>
       {/* Full-screen background image */}
       <div
         className="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat"
@@ -823,6 +826,6 @@ export default function EvolutionInstances() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </DashboardLayout>
+    </Shell>
   );
 }
