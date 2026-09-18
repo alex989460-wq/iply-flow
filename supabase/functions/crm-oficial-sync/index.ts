@@ -419,6 +419,23 @@ async function enrichChannelsWithMetaNumbers(listed: any, apiKey?: string) {
     const allRows = await crmRest(`channels?select=*`, accessToken) as any[];
     const rows = (allRows || []).filter((r: any) => !!(r?.phone_number_id || r?.phoneNumberId));
 
+    // A listagem pública pode estar atrasada em relação à tabela de canais. Mescla
+    // os dados já sincronizados no CRM antes de consultar a Meta novamente.
+    const rowByPhoneId = new Map(
+      rows.map((row: any) => [String(row?.phone_number_id || row?.phoneNumberId), row]),
+    );
+    for (const channel of arr) {
+      const phoneId = String(channel?.phone_number_id || channel?.phoneNumberId || "");
+      const row = rowByPhoneId.get(phoneId);
+      if (!row) continue;
+      channel.display_phone_number ||= row?.display_phone_number || row?.phone_number;
+      channel.phone_number ||= row?.phone_number || row?.display_phone_number;
+      channel.verified_name ||= row?.verified_name;
+      channel.quality_rating ||= row?.quality_rating;
+      channel.avatar_url ||= row?.avatar_url || row?.profile_picture_url;
+      channel.profile_picture_url ||= row?.profile_picture_url || row?.avatar_url;
+    }
+
     const digits = (v: unknown) => String(v || "").replace(/\D/g, "");
     const sameNumber = (a: unknown, b: unknown) => {
       const x = digits(a), y = digits(b);
@@ -471,6 +488,7 @@ async function enrichChannelsWithMetaNumbers(listed: any, apiKey?: string) {
         waba_id: row?.waba_id,
         quality_rating: row?.quality_rating,
         avatar_url: row?.avatar_url,
+        profile_picture_url: row?.profile_picture_url,
         is_active: row?.is_active,
         primary: row?.primary,
         is_primary: row?.is_primary,
@@ -508,6 +526,18 @@ async function enrichChannelsWithMetaNumbers(listed: any, apiKey?: string) {
           if (meta?.display_phone_number) c.display_phone_number = meta.display_phone_number;
           if (meta?.verified_name && !c.verified_name) c.verified_name = meta.verified_name;
           if (meta?.quality_rating && !c.quality_rating) c.quality_rating = meta.quality_rating;
+
+          // A foto comercial fica em um recurso separado do número na API da Meta.
+          // Ela é usada apenas para apresentar o canal e não altera a conexão.
+          const profileRes = await fetch(
+            `https://graph.facebook.com/v21.0/${pid}/whatsapp_business_profile?fields=profile_picture_url`,
+            { headers: { Authorization: `Bearer ${token}` } },
+          );
+          if (profileRes.ok) {
+            const profile = await profileRes.json().catch(() => ({}));
+            const profileRow = Array.isArray(profile?.data) ? profile.data[0] : profile;
+            if (profileRow?.profile_picture_url) c.avatar_url = profileRow.profile_picture_url;
+          }
         } catch (_e) { /* ignora falha de enriquecimento */ }
       }),
     );
@@ -2143,7 +2173,10 @@ Deno.serve(async (req) => {
         body: JSON.stringify({}),
         apiKey,
       });
-      const listed = await crmFetch("/api/public/v1/channels", { method: "GET", apiKey });
+      const syncBody = (results.sync as any)?.body;
+      const listed = syncBody?.channels
+        ? { ok: true, status: 200, body: syncBody.channels }
+        : await crmFetch("/api/public/v1/channels", { method: "GET", apiKey });
       results.channels = await enrichChannelsWithMetaNumbers(listed, apiKey);
     }
 
