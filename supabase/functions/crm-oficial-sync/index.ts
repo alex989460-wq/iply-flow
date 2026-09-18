@@ -13,8 +13,10 @@ const corsHeaders = {
 };
 
 const CRM_BASE = "https://zapcrm.top";
-const CRM_SUPABASE_URL = "https://qoijgbmbwcmnmvixsbrv.supabase.co";
-const CRM_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFvaWpnYm1id2Ntbm12aXhzYnJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjI3MTIsImV4cCI6MjA5NzI5ODcxMn0.IgBFtqw8O2bwmOFU3iWIwkvUZ2_KWOK_-CGWt2P1buw";
+// O CRM foi migrado para a mesma VPS: auth/rest agora respondem em zapcrm.top.
+const CRM_SUPABASE_URL = Deno.env.get("CRM_SUPABASE_URL") || "https://zapcrm.top";
+const CRM_SUPABASE_ANON_KEY = Deno.env.get("CRM_SUPABASE_ANON_KEY") ||
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzg5NjgzMDUxLCJleHAiOjIxMDUwNDMwNTF9.SZTiHytq7hdwf6v1tJ8Plq1aF6I3t4vk1Gx6xYYL5oY";
 
 type Action =
   | "signup" | "provision-key" | "ensure-key" | "repair-missing" | "test-chat" | "renew-notify" | "ping"
