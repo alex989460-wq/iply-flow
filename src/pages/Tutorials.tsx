@@ -242,14 +242,17 @@ export default function Tutorials() {
     <DashboardLayout>
       <div className="space-y-8">
         {/* Header */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-primary/50 flex items-center justify-center shadow-lg shadow-primary/30">
-              <GraduationCap className="w-6 h-6 text-primary-foreground" />
+        <div className="relative isolate overflow-hidden rounded-3xl border border-border/50 bg-card px-5 py-6 shadow-sm flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:px-7 sm:py-7">
+          <div className="pointer-events-none absolute inset-y-0 right-0 -z-10 w-2/5 bg-gradient-to-l from-primary/10 to-transparent" />
+          <div className="pointer-events-none absolute -right-14 -top-24 -z-10 h-52 w-52 rounded-full border-[32px] border-primary/10" />
+          <div className="flex items-center gap-4">
+            <div className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-2xl border border-border/60 bg-background/80 text-primary shadow-sm">
+              <GraduationCap className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">Tutoriais</h1>
-              <p className="text-sm text-muted-foreground">Aprenda o sistema passo a passo</p>
+              <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary">Aprendizado</span>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Tutoriais</h1>
+              <p className="mt-1 text-sm text-muted-foreground">Aprenda o sistema passo a passo</p>
             </div>
           </div>
           <div className="flex items-center gap-2">

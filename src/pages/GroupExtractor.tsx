@@ -104,10 +104,18 @@ export default function GroupExtractor() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex flex-col gap-4 rounded-lg border bg-card p-5 md:flex-row md:items-center md:justify-between">
-          <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Users2 className="h-6 w-6 text-primary" /> Extrair Contatos de Grupos</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Escolha um grupo, importe membros e organize cada lista para suas campanhas.</p>
+        <div className="relative isolate overflow-hidden flex flex-col gap-4 rounded-3xl border border-border/50 bg-card px-5 py-6 shadow-sm md:flex-row md:items-center md:justify-between sm:px-7 sm:py-7">
+          <div className="pointer-events-none absolute inset-y-0 right-0 -z-10 w-2/5 bg-gradient-to-l from-primary/10 to-transparent" />
+          <div className="pointer-events-none absolute -right-14 -top-24 -z-10 h-52 w-52 rounded-full border-[32px] border-primary/10" />
+          <div className="flex items-center gap-4">
+            <div className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-2xl border border-border/60 bg-background/80 text-primary shadow-sm">
+              <Users2 className="h-5 w-5" />
+            </div>
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary">Contatos</span>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Extrair Contatos de Grupos</h1>
+              <p className="mt-1 text-sm text-muted-foreground">Escolha um grupo, importe membros e organize cada lista para suas campanhas.</p>
+            </div>
           </div>
           <div className="grid grid-cols-3 gap-3 text-center">
             <div><p className="text-xl font-bold">{groupBuckets.length}</p><p className="text-xs text-muted-foreground">Grupos</p></div>

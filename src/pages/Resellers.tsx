@@ -692,15 +692,17 @@ export default function Resellers() {
     <DashboardLayout>
       <div className="space-y-6 animate-fade-in">
         {/* Hero header */}
-        <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-primary/15 via-background to-background p-6 shadow-sm">
-          <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-primary/20 blur-3xl" />
-          <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/15 text-primary shadow-inner">
-                <Users className="h-6 w-6" />
+        <div className="relative overflow-hidden rounded-3xl border border-border/50 bg-card px-5 py-6 shadow-sm sm:px-7 sm:py-7">
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-2/5 bg-gradient-to-l from-primary/10 to-transparent" />
+          <div className="pointer-events-none absolute -right-14 -top-24 h-52 w-52 rounded-full border-[32px] border-primary/10" />
+          <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-2xl border border-border/60 bg-background/80 text-primary shadow-sm">
+                <Users className="h-5 w-5" />
               </div>
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary">Rede</span>
+                <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
                   {isAdmin ? 'Central de Revendas' : 'Minhas Revendas'}
                 </h1>
                 <p className="text-sm text-muted-foreground max-w-xl">
