@@ -4,9 +4,12 @@
 //   IPTV: POST /api/users-iptv  { isOficial, package, credits, isCustomPackage, nota, test_hours }
 //   P2P : POST /api/users-p2p   { isOficial, productid, credits, nota, test_hours }
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3.25.76";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
 const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
 
 const DEFAULT_BASE_URL = "https://gesapioffice.com";
