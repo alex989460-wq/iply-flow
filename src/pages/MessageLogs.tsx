@@ -107,15 +107,22 @@ export default function MessageLogs() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-              <Activity className="w-6 h-6 text-primary" />
-              Logs de Mensagens
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Monitore todas as mensagens enviadas pelo sistema
-            </p>
+        <div className="relative isolate overflow-hidden rounded-3xl border border-border/50 bg-card px-5 py-6 shadow-sm flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:px-7 sm:py-7">
+          <div className="pointer-events-none absolute inset-y-0 right-0 -z-10 w-2/5 bg-gradient-to-l from-primary/10 to-transparent" />
+          <div className="pointer-events-none absolute -right-14 -top-24 -z-10 h-52 w-52 rounded-full border-[32px] border-primary/10" />
+          <div className="flex items-center gap-4">
+            <div className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-2xl border border-border/60 bg-background/80 text-primary shadow-sm">
+              <Activity className="h-5 w-5" />
+            </div>
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary">Monitoramento</span>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+                Logs de Mensagens
+              </h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Monitore todas as mensagens enviadas pelo sistema
+              </p>
+            </div>
           </div>
           <Button onClick={fetchLogs} variant="outline" size="sm" className="gap-2">
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />

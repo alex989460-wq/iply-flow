@@ -37,9 +37,17 @@ export default function CostCalculator() {
   return (
     <DashboardLayout>
       <div className="space-y-4 p-4 animate-fade-in">
-        <div className="flex items-center gap-2">
-          <Calculator className="w-6 h-6 text-primary" />
-          <h1 className="text-xl font-bold">Calculadora de Custo — WhatsApp Cloud API</h1>
+        <div className="relative isolate overflow-hidden rounded-3xl border border-border/50 bg-card px-5 py-6 shadow-sm flex items-center gap-4 sm:px-7 sm:py-7">
+          <div className="pointer-events-none absolute inset-y-0 right-0 -z-10 w-2/5 bg-gradient-to-l from-primary/10 to-transparent" />
+          <div className="pointer-events-none absolute -right-14 -top-24 -z-10 h-52 w-52 rounded-full border-[32px] border-primary/10" />
+          <div className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-2xl border border-border/60 bg-background/80 text-primary shadow-sm">
+            <Calculator className="h-5 w-5" />
+          </div>
+          <div>
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary">Simulador</span>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Calculadora de Custo</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Estimativa de gastos com a WhatsApp Cloud API</p>
+          </div>
         </div>
 
         <Card>

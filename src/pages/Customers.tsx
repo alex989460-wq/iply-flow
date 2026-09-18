@@ -2708,15 +2708,18 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
     <DashboardLayout>
       <div className="space-y-4 sm:space-y-6 animate-fade-in">
         {/* Header Section */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="relative isolate overflow-hidden rounded-3xl border border-border/50 bg-card px-5 py-6 shadow-sm flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:px-7 sm:py-7">
+          <div className="pointer-events-none absolute inset-y-0 right-0 -z-10 w-2/5 bg-gradient-to-l from-primary/10 to-transparent" />
+          <div className="pointer-events-none absolute -right-14 -top-24 -z-10 h-52 w-52 rounded-full border-[32px] border-primary/10" />
           <div className="space-y-1">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20">
-                <Users className="w-5 h-5 text-primary" />
+            <div className="flex items-center gap-4">
+              <div className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-2xl border border-border/60 bg-background/80 text-primary shadow-sm">
+                <Users className="h-5 w-5" />
               </div>
               <div>
-                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">Clientes</h1>
-                <p className="text-muted-foreground text-sm">Gerencie seus clientes IPTV</p>
+                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary">Carteira</span>
+                <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Clientes</h1>
+                <p className="mt-1 text-sm text-muted-foreground">Gerencie seus clientes IPTV</p>
               </div>
             </div>
           </div>

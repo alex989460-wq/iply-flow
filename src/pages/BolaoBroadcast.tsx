@@ -277,15 +277,17 @@ export default function BolaoBroadcast() {
   return (
     <DashboardLayout>
       <div className="space-y-6 p-4 sm:p-6 lg:p-8 animate-fade-in max-w-5xl mx-auto">
-        <div className="relative overflow-hidden rounded-3xl border border-border/50 bg-card/40 backdrop-blur-xl p-6 shadow-2xl mb-6">
-          <div className="pointer-events-none absolute -top-24 -right-16 w-64 h-64 rounded-full bg-sky-500/10 blur-3xl" />
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-sky-500/15 border border-sky-500/20 flex items-center justify-center shadow-lg shadow-sky-500/10">
-              <Megaphone className="w-7 h-7 text-sky-500" />
+        <div className="relative overflow-hidden rounded-3xl border border-border/50 bg-card px-5 py-6 shadow-sm mb-6 sm:px-7 sm:py-7">
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-2/5 bg-gradient-to-l from-sky-500/10 to-transparent" />
+          <div className="pointer-events-none absolute -right-14 -top-24 h-52 w-52 rounded-full border-[32px] border-sky-500/10" />
+          <div className="relative z-10 flex items-center gap-4">
+            <div className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-2xl border border-border/60 bg-background/80 text-sky-500 shadow-sm">
+              <Megaphone className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-black text-foreground tracking-tight">Disparo Janela 24h</h1>
-              <p className="text-muted-foreground text-sm font-medium">Reengajamento de contatos ativos no WhatsApp</p>
+              <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-sky-500">Campanhas</span>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Disparo Janela 24h</h1>
+              <p className="mt-1 text-sm text-muted-foreground">Reengajamento de contatos ativos no WhatsApp</p>
             </div>
           </div>
         </div>
