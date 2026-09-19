@@ -1,0 +1,5 @@
+INSERT INTO public.whatsapp_pricing (market, currency, category, pricing_type, unit_price, brl_exchange_rate, effective_from, active, source_url, notes) VALUES
+('BR','USD','marketing','per_message',0.0625,5.40,'2026-01-01',true,'https://developers.facebook.com/docs/whatsapp/pricing','Preço Meta por mensagem entregue (Brasil). Ajuste conforme sua fatura.'),
+('BR','USD','utility','per_message',0.0080,5.40,'2026-01-01',true,'https://developers.facebook.com/docs/whatsapp/pricing','Utility fora da janela de 24h. Dentro da janela é gratuito até out/2026.'),
+('BR','USD','authentication','per_message',0.0315,5.40,'2026-01-01',true,'https://developers.facebook.com/docs/whatsapp/pricing','Mensagens de autenticação (Brasil).'),
+('BR','USD','service','per_message',0.0000,5.40,'2026-01-01',true,'https://developers.facebook.com/docs/whatsapp/pricing','Service messages gratuitas até out/2026.');
