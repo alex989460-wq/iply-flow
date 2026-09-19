@@ -4247,6 +4247,156 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_message_costs: {
+        Row: {
+          billing_status: string
+          brl_exchange_rate: number | null
+          category: string | null
+          channel: string
+          contact_id: string | null
+          conversation_id: string
+          cost_amount: number
+          cost_currency: string
+          created_at: string
+          customer_id: string | null
+          direction: string
+          id: string
+          idempotency_key: string
+          message_id: string
+          message_timestamp: string
+          message_type: string | null
+          pricing_id: string | null
+          pricing_type: string | null
+          provider_message_id: string | null
+          raw_pricing: Json | null
+          source_cost_amount: number | null
+          source_currency: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          billing_status?: string
+          brl_exchange_rate?: number | null
+          category?: string | null
+          channel: string
+          contact_id?: string | null
+          conversation_id: string
+          cost_amount?: number
+          cost_currency?: string
+          created_at?: string
+          customer_id?: string | null
+          direction: string
+          id?: string
+          idempotency_key: string
+          message_id: string
+          message_timestamp: string
+          message_type?: string | null
+          pricing_id?: string | null
+          pricing_type?: string | null
+          provider_message_id?: string | null
+          raw_pricing?: Json | null
+          source_cost_amount?: number | null
+          source_currency?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          billing_status?: string
+          brl_exchange_rate?: number | null
+          category?: string | null
+          channel?: string
+          contact_id?: string | null
+          conversation_id?: string
+          cost_amount?: number
+          cost_currency?: string
+          created_at?: string
+          customer_id?: string | null
+          direction?: string
+          id?: string
+          idempotency_key?: string
+          message_id?: string
+          message_timestamp?: string
+          message_type?: string | null
+          pricing_id?: string | null
+          pricing_type?: string | null
+          provider_message_id?: string | null
+          raw_pricing?: Json | null
+          source_cost_amount?: number | null
+          source_currency?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_message_costs_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_message_costs_pricing_id_fkey"
+            columns: ["pricing_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_pricing"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_pricing: {
+        Row: {
+          active: boolean
+          brl_exchange_rate: number | null
+          category: string
+          created_at: string
+          created_by: string | null
+          currency: string
+          effective_from: string
+          effective_until: string | null
+          id: string
+          market: string
+          notes: string | null
+          pricing_type: string
+          source_url: string | null
+          unit_price: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          brl_exchange_rate?: number | null
+          category: string
+          created_at?: string
+          created_by?: string | null
+          currency: string
+          effective_from: string
+          effective_until?: string | null
+          id?: string
+          market: string
+          notes?: string | null
+          pricing_type?: string
+          source_url?: string | null
+          unit_price: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          brl_exchange_rate?: number | null
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          effective_from?: string
+          effective_until?: string | null
+          id?: string
+          market?: string
+          notes?: string | null
+          pricing_type?: string
+          source_url?: string | null
+          unit_price?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       whatsapp_utility_attempts: {
         Row: {
           attempt_no: number
@@ -4580,6 +4730,24 @@ export type Database = {
         }[]
       }
       get_server_distribution: { Args: never; Returns: Json }
+      get_whatsapp_cost_summary: {
+        Args: { _contact_id?: string; _from: string; _to: string }
+        Returns: {
+          charged_messages: number
+          estimated_cost_brl: number
+          inbound_messages: number
+          last_message_at: string
+          last_official_at: string
+          last_unofficial_at: string
+          official_inbound: number
+          official_outbound: number
+          outbound_messages: number
+          total_messages: number
+          unknown_messages: number
+          unofficial_inbound: number
+          unofficial_outbound: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

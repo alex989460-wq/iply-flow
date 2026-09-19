@@ -40,6 +40,7 @@ import {
 import { cn } from '@/lib/utils';
 import { normalizeWhatsAppPhone } from '@/lib/phone';
 import { BroadcastProgressModal, BroadcastResult } from '@/components/broadcast/BroadcastProgressModal';
+import { useWhatsappPricing } from '@/hooks/use-whatsapp-pricing';
 
 interface Customer {
   id: string;
@@ -88,10 +89,6 @@ interface ActiveBroadcast {
   total: number;
 }
 
-// Custos por tipo de mensagem - Tabela Brasil (válida até 31/12/2025)
-const COST_MARKETING = 0.5895; // R$ 0,5895 por mensagem de marketing (Cloud API)
-const COST_UTILITY = 0.0642; // R$ 0,0642 por mensagem de utilidade (Cloud API)
-
 // Dias em atraso (positivo = vencido há X dias, negativo = ainda em dia)
 function daysOverdueOf(dueDate: string): number {
   if (!dueDate) return -99999;
@@ -115,6 +112,9 @@ const OVERDUE_PRESETS: { label: string; min: number; max: number }[] = [
 export default function MassBroadcast() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { data: whatsappPricing } = useWhatsappPricing('BR');
+  const marketingPrice = whatsappPricing?.get('marketing')?.unitPriceBrl ?? null;
+  const utilityPrice = whatsappPricing?.get('utility')?.unitPriceBrl ?? null;
   
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('customers');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -705,7 +705,7 @@ export default function MassBroadcast() {
         ? Math.min(count, alreadySentCount)
         : Math.max(0, count - alreadySentCount);
     const isMarketing = selectedTemplateInfo?.category?.toUpperCase() === 'MARKETING';
-    const costPerMessage = isMarketing ? COST_MARKETING : COST_UTILITY;
+    const costPerMessage = (isMarketing ? marketingPrice : utilityPrice) ?? 0;
 
     const batches = batchSize > 0 ? Math.ceil(effectiveCount / batchSize) : 0;
     const estimatedTime = batches * batchIntervalSeconds;
@@ -719,7 +719,7 @@ export default function MassBroadcast() {
       costPerMessage,
       alreadySent: alreadySentCount,
     };
-  }, [getSelectedCustomersList, batchSize, batchIntervalSeconds, selectedTemplateInfo, alreadySentCount, audienceMode]);
+  }, [getSelectedCustomersList, batchSize, batchIntervalSeconds, selectedTemplateInfo, alreadySentCount, audienceMode, marketingPrice, utilityPrice]);
 
 
   // Toggle customer selection
@@ -1058,13 +1058,13 @@ export default function MassBroadcast() {
     // Estimativa de custo (categoria do template)
     const tplObj = templates.find((t) => t.name === templateName);
     const isMarketing = (tplObj?.category || '').toUpperCase() === 'MARKETING';
-    const perMsg = isMarketing ? COST_MARKETING : COST_UTILITY;
+    const perMsg = (isMarketing ? marketingPrice : utilityPrice) ?? 0;
     const totalCost = perMsg * customersToSend.length;
     const confirmMsg =
       `Confirmar disparo do template "${templateName}" para ${customersToSend.length} clientes?\n\n` +
       `Categoria: ${isMarketing ? 'Marketing' : 'Utilidade'}\n` +
-      `Custo por mensagem: ${formatCurrency(perMsg)}\n` +
-      `Custo total estimado: ${formatCurrency(totalCost)}`;
+      `Custo por mensagem: ${perMsg > 0 ? formatCurrency(perMsg) : 'Não determinado'}\n` +
+      `Custo total estimado: ${perMsg > 0 ? formatCurrency(totalCost) : 'Não determinado'}`;
     if (!confirm(confirmMsg)) return;
 
     const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -2426,7 +2426,7 @@ export default function MassBroadcast() {
                           </Badge>
                         </div>
                         <p className="text-xs text-muted-foreground mt-1 ml-6">
-                          {template.language || 'pt_BR'} · {isMarketing ? formatCurrency(COST_MARKETING) : formatCurrency(COST_UTILITY)} por msg
+                          {template.language || 'pt_BR'} · {(isMarketing ? marketingPrice : utilityPrice) != null ? `${formatCurrency((isMarketing ? marketingPrice : utilityPrice)!)} por msg` : 'preço não determinado'}
                         </p>
                       </div>
                     );
@@ -2573,7 +2573,7 @@ export default function MassBroadcast() {
                       "text-2xl font-bold",
                       estimatedCost.isMarketing ? "text-warning" : "text-primary"
                     )}>
-                      {formatCurrency(estimatedCost.totalCost)}
+                      {estimatedCost.costPerMessage > 0 ? formatCurrency(estimatedCost.totalCost) : 'Não determinado'}
                     </p>
                     <p className="text-sm text-muted-foreground">Custo estimado</p>
                   </div>
@@ -2590,10 +2590,10 @@ export default function MassBroadcast() {
                 </div>
                 <div className="text-xs text-muted-foreground text-center space-y-1">
                   <p>
-                    * {estimatedCost.isMarketing ? "Marketing" : "Utility"}: {formatCurrency(estimatedCost.costPerMessage)} por mensagem
+                    * {estimatedCost.isMarketing ? "Marketing" : "Utility"}: {estimatedCost.costPerMessage > 0 ? `${formatCurrency(estimatedCost.costPerMessage)} por mensagem` : 'preço não determinado'}
                   </p>
                   <p className="text-[10px] opacity-70">
-                    Marketing: {formatCurrency(COST_MARKETING)} | Utility: {formatCurrency(COST_UTILITY)}
+                    Marketing: {marketingPrice == null ? 'não determinado' : formatCurrency(marketingPrice)} | Utility: {utilityPrice == null ? 'não determinado' : formatCurrency(utilityPrice)}
                   </p>
                 </div>
               </CardContent>
