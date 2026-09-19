@@ -259,9 +259,19 @@ export default function Plans() {
                     <Input
                       value={formData.checkout_url}
                       onChange={(e) => setFormData({ ...formData, checkout_url: e.target.value })}
-                      placeholder="URL do checkout"
+                      placeholder="URL do checkout Pix"
                       className="h-11 bg-background/50 border-border/50 rounded-xl focus:border-primary/50 transition-all"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Link Cartão (Cakto)</Label>
+                    <Input
+                      value={formData.card_checkout_url}
+                      onChange={(e) => setFormData({ ...formData, card_checkout_url: e.target.value })}
+                      placeholder="URL do checkout no cartão"
+                      className="h-11 bg-background/50 border-border/50 rounded-xl focus:border-primary/50 transition-all"
+                    />
+                    <p className="text-[11px] text-muted-foreground ml-1">Sem este link, o plano não aparece para pagamento no cartão.</p>
                   </div>
                   <Button
                     type="submit"
