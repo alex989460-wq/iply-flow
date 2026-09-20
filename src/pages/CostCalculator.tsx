@@ -19,7 +19,7 @@ interface CostRow {
   id: string;
   customer_id: string | null;
   contact_id: string | null;
-  conversation_id: string;
+  contact_name: string | null;
   message_id: string;
   channel: string;
   direction: string;
@@ -96,17 +96,29 @@ export default function CostCalculator() {
   const bounds = useMemo(() => periodBounds(period, customFrom, customTo), [period, customFrom, customTo]);
 
   const { data: costs = [], isLoading } = useQuery({
-    queryKey: ['whatsapp-message-costs', bounds.start, bounds.end],
+    queryKey: ['whatsapp-cost-report', bounds.start, bounds.end],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('whatsapp_message_costs')
-        .select('id, customer_id, contact_id, conversation_id, message_id, channel, direction, category, billing_status, cost_amount, cost_currency, message_timestamp')
-        .gte('message_timestamp', bounds.start)
-        .lt('message_timestamp', bounds.end)
-        .order('message_timestamp', { ascending: false })
-        .limit(10000);
+      const { data, error } = await (supabase as any).rpc('whatsapp_cost_report', {
+        _from: bounds.start,
+        _to: bounds.end,
+      });
       if (error) throw error;
-      return (data ?? []) as CostRow[];
+      return ((data ?? []) as any[])
+        .map((row) => ({
+          id: row.row_id,
+          customer_id: row.customer_id,
+          contact_id: row.contact_id,
+          contact_name: row.contact_name,
+          message_id: row.message_id,
+          channel: row.channel,
+          direction: row.direction,
+          category: row.category,
+          billing_status: row.billing_status,
+          cost_amount: Number(row.cost_amount ?? 0),
+          cost_currency: row.cost_currency,
+          message_timestamp: row.message_timestamp,
+        }))
+        .sort((a, b) => (a.message_timestamp < b.message_timestamp ? 1 : -1)) as CostRow[];
     },
   });
 
@@ -125,13 +137,14 @@ export default function CostCalculator() {
     const names = new Map(customers.map((customer) => [customer.id, customer]));
     const grouped = new Map<string, CustomerSummary>();
     for (const row of costs) {
-      const key = row.customer_id || row.contact_id || row.conversation_id;
+      const digits = (row.contact_id || '').replace(/\D/g, '').slice(-8);
+      const key = digits || row.customer_id || row.message_id;
       const customer = row.customer_id ? names.get(row.customer_id) : undefined;
       const current = grouped.get(key) ?? {
         key,
         customerId: row.customer_id,
         contactId: row.contact_id,
-        name: customer?.name || row.contact_id || 'Contato não identificado',
+        name: customer?.name || row.contact_name || row.contact_id || 'Contato não identificado',
         phone: customer?.phone || row.contact_id || '—',
         total: 0, inbound: 0, outbound: 0, official: 0, unofficial: 0, charged: 0, unknown: 0, cost: 0,
         lastMessage: row.message_timestamp, lastOfficial: null, lastUnofficial: null, messages: [],

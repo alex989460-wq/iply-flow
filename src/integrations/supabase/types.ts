@@ -4847,6 +4847,23 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      whatsapp_cost_report: {
+        Args: { _from: string; _to: string }
+        Returns: {
+          billing_status: string
+          category: string
+          channel: string
+          contact_id: string
+          contact_name: string
+          cost_amount: number
+          cost_currency: string
+          customer_id: string
+          direction: string
+          message_id: string
+          message_timestamp: string
+          row_id: string
+        }[]
+      }
     }
     Enums: {
       ai_knowledge_item_status: "pending" | "approved" | "rejected" | "merged"
