@@ -15,5 +15,5 @@
 - [ ] Integração Uniplay API (aguardando documentação/credenciais do usuário)
 
 - [ ] Recarga externa: NATV, Rush, The Best e VPlay automáticos; Uniplay/P2Cine aguardam endpoint comprovado de transferência de saldo.
-- [ ] Calculadora de custos: exibir dados reais (mensagens oficiais, não oficiais e custo estimado)
-- [ ] ZapCRM: corrigir "[mensagem não suportada] — Message type unknown" em mensagens recebidas pela API Oficial
+- [x] Calculadora de custos: exibir dados reais (mensagens oficiais, não oficiais e custo estimado)
+- [x] ZapCRM: corrigir "[mensagem não suportada] — Message type unknown" em mensagens recebidas pela API Oficial
