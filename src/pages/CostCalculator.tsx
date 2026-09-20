@@ -95,15 +95,22 @@ export default function CostCalculator() {
   const { data: pricing, isLoading: pricingLoading } = useWhatsappPricing('BR');
   const bounds = useMemo(() => periodBounds(period, customFrom, customTo), [period, customFrom, customTo]);
 
-  const { data: costs = [], isLoading } = useQuery({
+  const { data: costs = [], isLoading, isFetching, refetch } = useQuery({
     queryKey: ['whatsapp-cost-report', bounds.start, bounds.end],
     queryFn: async () => {
-      const { data, error } = await (supabase as any).rpc('whatsapp_cost_report', {
-        _from: bounds.start,
-        _to: bounds.end,
-      });
-      if (error) throw error;
-      return ((data ?? []) as any[])
+      const PAGE = 1000;
+      const rows: any[] = [];
+      for (let offset = 0; ; offset += PAGE) {
+        const { data, error } = await (supabase as any)
+          .rpc('whatsapp_cost_report', { _from: bounds.start, _to: bounds.end })
+          .range(offset, offset + PAGE - 1);
+        if (error) throw error;
+        const chunk = (data ?? []) as any[];
+        rows.push(...chunk);
+        if (chunk.length < PAGE) break;
+        if (offset > 200000) break;
+      }
+      return rows
         .map((row) => ({
           id: row.row_id,
           customer_id: row.customer_id,
@@ -121,6 +128,7 @@ export default function CostCalculator() {
         .sort((a, b) => (a.message_timestamp < b.message_timestamp ? 1 : -1)) as CostRow[];
     },
   });
+
 
   const customerIds = useMemo(() => [...new Set(costs.map((row) => row.customer_id).filter(Boolean))] as string[], [costs]);
   const { data: customers = [] } = useQuery({
