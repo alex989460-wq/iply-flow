@@ -1,7 +1,7 @@
 # Roadmap
 
 ## Em andamento
-- [ ] Gerar aplicativo Android Super Gestor, conectado ao site em produção, pronto para Android Studio e Play Store
+- [x] Gerar aplicativo Android Super Gestor, conectado ao site em produção, pronto para Android Studio e Play Store
 - [x] Padronizar visualmente todas as ferramentas com o mesmo sistema do Dashboard
 - [x] Corrigir geração de teste Uniplay: evitar carregamento infinito e usar acesso protegido com fallback
 - [x] Modernizar o Dashboard mantendo todos os dados e ações atuais
