@@ -1,12 +1,13 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'app.lovable.09f4055a43fb40dc9c1068a1a5c219ce',
-  appName: 'iply-flow',
+  appId: 'com.supergestor.app',
+  appName: 'Super Gestor',
   webDir: 'dist',
   server: {
-    url: 'https://09f4055a-43fb-40dc-9c10-68a1a5c219ce.lovableproject.com?forceHideBadge=true',
-    cleartext: true,
+    url: 'https://supergestor.top',
+    cleartext: false,
+    androidScheme: 'https',
   },
   plugins: {
     OneSignal: {
