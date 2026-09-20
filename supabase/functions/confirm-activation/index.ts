@@ -223,7 +223,7 @@ serve(async (req) => {
             const code =
               findInObj(request.cakto_payload, ['code', 'codigo', 'código', 'activation_code', 'codigo_ativacao']) ||
               String((request as any).code || '');
-            const r = await fetch(
+            const r = await panelFetch(
               `${Deno.env.get('SUPABASE_URL')}/functions/v1/duplecast-activate`,
               {
                 method: 'POST',
@@ -250,7 +250,7 @@ serve(async (req) => {
             autoActivationError = 'E-mail do cliente Clouddy ausente';
           } else {
             const sum = String(request.amount || '');
-            const r = await fetch(
+            const r = await panelFetch(
               `${Deno.env.get('SUPABASE_URL')}/functions/v1/clouddy-renew`,
               {
                 method: 'POST',
@@ -270,7 +270,7 @@ serve(async (req) => {
           if (!request.mac_address) {
             autoActivationError = 'MAC do cliente ausente na solicitação';
           } else {
-            const r = await fetch(
+            const r = await panelFetch(
               `${Deno.env.get('SUPABASE_URL')}/functions/v1/smartersmax`,
               {
                 method: 'POST',
@@ -296,7 +296,7 @@ serve(async (req) => {
           if (!request.mac_address) {
             autoActivationError = 'MAC do cliente ausente na solicitação';
           } else {
-            const r = await fetch(
+            const r = await panelFetch(
               `${Deno.env.get('SUPABASE_URL')}/functions/v1/iboplayerpro-activate`,
               {
                 method: 'POST',
@@ -320,7 +320,7 @@ serve(async (req) => {
           if (!request.mac_address) {
             autoActivationError = 'MAC do cliente ausente na solicitação';
           } else {
-            const r = await fetch(
+            const r = await panelFetch(
               `${Deno.env.get('SUPABASE_URL')}/functions/v1/ibosol-activate`,
               {
                 method: 'POST',
