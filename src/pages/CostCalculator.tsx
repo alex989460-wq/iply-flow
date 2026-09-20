@@ -137,13 +137,14 @@ export default function CostCalculator() {
     const names = new Map(customers.map((customer) => [customer.id, customer]));
     const grouped = new Map<string, CustomerSummary>();
     for (const row of costs) {
-      const key = row.customer_id || row.contact_id || row.conversation_id;
+      const digits = (row.contact_id || '').replace(/\D/g, '').slice(-8);
+      const key = digits || row.customer_id || row.message_id;
       const customer = row.customer_id ? names.get(row.customer_id) : undefined;
       const current = grouped.get(key) ?? {
         key,
         customerId: row.customer_id,
         contactId: row.contact_id,
-        name: customer?.name || row.contact_id || 'Contato não identificado',
+        name: customer?.name || row.contact_name || row.contact_id || 'Contato não identificado',
         phone: customer?.phone || row.contact_id || '—',
         total: 0, inbound: 0, outbound: 0, official: 0, unofficial: 0, charged: 0, unknown: 0, cost: 0,
         lastMessage: row.message_timestamp, lastOfficial: null, lastUnofficial: null, messages: [],
