@@ -391,6 +391,10 @@ export default function ActivationApps() {
   const statusLabel = (s: string) => {
     switch (s) {
       case 'pending': return 'Pendente';
+      case 'aguardando_pagamento': return 'Aguardando pagamento';
+      case 'pago': return 'Pago — ativar';
+      case 'failed': return 'Falhou';
+      case 'completed':
       case 'activated': return 'Ativado';
       case 'rejected': return 'Rejeitado';
       default: return s;
@@ -399,7 +403,11 @@ export default function ActivationApps() {
 
   const statusBadge = (s: string) => {
     switch (s) {
-      case 'pending': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+      case 'pending':
+      case 'aguardando_pagamento': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+      case 'pago': return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
+      case 'failed': return 'bg-destructive/10 text-destructive border-destructive/20';
+      case 'completed':
       case 'activated': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
       case 'rejected': return 'bg-destructive/10 text-destructive border-destructive/20';
       default: return '';
