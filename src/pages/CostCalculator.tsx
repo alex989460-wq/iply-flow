@@ -129,6 +129,39 @@ export default function CostCalculator() {
     },
   });
 
+  const monthBounds = useMemo(() => periodBounds('month', '', ''), []);
+  const { data: freeTier, refetch: refetchFreeTier } = useQuery({
+    queryKey: ['whatsapp-free-tier', monthBounds.start.slice(0, 7)],
+    queryFn: async () => {
+      const PAGE = 1000;
+      const contacts = new Set<string>();
+      for (let offset = 0; ; offset += PAGE) {
+        const { data, error } = await (supabase as any)
+          .rpc('whatsapp_cost_report', { _from: monthBounds.start, _to: monthBounds.end })
+          .range(offset, offset + PAGE - 1);
+        if (error) throw error;
+        const chunk = (data ?? []) as any[];
+        for (const row of chunk) {
+          if (row.channel !== 'official') continue;
+          const digits = String(row.contact_id || '').replace(/\D/g, '').slice(-8);
+          if (digits) contacts.add(digits);
+        }
+        if (chunk.length < PAGE) break;
+        if (offset > 200000) break;
+      }
+      return { used: contacts.size };
+    },
+  });
+
+  const freeUsed = freeTier?.used ?? 0;
+  const freeRemaining = Math.max(0, 1000 - freeUsed);
+  const resetDate = useMemo(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth() + 1, 1).toLocaleDateString('pt-BR');
+  }, []);
+
+  const reloadAll = () => { refetch(); refetchFreeTier(); };
+
 
   const customerIds = useMemo(() => [...new Set(costs.map((row) => row.customer_id).filter(Boolean))] as string[], [costs]);
   const { data: customers = [] } = useQuery({
