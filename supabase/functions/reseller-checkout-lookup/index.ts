@@ -20,6 +20,20 @@ function phoneVariants(raw: string): string[] {
   if (!d.startsWith("55") && (d.length === 10 || d.length === 11)) set.add("55" + d);
   // Also last-9-digit fuzzy fallback (BR mobiles).
   if (d.length >= 9) set.add(d.slice(-9));
+  // Celulares brasileiros cadastrados com/sem o nono digito (ex.: 5531973627523 x 553173627523).
+  const local = d.startsWith("55") && d.length >= 12 ? d.slice(2) : d;
+  if (local.length === 11 && local[2] === "9") {
+    const semNono = local.slice(0, 2) + local.slice(3);
+    set.add(semNono);
+    set.add("55" + semNono);
+    set.add(semNono.slice(-8));
+  } else if (local.length === 10) {
+    const comNono = local.slice(0, 2) + "9" + local.slice(2);
+    set.add(comNono);
+    set.add("55" + comNono);
+    set.add(comNono.slice(-9));
+  }
+  if (d.length >= 8) set.add(d.slice(-8));
   return Array.from(set);
 }
 function maskName(name: string) {
@@ -79,8 +93,8 @@ Deno.serve(async (req) => {
 
     // Try exact matches first with OR filter, then a fuzzy suffix match with last 9 digits.
     const orExact = variants.map((v) => `phone.eq.${v},extra_phone.eq.${v}`).join(",");
-    const last9 = digits(phoneRaw).slice(-9);
-    const orFuzzy = last9.length >= 8 ? `,phone.ilike.%${last9},extra_phone.ilike.%${last9}` : "";
+    const last8 = digits(phoneRaw).slice(-8);
+    const orFuzzy = last8.length === 8 ? `,phone.ilike.%{last8},extra_phone.ilike.%{last8}` : "";
 
     const { data: customers } = await admin
       .from("customers")
