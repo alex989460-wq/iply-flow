@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Calculator, MessageSquare, Megaphone, Bell, Headphones, ShieldCheck, Wifi, QrCode, CircleDollarSign, Search, Eye, AlertCircle } from 'lucide-react';
+import { Calculator, MessageSquare, Megaphone, Bell, Headphones, ShieldCheck, Wifi, QrCode, CircleDollarSign, Search, Eye, AlertCircle, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useWhatsappPricing, WhatsAppPriceCategory } from '@/hooks/use-whatsapp-pricing';
 
