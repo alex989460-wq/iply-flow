@@ -159,6 +159,45 @@ serve(async (req) => {
       }), { headers: jsonHeaders });
     }
 
+    // ── Avisar ativado (ativação feita manualmente no painel) ──
+    // Marca como concluído, dá baixa na pendência e envia SÓ a mensagem de
+    // "aplicativo ativado" ao cliente, sem tentar o painel externo de novo.
+    if (action === 'mark_activated') {
+      await supabaseAdmin.from('activation_requests')
+        .update({ status: 'completed', updated_at: new Date().toISOString() })
+        .eq('id', request_id);
+
+      try {
+        const digits = String(request.customer_phone || '').replace(/\D/g, '');
+        if (request.user_id) {
+          const { data: pend } = await supabaseAdmin
+            .from('pending_manual_renewals')
+            .select('id, customer_phone, error_details')
+            .eq('owner_id', request.user_id)
+            .eq('reason', 'app_activation');
+          const ids = (pend || [])
+            .filter((p: any) => {
+              const pd = String(p.customer_phone || '').replace(/\D/g, '');
+              const sameReq = p?.error_details?.request_id === request_id;
+              return sameReq || (pd && digits && pd.slice(-8) === digits.slice(-8));
+            })
+            .map((p: any) => p.id);
+          if (ids.length) await supabaseAdmin.from('pending_manual_renewals').delete().in('id', ids);
+        }
+      } catch { /* ignore */ }
+
+      if (!normalizedPhone) {
+        return new Response(JSON.stringify({ success: true, message: 'Marcado como ativado (cliente sem WhatsApp cadastrado)' }), { headers: jsonHeaders });
+      }
+      const r = await sendWhatsApp(buildMessage('activated'), 'activation_completed');
+      return new Response(JSON.stringify({
+        success: true,
+        message: r.notified ? 'Cliente avisado da ativação' : 'Marcado como ativado, mas nenhum canal WhatsApp disponível para avisar',
+      }), { headers: jsonHeaders });
+    }
+
+
+
     // ── Aviso imediato de "pedido em andamento" para painéis lentos (Duplecast) ──
     if (action === 'activate' && normalizedPhone && /DUPLECAST/i.test(String(request.app_name || '')) && !['completed', 'activated'].includes(String(request.status))) {
       await sendWhatsApp(buildMessage('received'), 'activation_received');
@@ -166,6 +205,25 @@ serve(async (req) => {
 
 
     // ── Auto-activate on external panel when applicable (Duplecast / Clouddy) ──
+    // Painéis lentos (Duplecast usa automação de navegador) podiam travar a função
+    // inteira até o limite de execução: o pedido ficava preso em "pago", sem
+    // pendência e sem aviso ao cliente. Todo chamado externo agora tem tempo limite.
+    const PANEL_TIMEOUT_MS = 60000;
+    const panelFetch = async (url: string, init: RequestInit, ms = PANEL_TIMEOUT_MS) => {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), ms);
+      try {
+        return await fetch(url, { ...init, signal: ctrl.signal });
+      } catch (e) {
+        if ((e as Error)?.name === 'AbortError') {
+          throw new Error(`O painel não respondeu em ${Math.round(ms / 1000)}s. Ative manualmente e use "Avisar ativado".`);
+        }
+        throw e;
+      } finally {
+        clearTimeout(t);
+      }
+    };
+
     let autoActivationError: string | null = null;
     let autoActivationOk = false;
     if (action === 'activate' && request.user_id) {
@@ -204,7 +262,7 @@ serve(async (req) => {
             const code =
               findInObj(request.cakto_payload, ['code', 'codigo', 'código', 'activation_code', 'codigo_ativacao']) ||
               String((request as any).code || '');
-            const r = await fetch(
+            const r = await panelFetch(
               `${Deno.env.get('SUPABASE_URL')}/functions/v1/duplecast-activate`,
               {
                 method: 'POST',
@@ -231,7 +289,7 @@ serve(async (req) => {
             autoActivationError = 'E-mail do cliente Clouddy ausente';
           } else {
             const sum = String(request.amount || '');
-            const r = await fetch(
+            const r = await panelFetch(
               `${Deno.env.get('SUPABASE_URL')}/functions/v1/clouddy-renew`,
               {
                 method: 'POST',
@@ -251,7 +309,7 @@ serve(async (req) => {
           if (!request.mac_address) {
             autoActivationError = 'MAC do cliente ausente na solicitação';
           } else {
-            const r = await fetch(
+            const r = await panelFetch(
               `${Deno.env.get('SUPABASE_URL')}/functions/v1/smartersmax`,
               {
                 method: 'POST',
@@ -277,7 +335,7 @@ serve(async (req) => {
           if (!request.mac_address) {
             autoActivationError = 'MAC do cliente ausente na solicitação';
           } else {
-            const r = await fetch(
+            const r = await panelFetch(
               `${Deno.env.get('SUPABASE_URL')}/functions/v1/iboplayerpro-activate`,
               {
                 method: 'POST',
@@ -301,7 +359,7 @@ serve(async (req) => {
           if (!request.mac_address) {
             autoActivationError = 'MAC do cliente ausente na solicitação';
           } else {
-            const r = await fetch(
+            const r = await panelFetch(
               `${Deno.env.get('SUPABASE_URL')}/functions/v1/ibosol-activate`,
               {
                 method: 'POST',

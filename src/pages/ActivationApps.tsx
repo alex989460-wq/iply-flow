@@ -333,7 +333,7 @@ export default function ActivationApps() {
 
 
   const updateRequestStatus = useMutation({
-    mutationFn: async ({ id, action }: { id: string; action: 'activate' | 'reject' | 'resend' }) => {
+    mutationFn: async ({ id, action }: { id: string; action: 'activate' | 'reject' | 'resend' | 'mark_activated' }) => {
       const { data, error } = await supabase.functions.invoke('confirm-activation', {
         body: { request_id: id, action },
       });
@@ -391,6 +391,10 @@ export default function ActivationApps() {
   const statusLabel = (s: string) => {
     switch (s) {
       case 'pending': return 'Pendente';
+      case 'aguardando_pagamento': return 'Aguardando pagamento';
+      case 'pago': return 'Pago — ativar';
+      case 'failed': return 'Falhou';
+      case 'completed':
       case 'activated': return 'Ativado';
       case 'rejected': return 'Rejeitado';
       default: return s;
@@ -399,7 +403,11 @@ export default function ActivationApps() {
 
   const statusBadge = (s: string) => {
     switch (s) {
-      case 'pending': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+      case 'pending':
+      case 'aguardando_pagamento': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+      case 'pago': return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
+      case 'failed': return 'bg-destructive/10 text-destructive border-destructive/20';
+      case 'completed':
       case 'activated': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
       case 'rejected': return 'bg-destructive/10 text-destructive border-destructive/20';
       default: return '';
@@ -503,10 +511,20 @@ export default function ActivationApps() {
                                   </TableCell>
                                   <TableCell className="py-4 px-6 text-right">
                                      <div className="flex gap-1 justify-end">
-                                        {!['activated', 'rejected'].includes(req.status) && (
+                                        {!['activated', 'completed', 'rejected'].includes(req.status) && (
                                            <>
                                               <Button size="sm" variant="outline" className="h-8 rounded-lg text-[10px] font-black uppercase border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10" disabled={updateRequestStatus.isPending} onClick={() => updateRequestStatus.mutate({ id: req.id, action: 'activate' })}>
-                                                 <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> {req.status === 'failed' ? 'Tentar de novo' : 'Ativar'}
+                                                 <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> {['failed', 'pago'].includes(req.status) ? 'Tentar de novo' : 'Ativar'}
+                                              </Button>
+                                              <Button
+                                                 size="sm"
+                                                 variant="outline"
+                                                 title="Ativei manualmente no painel: marcar como ativado e avisar o cliente"
+                                                 className="h-8 rounded-lg text-[10px] font-black uppercase border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10"
+                                                 disabled={updateRequestStatus.isPending}
+                                                 onClick={() => updateRequestStatus.mutate({ id: req.id, action: 'mark_activated' })}
+                                              >
+                                                 <Send className="w-3.5 h-3.5 mr-1" /> Avisar ativado
                                               </Button>
                                               <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-lg" disabled={updateRequestStatus.isPending} onClick={() => updateRequestStatus.mutate({ id: req.id, action: 'reject' })}>
                                                  <XCircle className="w-4 h-4" />
