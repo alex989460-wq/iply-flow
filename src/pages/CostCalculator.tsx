@@ -243,6 +243,21 @@ export default function CostCalculator() {
                 </div>
                 {period === 'custom' && <><div><Label className="mb-2 block">De</Label><Input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} /></div><div><Label className="mb-2 block">Até</Label><Input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} /></div></>}
                 <div className="relative w-full lg:ml-auto lg:max-w-sm"><Search className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" /><Input className="pl-9" placeholder="Buscar contato ou telefone" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+                <Button variant="outline" onClick={reloadAll} disabled={isFetching}><RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />Atualizar</Button>
+              </CardContent>
+            </Card>
+
+            <Card className="border-emerald-500/30 bg-emerald-500/5">
+              <CardContent className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">Cota gratuita da Meta no mês</p>
+                  <p className="text-2xl font-bold">{number(freeUsed)} <span className="text-base font-normal text-muted-foreground">de 1.000 conversas de atendimento</span></p>
+                  <p className="mt-1 text-xs text-muted-foreground">Restam {number(freeRemaining)} · a contagem zera em {resetDate}</p>
+                </div>
+                <div className="w-full sm:w-64">
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, (freeUsed / 1000) * 100)}%` }} /></div>
+                  <p className="mt-2 text-[11px] text-muted-foreground">Estimativa por contato atendido pela API Oficial no mês corrente.</p>
+                </div>
               </CardContent>
             </Card>
 
@@ -255,6 +270,7 @@ export default function CostCalculator() {
                 { label: 'Custo estimado em BRL', value: money(totals.cost), icon: Calculator, hint: 'Somente mensagens cobradas' },
               ].map((item) => <Card key={item.label}><CardContent className="p-4"><div className="mb-3 flex items-center justify-between"><span className="text-xs font-semibold uppercase text-muted-foreground">{item.label}</span><item.icon className="h-4 w-4 text-primary" /></div><p className="text-2xl font-bold">{isLoading ? '—' : item.value}</p><p className="mt-1 text-xs text-muted-foreground">{item.hint}</p></CardContent></Card>)}
             </div>
+
 
             <Card>
               <CardHeader><CardTitle className="text-base">Relatório por contato</CardTitle><CardDescription>Cada mensagem aparece uma única vez após a deduplicação por identificador e chave idempotente.</CardDescription></CardHeader>
