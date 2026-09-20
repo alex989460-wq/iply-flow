@@ -159,6 +159,45 @@ serve(async (req) => {
       }), { headers: jsonHeaders });
     }
 
+    // ── Avisar ativado (ativação feita manualmente no painel) ──
+    // Marca como concluído, dá baixa na pendência e envia SÓ a mensagem de
+    // "aplicativo ativado" ao cliente, sem tentar o painel externo de novo.
+    if (action === 'mark_activated') {
+      await supabaseAdmin.from('activation_requests')
+        .update({ status: 'completed', updated_at: new Date().toISOString() })
+        .eq('id', request_id);
+
+      try {
+        const digits = String(request.customer_phone || '').replace(/\D/g, '');
+        if (request.user_id) {
+          const { data: pend } = await supabaseAdmin
+            .from('pending_manual_renewals')
+            .select('id, customer_phone, error_details')
+            .eq('owner_id', request.user_id)
+            .eq('reason', 'app_activation');
+          const ids = (pend || [])
+            .filter((p: any) => {
+              const pd = String(p.customer_phone || '').replace(/\D/g, '');
+              const sameReq = p?.error_details?.request_id === request_id;
+              return sameReq || (pd && digits && pd.slice(-8) === digits.slice(-8));
+            })
+            .map((p: any) => p.id);
+          if (ids.length) await supabaseAdmin.from('pending_manual_renewals').delete().in('id', ids);
+        }
+      } catch { /* ignore */ }
+
+      if (!normalizedPhone) {
+        return new Response(JSON.stringify({ success: true, message: 'Marcado como ativado (cliente sem WhatsApp cadastrado)' }), { headers: jsonHeaders });
+      }
+      const r = await sendWhatsApp(buildMessage('activated'), 'activation_completed');
+      return new Response(JSON.stringify({
+        success: true,
+        message: r.notified ? 'Cliente avisado da ativação' : 'Marcado como ativado, mas nenhum canal WhatsApp disponível para avisar',
+      }), { headers: jsonHeaders });
+    }
+
+
+
     // ── Aviso imediato de "pedido em andamento" para painéis lentos (Duplecast) ──
     if (action === 'activate' && normalizedPhone && /DUPLECAST/i.test(String(request.app_name || '')) && !['completed', 'activated'].includes(String(request.status))) {
       await sendWhatsApp(buildMessage('received'), 'activation_received');
