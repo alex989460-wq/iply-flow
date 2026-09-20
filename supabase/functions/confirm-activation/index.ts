@@ -166,6 +166,25 @@ serve(async (req) => {
 
 
     // ── Auto-activate on external panel when applicable (Duplecast / Clouddy) ──
+    // Painéis lentos (Duplecast usa automação de navegador) podiam travar a função
+    // inteira até o limite de execução: o pedido ficava preso em "pago", sem
+    // pendência e sem aviso ao cliente. Todo chamado externo agora tem tempo limite.
+    const PANEL_TIMEOUT_MS = 60000;
+    const panelFetch = async (url: string, init: RequestInit, ms = PANEL_TIMEOUT_MS) => {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), ms);
+      try {
+        return await fetch(url, { ...init, signal: ctrl.signal });
+      } catch (e) {
+        if ((e as Error)?.name === 'AbortError') {
+          throw new Error(`O painel não respondeu em ${Math.round(ms / 1000)}s. Ative manualmente e use "Avisar ativado".`);
+        }
+        throw e;
+      } finally {
+        clearTimeout(t);
+      }
+    };
+
     let autoActivationError: string | null = null;
     let autoActivationOk = false;
     if (action === 'activate' && request.user_id) {
