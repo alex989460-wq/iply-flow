@@ -19,4 +19,4 @@
 - [x] Calculadora de custos: exibir dados reais (mensagens oficiais, não oficiais e custo estimado)
 - [x] ZapCRM: corrigir "[mensagem não suportada] — Message type unknown" em mensagens recebidas pela API Oficial
 
-- [ ] Conexão individual do Google Drive por revenda
+- [x] Conexão individual do Google Drive por revenda
