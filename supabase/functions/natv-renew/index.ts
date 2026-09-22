@@ -258,10 +258,16 @@ serve(async (req) => {
     );
 
     if (!natvResult.success) {
+      const notFound = shouldTryNextNatvAttempt(natvResult.status, natvResult.result);
+      const hint = notFound
+        ? (resellerHasCredentials
+          ? `Usuário "${username}" não existe no painel ${panelLabel} desta revenda. Confirme o usuário ou a chave cadastrada em Configurações > APIs.`
+          : `Chave do painel ${panelLabel} não cadastrada nesta revenda — a renovação tentou o painel padrão e o usuário "${username}" não existe nele. Cadastre a chave em Configurações > APIs.`)
+        : null;
       return new Response(
         JSON.stringify({
           success: false,
-          error: `Erro ${panelLabel}: ${natvResult.status}`,
+          error: hint || `Erro ${panelLabel}: ${natvResult.status}`,
           result: natvResult.result,
           endpoint: natvResult.endpoint,
           username: natvResult.username,
