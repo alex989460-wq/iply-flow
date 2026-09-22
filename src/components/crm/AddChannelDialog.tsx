@@ -264,7 +264,40 @@ export default function AddChannelDialog({ apiKey, onCreated, trigger }: Props) 
           </div>
         )}
 
+        {mode === 'meta-pick' && (
+          <div className="grid sm:grid-cols-2 gap-4">
+            <button
+              type="button"
+              onClick={() => startMetaSignup('coexistence')}
+              className="text-left rounded-2xl border border-border bg-card/40 p-5 hover:border-blue-500/60 transition"
+            >
+              <div className="font-semibold">Já uso este número no WhatsApp Business</div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Modo coexistência: mantém o número funcionando no aplicativo e também na API Oficial, com o histórico recente.
+              </p>
+              <span className="text-xs text-blue-400 inline-flex items-center mt-3">Continuar <ArrowRight className="w-3.5 h-3.5 ml-1" /></span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => startMetaSignup('new')}
+              className="text-left rounded-2xl border border-border bg-card/40 p-5 hover:border-emerald-500/60 transition"
+            >
+              <div className="font-semibold">É um número novo</div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Cadastro padrão da Meta: o número passa a funcionar somente pela API Oficial.
+              </p>
+              <span className="text-xs text-emerald-400 inline-flex items-center mt-3">Continuar <ArrowRight className="w-3.5 h-3.5 ml-1" /></span>
+            </button>
+
+            <div className="sm:col-span-2">
+              <Button variant="ghost" size="sm" onClick={() => { setMode(null); setErr(null); }}>Voltar</Button>
+            </div>
+          </div>
+        )}
+
         {mode === 'cloud' && (
+
           <div className="py-8 flex flex-col items-center gap-3 text-center">
             {signupStep === 'done' ? (
               <>
