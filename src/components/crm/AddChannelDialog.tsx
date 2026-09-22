@@ -15,7 +15,7 @@ interface Props {
   trigger?: ReactNode;
 }
 
-type Mode = null | 'cloud' | 'qr';
+type Mode = null | 'meta-pick' | 'cloud' | 'qr';
 
 declare global {
   interface Window { FB?: any; fbAsyncInit?: () => void }
