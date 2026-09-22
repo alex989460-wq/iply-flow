@@ -41,13 +41,10 @@ function loadFbSdk(appId: string, graphVersion = 'v21.0') {
   });
 }
 
-function normalizeFeatureType(v?: string | null) {
-  const t = String(v || '').trim();
-  // A Meta espera este identificador para o fluxo de coexistência
-  // (usar um número que já está no app WhatsApp Business).
-  if (!t || t === 'null' || /coexist/i.test(t)) return 'whatsapp_business_app_onboarding';
-  return t;
-}
+// A Meta espera este identificador para o fluxo de coexistência
+// (usar um número que já está no app WhatsApp Business).
+const COEXISTENCE_FEATURE = 'whatsapp_business_app_onboarding';
+
 
 async function call(action: string, apiKey: string, data: Record<string, unknown> = {}) {
   const { data: res, error } = await supabase.functions.invoke('crm-oficial-sync', {
