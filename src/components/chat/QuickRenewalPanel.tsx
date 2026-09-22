@@ -472,12 +472,17 @@ export default function QuickRenewalPanel({ isMobile = false, onClose, initialPh
         due_date: newDueDateStr,
         status: 'ativa' as const,
         screens: selectedScreens,
-        username: editedUsername.trim() || null,
         extra_phone: editedExtraPhone.trim() || customer.extra_phone || null,
         // Decrement extra_months if customer has any
         extra_months: customer.extra_months > 0 ? customer.extra_months - 1 : 0,
         name: editedName.trim() || customer.name,
       };
+
+      const normalizedEditedUsername = editedUsername.trim() || null;
+      const normalizedCurrentUsername = customer.username?.trim() || null;
+      if (normalizedEditedUsername !== normalizedCurrentUsername) {
+        updateData.username = normalizedEditedUsername;
+      }
 
       // Update plan if changed
       if (selectedPlanId && selectedPlanId !== customer.plan?.id) {
