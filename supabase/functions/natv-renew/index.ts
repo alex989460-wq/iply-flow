@@ -165,11 +165,20 @@ serve(async (req) => {
 
     const { username, months, duration_days, customer_id, panel } = await req.json();
     const isNatv2 = panel === 'natv2';
+    const panelLabel = isNatv2 ? 'NATV2' : 'NATV';
+    const DEFAULT_NATV_BASE = 'https://revenda.pixbot.link/api';
 
-    // Try per-reseller settings first, then fall back to global env vars
-    let natvApiKey = '';
-    let natvBaseUrl = '';
+    // Credenciais candidatas: painel preferido do revendedor -> outro painel NATV do revendedor -> globais
+    const credentials: Array<{ label: string; apiKey: string; baseUrl: string }> = [];
+    const pushCred = (label: string, apiKey?: string | null, baseUrl?: string | null) => {
+      const key = String(apiKey || '').trim();
+      if (!key) return;
+      const base = normalizeBaseUrl(String(baseUrl || '').trim() || DEFAULT_NATV_BASE);
+      if (credentials.some((c) => c.apiKey === key && c.baseUrl === base)) return;
+      credentials.push({ label, apiKey: key, baseUrl: base });
+    };
 
+    let resellerHasCredentials = false;
     const serviceRoleKeyForLookup = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     if (serviceRoleKeyForLookup && customer_id) {
       const supabaseAdminLookup = createClient(Deno.env.get('SUPABASE_URL')!, serviceRoleKeyForLookup, {
@@ -189,33 +198,26 @@ serve(async (req) => {
           .eq('user_id', customerOwner.created_by)
           .maybeSingle();
 
-        if (isNatv2 && resellerSettings?.natv2_api_key && resellerSettings?.natv2_base_url) {
-          natvApiKey = resellerSettings.natv2_api_key;
-          natvBaseUrl = normalizeBaseUrl(resellerSettings.natv2_base_url);
-          console.log(`[NATV2] Usando chaves do revendedor`);
-        } else if (!isNatv2 && resellerSettings?.natv_api_key && resellerSettings?.natv_base_url) {
-          natvApiKey = resellerSettings.natv_api_key;
-          natvBaseUrl = normalizeBaseUrl(resellerSettings.natv_base_url);
-          console.log(`[NATV] Usando chaves do revendedor`);
+        if (isNatv2) {
+          pushCred('revendedor NATV2', resellerSettings?.natv2_api_key, resellerSettings?.natv2_base_url);
+          pushCred('revendedor NATV', resellerSettings?.natv_api_key, resellerSettings?.natv_base_url);
+        } else {
+          pushCred('revendedor NATV', resellerSettings?.natv_api_key, resellerSettings?.natv_base_url);
+          pushCred('revendedor NATV2', resellerSettings?.natv2_api_key, resellerSettings?.natv2_base_url);
         }
+        resellerHasCredentials = credentials.length > 0;
       }
     }
 
-    // Fallback to global env vars
-    if (!natvApiKey || !natvBaseUrl) {
-      natvApiKey = Deno.env.get(isNatv2 ? 'NATV2_API_KEY' : 'NATV_API_KEY') || '';
-      natvBaseUrl = normalizeBaseUrl(Deno.env.get(isNatv2 ? 'NATV2_BASE_URL' : 'NATV_BASE_URL') || '');
-      if (natvApiKey && natvBaseUrl) {
-        console.log(`[${isNatv2 ? 'NATV2' : 'NATV'}] Usando chaves globais (fallback)`);
-      }
-    }
+    pushCred('global NATV', Deno.env.get(isNatv2 ? 'NATV2_API_KEY' : 'NATV_API_KEY'), Deno.env.get(isNatv2 ? 'NATV2_BASE_URL' : 'NATV_BASE_URL'));
+    pushCred('global NATV alt', Deno.env.get(isNatv2 ? 'NATV_API_KEY' : 'NATV2_API_KEY'), Deno.env.get(isNatv2 ? 'NATV_BASE_URL' : 'NATV2_BASE_URL'));
 
-    const panelLabel = isNatv2 ? 'NATV2' : 'NATV';
-
-    if (!natvApiKey || !natvBaseUrl) {
+    if (credentials.length === 0) {
       return new Response(
-        JSON.stringify({ error: `${panelLabel}_API_KEY ou ${panelLabel}_BASE_URL não configurados` }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        JSON.stringify({
+          error: `Chave do painel ${panelLabel} não cadastrada. Acesse Configurações > APIs e informe a chave e o endereço (ex.: ${DEFAULT_NATV_BASE}).`,
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
@@ -240,19 +242,32 @@ serve(async (req) => {
       Math.abs(curr - renewMonths) < Math.abs(prev - renewMonths) ? curr : prev
     );
 
-    console.log(`[${panelLabel}] Renovando usuário: ${username}, meses: ${finalMonths}`);
+    console.log(`[${panelLabel}] Renovando usuário: ${username}, meses: ${finalMonths}, credenciais: ${credentials.map((c) => c.label).join(' -> ')}`);
 
-    const natvResult = await callNatvActivation(natvBaseUrl, natvApiKey, username.trim(), finalMonths);
+    let natvResult = await callNatvActivation(credentials[0].baseUrl, credentials[0].apiKey, username.trim(), finalMonths);
+    let usedCredential = credentials[0].label;
+    for (let i = 1; i < credentials.length && !natvResult.success; i++) {
+      console.log(`[${panelLabel}] Falhou com ${usedCredential} (status ${natvResult.status}); tentando ${credentials[i].label}`);
+      natvResult = await callNatvActivation(credentials[i].baseUrl, credentials[i].apiKey, username.trim(), finalMonths);
+      usedCredential = credentials[i].label;
+    }
+    if (natvResult.success) console.log(`[${panelLabel}] Renovado com credencial: ${usedCredential}`);
     console.log(
       `[${panelLabel}] Resposta final: status=${natvResult.status}, endpoint=${natvResult.endpoint}, username=${natvResult.username}`,
       JSON.stringify(natvResult.result),
     );
 
     if (!natvResult.success) {
+      const notFound = shouldTryNextNatvAttempt(natvResult.status, natvResult.result);
+      const hint = notFound
+        ? (resellerHasCredentials
+          ? `Usuário "${username}" não existe no painel ${panelLabel} desta revenda. Confirme o usuário ou a chave cadastrada em Configurações > APIs.`
+          : `Chave do painel ${panelLabel} não cadastrada nesta revenda — a renovação tentou o painel padrão e o usuário "${username}" não existe nele. Cadastre a chave em Configurações > APIs.`)
+        : null;
       return new Response(
         JSON.stringify({
           success: false,
-          error: `Erro ${panelLabel}: ${natvResult.status}`,
+          error: hint || `Erro ${panelLabel}: ${natvResult.status}`,
           result: natvResult.result,
           endpoint: natvResult.endpoint,
           username: natvResult.username,
