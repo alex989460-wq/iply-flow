@@ -15,7 +15,7 @@ interface Props {
   trigger?: ReactNode;
 }
 
-type Mode = null | 'cloud' | 'qr';
+type Mode = null | 'meta-pick' | 'cloud' | 'qr';
 
 declare global {
   interface Window { FB?: any; fbAsyncInit?: () => void }
@@ -41,13 +41,10 @@ function loadFbSdk(appId: string, graphVersion = 'v21.0') {
   });
 }
 
-function normalizeFeatureType(v?: string | null) {
-  const t = String(v || '').trim();
-  // A Meta espera este identificador para o fluxo de coexistência
-  // (usar um número que já está no app WhatsApp Business).
-  if (!t || t === 'null' || /coexist/i.test(t)) return 'whatsapp_business_app_onboarding';
-  return t;
-}
+// A Meta espera este identificador para o fluxo de coexistência
+// (usar um número que já está no app WhatsApp Business).
+const COEXISTENCE_FEATURE = 'whatsapp_business_app_onboarding';
+
 
 async function call(action: string, apiKey: string, data: Record<string, unknown> = {}) {
   const { data: res, error } = await supabase.functions.invoke('crm-oficial-sync', {
@@ -105,7 +102,7 @@ export default function AddChannelDialog({ apiKey, onCreated, trigger }: Props) 
     return () => clearInterval(id);
   }, [mode, qrChannelId, qrState, apiKey, onCreated]);
 
-  async function startMetaSignup() {
+  async function startMetaSignup(kind: 'coexistence' | 'new' = 'coexistence') {
     setMode('cloud'); setErr(null); setSignupStep('waiting');
     signupRef.current = {};
     try {
@@ -158,12 +155,18 @@ export default function AddChannelDialog({ apiKey, onCreated, trigger }: Props) 
           config_id: cfg.config_id,
           response_type: 'code',
           override_default_response_type: true,
-          extras: {
-            setup: {},
-            featureType: normalizeFeatureType(cfg.feature_type),
-            sessionInfoVersion: cfg.session_info_version,
-            version: cfg.extras_version,
-          },
+          extras: kind === 'coexistence'
+            ? {
+                setup: {},
+                featureType: COEXISTENCE_FEATURE,
+                sessionInfoVersion: cfg.session_info_version || '3',
+              }
+            : {
+                setup: {},
+                featureType: '',
+                sessionInfoVersion: cfg.session_info_version || '3',
+              },
+
         },
       );
     } catch (e: any) {
@@ -205,15 +208,18 @@ export default function AddChannelDialog({ apiKey, onCreated, trigger }: Props) 
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>
-            {mode === 'cloud' ? 'Conectar API Oficial (Meta)' : mode === 'qr' ? 'Conectar por QR Code' : 'Como você quer conectar seu WhatsApp?'}
+            {mode === 'cloud' || mode === 'meta-pick' ? 'Conectar API Oficial (Meta)' : mode === 'qr' ? 'Conectar por QR Code' : 'Como você quer conectar seu WhatsApp?'}
           </DialogTitle>
           <DialogDescription>
-            {mode === 'cloud'
-              ? 'Conclua o login na janela da Meta — o número é cadastrado automaticamente.'
-              : mode === 'qr'
-                ? 'Leia o código com o WhatsApp do celular em Aparelhos conectados.'
-                : 'Escolha entre a API oficial da Meta ou a conexão por QR Code.'}
+            {mode === 'meta-pick'
+              ? 'O número já é usado no app WhatsApp Business ou é um número novo?'
+              : mode === 'cloud'
+                ? 'Conclua o login na janela da Meta — o número é cadastrado automaticamente.'
+                : mode === 'qr'
+                  ? 'Leia o código com o WhatsApp do celular em Aparelhos conectados.'
+                  : 'Escolha entre a API oficial da Meta ou a conexão por QR Code.'}
           </DialogDescription>
+
         </DialogHeader>
 
         {err && <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">{err}</div>}
@@ -222,7 +228,7 @@ export default function AddChannelDialog({ apiKey, onCreated, trigger }: Props) 
           <div className="grid sm:grid-cols-2 gap-4">
             <button
               type="button"
-              onClick={startMetaSignup}
+              onClick={() => { setMode('meta-pick'); setErr(null); }}
               className="text-left rounded-2xl border border-border bg-card/40 p-5 hover:border-blue-500/60 transition"
             >
               <div className="flex items-center gap-3">
@@ -258,7 +264,40 @@ export default function AddChannelDialog({ apiKey, onCreated, trigger }: Props) 
           </div>
         )}
 
+        {mode === 'meta-pick' && (
+          <div className="grid sm:grid-cols-2 gap-4">
+            <button
+              type="button"
+              onClick={() => startMetaSignup('coexistence')}
+              className="text-left rounded-2xl border border-border bg-card/40 p-5 hover:border-blue-500/60 transition"
+            >
+              <div className="font-semibold">Já uso este número no WhatsApp Business</div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Modo coexistência: mantém o número funcionando no aplicativo e também na API Oficial, com o histórico recente.
+              </p>
+              <span className="text-xs text-blue-400 inline-flex items-center mt-3">Continuar <ArrowRight className="w-3.5 h-3.5 ml-1" /></span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => startMetaSignup('new')}
+              className="text-left rounded-2xl border border-border bg-card/40 p-5 hover:border-emerald-500/60 transition"
+            >
+              <div className="font-semibold">É um número novo</div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Cadastro padrão da Meta: o número passa a funcionar somente pela API Oficial.
+              </p>
+              <span className="text-xs text-emerald-400 inline-flex items-center mt-3">Continuar <ArrowRight className="w-3.5 h-3.5 ml-1" /></span>
+            </button>
+
+            <div className="sm:col-span-2">
+              <Button variant="ghost" size="sm" onClick={() => { setMode(null); setErr(null); }}>Voltar</Button>
+            </div>
+          </div>
+        )}
+
         {mode === 'cloud' && (
+
           <div className="py-8 flex flex-col items-center gap-3 text-center">
             {signupStep === 'done' ? (
               <>
