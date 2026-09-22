@@ -228,7 +228,7 @@ export default function AddChannelDialog({ apiKey, onCreated, trigger }: Props) 
           <div className="grid sm:grid-cols-2 gap-4">
             <button
               type="button"
-              onClick={startMetaSignup}
+              onClick={() => { setMode('meta-pick'); setErr(null); }}
               className="text-left rounded-2xl border border-border bg-card/40 p-5 hover:border-blue-500/60 transition"
             >
               <div className="flex items-center gap-3">
