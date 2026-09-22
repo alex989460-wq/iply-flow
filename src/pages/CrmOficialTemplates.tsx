@@ -116,29 +116,37 @@ export default function CrmOficialTemplates() {
     setSyncing(true);
     setLoadError(null);
     try {
+      let primaryError: string | null = null;
+
       // Primária: função dedicada de templates (só chama se houver apiKey do CRM Oficial).
       if (apiKey) {
         const { data: metaRes, error: metaErr } = await supabase.functions.invoke('meta-templates', {
           body: { action: 'list', limit: 250, apiKey },
         });
         if (!metaErr && metaRes && !metaRes.error && Array.isArray(metaRes.data)) {
-          setTemplates(normalizeTemplates(metaRes));
-          return;
+          const list = normalizeTemplates(metaRes);
+          if (list.length > 0) {
+            setTemplates(list);
+            return;
+          }
+        } else {
+          primaryError = metaRes?.error || metaErr?.message || null;
         }
       }
 
       // Fallback: Meta OAuth direto.
       const { data: oauthRes } = await supabase.functions.invoke('meta-oauth', { body: { action: 'fetch-templates' } });
-      if (oauthRes && !oauthRes.error && Array.isArray(oauthRes.templates)) {
+      if (oauthRes && !oauthRes.error && Array.isArray(oauthRes.templates) && oauthRes.templates.length > 0) {
         setTemplates(normalizeTemplates(oauthRes.templates));
         return;
       }
 
+      setTemplates([]);
       const msg = !apiKey
         ? 'Configure a chave da API do CRM Oficial em Configurações para listar os templates.'
-        : (oauthRes?.error || 'Nenhuma fonte de templates disponível.');
+        : (primaryError || oauthRes?.error
+          || 'A conta oficial conectada não tem nenhum template cadastrado na Meta. Conecte o número certo em Conexões WhatsApp ou crie um novo template.');
       setLoadError(msg);
-      setTemplates([]);
     } catch (e: any) {
       setLoadError(e.message);
       toast({ title: 'Erro ao carregar templates', description: e.message, variant: 'destructive' });
