@@ -208,15 +208,18 @@ export default function AddChannelDialog({ apiKey, onCreated, trigger }: Props) 
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>
-            {mode === 'cloud' ? 'Conectar API Oficial (Meta)' : mode === 'qr' ? 'Conectar por QR Code' : 'Como você quer conectar seu WhatsApp?'}
+            {mode === 'cloud' || mode === 'meta-pick' ? 'Conectar API Oficial (Meta)' : mode === 'qr' ? 'Conectar por QR Code' : 'Como você quer conectar seu WhatsApp?'}
           </DialogTitle>
           <DialogDescription>
-            {mode === 'cloud'
-              ? 'Conclua o login na janela da Meta — o número é cadastrado automaticamente.'
-              : mode === 'qr'
-                ? 'Leia o código com o WhatsApp do celular em Aparelhos conectados.'
-                : 'Escolha entre a API oficial da Meta ou a conexão por QR Code.'}
+            {mode === 'meta-pick'
+              ? 'O número já é usado no app WhatsApp Business ou é um número novo?'
+              : mode === 'cloud'
+                ? 'Conclua o login na janela da Meta — o número é cadastrado automaticamente.'
+                : mode === 'qr'
+                  ? 'Leia o código com o WhatsApp do celular em Aparelhos conectados.'
+                  : 'Escolha entre a API oficial da Meta ou a conexão por QR Code.'}
           </DialogDescription>
+
         </DialogHeader>
 
         {err && <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">{err}</div>}
