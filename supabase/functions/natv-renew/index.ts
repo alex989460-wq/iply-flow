@@ -8,6 +8,15 @@ const corsHeaders = {
 
 const normalizeBaseUrl = (rawUrl: string) => rawUrl.trim().replace(/\/+$/, '');
 
+const splitUsernames = (rawUsername: string): string[] => {
+  return [...new Set(
+    String(rawUsername || '')
+      .split(/[,;\n]+/)
+      .map((value) => value.trim())
+      .filter(Boolean),
+  )];
+};
+
 const buildUsernameVariants = (rawUsername: string): string[] => {
   const base = String(rawUsername || '').trim();
   const variants = new Set<string>();
@@ -221,7 +230,8 @@ serve(async (req) => {
       );
     }
 
-    if (!username) {
+    const usernames = splitUsernames(username);
+    if (usernames.length === 0) {
       return new Response(
         JSON.stringify({ error: 'Username é obrigatório' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
@@ -242,27 +252,33 @@ serve(async (req) => {
       Math.abs(curr - renewMonths) < Math.abs(prev - renewMonths) ? curr : prev
     );
 
-    console.log(`[${panelLabel}] Renovando usuário: ${username}, meses: ${finalMonths}, credenciais: ${credentials.map((c) => c.label).join(' -> ')}`);
+    console.log(`[${panelLabel}] Renovando usuário(s): ${usernames.join(', ')}, meses: ${finalMonths}, credenciais: ${credentials.map((c) => c.label).join(' -> ')}`);
 
-    let natvResult = await callNatvActivation(credentials[0].baseUrl, credentials[0].apiKey, username.trim(), finalMonths);
-    let usedCredential = credentials[0].label;
-    for (let i = 1; i < credentials.length && !natvResult.success; i++) {
-      console.log(`[${panelLabel}] Falhou com ${usedCredential} (status ${natvResult.status}); tentando ${credentials[i].label}`);
-      natvResult = await callNatvActivation(credentials[i].baseUrl, credentials[i].apiKey, username.trim(), finalMonths);
-      usedCredential = credentials[i].label;
+    const renewalResults: Array<{ requestedUsername: string; usedCredential: string; renewal: Awaited<ReturnType<typeof callNatvActivation>> }> = [];
+    for (const requestedUsername of usernames) {
+      let natvResult = await callNatvActivation(credentials[0].baseUrl, credentials[0].apiKey, requestedUsername, finalMonths);
+      let usedCredential = credentials[0].label;
+      for (let i = 1; i < credentials.length && !natvResult.success; i++) {
+        console.log(`[${panelLabel}] ${requestedUsername} falhou com ${usedCredential} (status ${natvResult.status}); tentando ${credentials[i].label}`);
+        natvResult = await callNatvActivation(credentials[i].baseUrl, credentials[i].apiKey, requestedUsername, finalMonths);
+        usedCredential = credentials[i].label;
+      }
+      renewalResults.push({ requestedUsername, usedCredential, renewal: natvResult });
+      console.log(
+        `[${panelLabel}] ${requestedUsername}: status=${natvResult.status}, endpoint=${natvResult.endpoint}, credencial=${usedCredential}`,
+        JSON.stringify(natvResult.result),
+      );
     }
-    if (natvResult.success) console.log(`[${panelLabel}] Renovado com credencial: ${usedCredential}`);
-    console.log(
-      `[${panelLabel}] Resposta final: status=${natvResult.status}, endpoint=${natvResult.endpoint}, username=${natvResult.username}`,
-      JSON.stringify(natvResult.result),
-    );
 
-    if (!natvResult.success) {
+    const failedRenewal = renewalResults.find(({ renewal }) => !renewal.success);
+    if (failedRenewal) {
+      const natvResult = failedRenewal.renewal;
+      const failedUsername = failedRenewal.requestedUsername;
       const notFound = shouldTryNextNatvAttempt(natvResult.status, natvResult.result);
       const hint = notFound
         ? (resellerHasCredentials
-          ? `Usuário "${username}" não existe no painel ${panelLabel} desta revenda. Confirme o usuário ou a chave cadastrada em Configurações > APIs.`
-          : `Chave do painel ${panelLabel} não cadastrada nesta revenda — a renovação tentou o painel padrão e o usuário "${username}" não existe nele. Cadastre a chave em Configurações > APIs.`)
+          ? `Usuário "${failedUsername}" não existe no painel ${panelLabel} desta revenda. Confirme o usuário ou a chave cadastrada em Configurações > APIs.`
+          : `Chave do painel ${panelLabel} não cadastrada nesta revenda — a renovação tentou o painel padrão e o usuário "${failedUsername}" não existe nele. Cadastre a chave em Configurações > APIs.`)
         : null;
       return new Response(
         JSON.stringify({
@@ -272,6 +288,7 @@ serve(async (req) => {
           endpoint: natvResult.endpoint,
           username: natvResult.username,
           attempts: natvResult.attempts,
+          completed: renewalResults.filter(({ renewal }) => renewal.success).map(({ requestedUsername }) => requestedUsername),
         }),
         { status: natvResult.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
@@ -316,9 +333,12 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Usuário ${natvResult.username} renovado por ${finalMonths} mês(es) no ${panelLabel}`,
-        result: natvResult.result,
-        endpoint: natvResult.endpoint,
+        message: `${usernames.length === 1 ? 'Usuário renovado' : 'Usuários renovados'} por ${finalMonths} mês(es) no ${panelLabel}: ${usernames.join(', ')}`,
+        results: renewalResults.map(({ requestedUsername, renewal }) => ({
+          username: requestedUsername,
+          result: renewal.result,
+          endpoint: renewal.endpoint,
+        })),
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
