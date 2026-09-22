@@ -155,12 +155,18 @@ export default function AddChannelDialog({ apiKey, onCreated, trigger }: Props) 
           config_id: cfg.config_id,
           response_type: 'code',
           override_default_response_type: true,
-          extras: {
-            setup: {},
-            featureType: normalizeFeatureType(cfg.feature_type),
-            sessionInfoVersion: cfg.session_info_version,
-            version: cfg.extras_version,
-          },
+          extras: kind === 'coexistence'
+            ? {
+                setup: {},
+                featureType: COEXISTENCE_FEATURE,
+                sessionInfoVersion: cfg.session_info_version || '3',
+              }
+            : {
+                setup: {},
+                featureType: '',
+                sessionInfoVersion: cfg.session_info_version || '3',
+              },
+
         },
       );
     } catch (e: any) {
