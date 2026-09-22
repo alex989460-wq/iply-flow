@@ -102,7 +102,7 @@ export default function AddChannelDialog({ apiKey, onCreated, trigger }: Props) 
     return () => clearInterval(id);
   }, [mode, qrChannelId, qrState, apiKey, onCreated]);
 
-  async function startMetaSignup() {
+  async function startMetaSignup(kind: 'coexistence' | 'new' = 'coexistence') {
     setMode('cloud'); setErr(null); setSignupStep('waiting');
     signupRef.current = {};
     try {
