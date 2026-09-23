@@ -2928,6 +2928,9 @@ serve(async (req) => {
     } catch (e) {
       console.error('[Cakto] Erro ao enviar mensagem WhatsApp:', e);
     }
+    messagingDeadline = null;
+    console.log('[Cakto] Etapa de mensagens finalizada. Iniciando renovação no painel do servidor...');
+
 
     // ── Check for extra_months per customer: skip server renewal for those with extras ──
     // For single-customer flow, check the primary customer
