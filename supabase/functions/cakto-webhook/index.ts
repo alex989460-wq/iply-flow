@@ -2498,6 +2498,7 @@ serve(async (req) => {
     } // end if (!multiRenewalCompleted) for confirmation
 
     // ── Send WhatsApp plain text message via zap-responder edge function ──
+    messagingDeadline = Date.now() + MESSAGING_BUDGET_MS;
     try {
       const { data: zapSettings } = await supabaseAdmin
         .from('zap_responder_settings')
