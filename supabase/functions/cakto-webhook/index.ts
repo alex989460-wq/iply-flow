@@ -15,11 +15,25 @@ serve(async (req) => {
   }
 
   const jsonHeaders = { ...corsHeaders, 'Content-Type': 'application/json' };
-  const MESSAGE_SEND_TIMEOUT_MS = 45000;
+  const MESSAGE_SEND_TIMEOUT_MS = 12000;
+
+  // Orçamento global para a etapa de mensagens (WhatsApp/e-mail). O isolate das
+  // edge functions é encerrado por wall-clock; sem esse limite, um envio travado
+  // consome todo o tempo e a renovação NO PAINEL DO SERVIDOR nunca chega a rodar.
+  let messagingDeadline: number | null = null;
+  const MESSAGING_BUDGET_MS = 20000;
 
   const fetchWithTimeout = async (url: string, init: RequestInit, timeoutMs = MESSAGE_SEND_TIMEOUT_MS): Promise<Response> => {
+    let effectiveTimeout = timeoutMs;
+    if (messagingDeadline !== null) {
+      const remaining = messagingDeadline - Date.now();
+      if (remaining <= 0) {
+        throw new Error('Orçamento de tempo para mensagens esgotado — envio ignorado para preservar a renovação no painel');
+      }
+      effectiveTimeout = Math.min(timeoutMs, remaining);
+    }
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const timer = setTimeout(() => controller.abort(), effectiveTimeout);
     try {
       return await fetch(url, { ...init, signal: controller.signal });
     } finally {
