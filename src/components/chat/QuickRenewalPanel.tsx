@@ -1506,10 +1506,10 @@ Agradecemos a preferência e ficamos à disposição! 🙏📺${customMessage ? 
   };
 
   return (
-    <div className={`${isMobile ? 'w-full' : 'w-[360px] lg:w-[420px] shrink-0 border-l border-border/20'} bg-background/40 backdrop-blur-3xl flex flex-col h-full max-h-full min-h-0 overflow-hidden text-[13px] shadow-2xl transition-all duration-500 ease-in-out`}>
+    <div className={`${isMobile ? 'w-full' : 'w-full md:w-[360px] lg:w-[420px] shrink-0 md:border-l border-border/20'} bg-background/40 backdrop-blur-3xl flex flex-col h-full max-h-full min-h-0 overflow-hidden text-[13px] shadow-2xl transition-all duration-500 ease-in-out`}>
       {!isMobile && (
-        <div className="p-5 border-b border-border/20 bg-background/30 space-y-4">
-          <div className="flex items-center justify-between">
+        <div className={`p-3 md:p-5 border-b border-border/20 bg-background/30 space-y-3 md:space-y-4 ${onClose ? 'pr-12 md:pr-5' : ''}`}>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 flex items-center gap-2">
               <RefreshCw className="h-3 w-3 text-primary animate-pulse-slow" />
               Renovação Rápida
