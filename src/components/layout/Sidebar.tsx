@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSidebar } from '@/contexts/SidebarContext';
@@ -34,6 +35,8 @@ import {
   ListChecks,
   Coins,
   Share2,
+  ChevronDown,
+  Wrench,
 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
@@ -225,44 +228,40 @@ export default function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto scrollbar-thin">
-          {filteredMenuItems.map((item, index) => {
-            const isActive = location.pathname === item.path;
-            const badgeCount = item.badgeKey ? badgeCounts[item.badgeKey] : 0;
+          {topItems.map(item => renderItem(item))}
+
+          {groups.map(group => {
+            const open = collapsed || !!openGroups[group.id];
+            const hasActive = group.id === activeGroupId;
             return (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                style={{ animationDelay: `${index * 30}ms` }}
-                className={cn(
-                  "group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 animate-fade-in relative",
-                  "hover:bg-gradient-to-r hover:from-primary/10 hover:to-primary/5",
-                  isActive 
-                    ? "bg-gradient-to-r from-primary/20 to-primary/10 text-primary shadow-sm border border-primary/20" 
-                    : "text-muted-foreground hover:text-foreground",
-                  collapsed && "lg:justify-center lg:px-2"
+              <div key={group.id} className={cn(collapsed ? "pt-2 mt-2 border-t border-sidebar-border/40 space-y-1" : "pt-1")}>
+                {!collapsed && (
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.id)}
+                    aria-expanded={open}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-colors",
+                      hasActive ? "text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-secondary/40"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-8 h-8 flex items-center justify-center rounded-lg",
+                      hasActive ? "bg-primary/15 text-primary" : "bg-secondary/50"
+                    )}>
+                      <group.icon className="w-4 h-4" />
+                    </div>
+                    <span className="flex-1 text-left">{group.label}</span>
+                    <span className="text-[10px] text-muted-foreground">{group.items.length}</span>
+                    <ChevronDown className={cn("w-4 h-4 transition-transform duration-200", open && "rotate-180")} />
+                  </button>
                 )}
-              >
-                <div className={cn(
-                  "flex items-center justify-center rounded-lg transition-all duration-200 relative",
-                  collapsed ? "w-10 h-10" : "w-8 h-8",
-                  isActive 
-                    ? "bg-primary text-primary-foreground shadow-md shadow-primary/30" 
-                    : "bg-secondary/50 group-hover:bg-secondary group-hover:scale-105"
-                )}>
-                  <item.icon className={cn(collapsed ? "w-5 h-5" : "w-4 h-4")} />
-                  {collapsed && badgeCount > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold flex items-center justify-center">
-                      {badgeCount > 99 ? '99+' : badgeCount}
-                    </span>
-                  )}
-                </div>
-                {!collapsed && <span className="truncate flex-1">{item.label}</span>}
-                {!collapsed && badgeCount > 0 && (
-                  <Badge className="h-5 min-w-5 px-1.5 text-[10px] bg-destructive text-destructive-foreground hover:bg-destructive">
-                    {badgeCount > 99 ? '99+' : badgeCount}
-                  </Badge>
+                {open && (
+                  <div className={cn(!collapsed && "ml-4 pl-2 border-l border-sidebar-border/60 space-y-0.5 mt-0.5 animate-fade-in")}>
+                    {group.items.map(item => renderItem(item, true))}
+                  </div>
                 )}
-              </NavLink>
+              </div>
             );
           })}
         </nav>
