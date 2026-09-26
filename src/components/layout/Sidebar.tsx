@@ -43,47 +43,62 @@ import logoSg from '@/assets/logo-sg.png';
 
 type BadgeKey = 'evolution';
 
-const menuItems: Array<{
+type MenuItem = {
   icon: typeof LayoutGrid;
   label: string;
   path: string;
   adminOnly: boolean;
   badgeKey?: BadgeKey;
-}> = [
+};
+
+type MenuGroup = { id: string; label: string; icon: typeof LayoutGrid; items: MenuItem[] };
+
+const topItems: MenuItem[] = [
   { icon: LayoutGrid, label: 'Dashboard', path: '/dashboard', adminOnly: false },
-  { icon: HardDrive, label: 'Servidores', path: '/servers', adminOnly: false },
-  { icon: Layers3, label: 'Planos', path: '/plans', adminOnly: false },
-  { icon: Users2, label: 'Clientes', path: '/customers', adminOnly: false },
-  { icon: Wallet, label: 'Pagamentos', path: '/payments', adminOnly: false },
-  { icon: Receipt, label: 'Cobranças', path: '/billing', adminOnly: false },
-  { icon: Wallet, label: 'Config. Cobrança', path: '/billing-settings', adminOnly: false },
-  { icon: Megaphone, label: 'Disparo em Massa', path: '/mass-broadcast', adminOnly: false },
-  { icon: Trophy, label: 'Disparo Janela 24h', path: '/bolao-broadcast', adminOnly: false },
-  { icon: UserPlus, label: 'Captura de Leads', path: '/lead-capture', adminOnly: false },
-  { icon: Calculator, label: 'Calculadora de Custo', path: '/cost-calculator', adminOnly: false },
-  { icon: Coins, label: 'Comprar Créditos', path: '/creditos', adminOnly: false },
-  { icon: ListChecks, label: 'Tarefas e Anotações', path: '/tarefas', adminOnly: false },
   { icon: MessageCircleMore, label: 'Chat', path: '/chat', adminOnly: false, badgeKey: 'evolution' },
-  { icon: FileText, label: 'Templates CRM Oficial', path: '/crm-oficial-templates', adminOnly: false },
-  { icon: Bot, label: 'Robô CRM', path: '/crm-oficial-chatbots', adminOnly: false },
-  { icon: Share2, label: 'Social Mídia', path: '/social-midia', adminOnly: false },
-  { icon: QrCode, label: 'Conexões WhatsApp', path: '/evolution-instances', adminOnly: false },
-  
-
-
-  { icon: ImagePlus, label: 'Gerador de Banner', path: '/banner-generator', adminOnly: false },
-  
-  { icon: GraduationCap, label: 'Treinamento e Automação IA', path: '/ai-training', adminOnly: false },
-  { icon: Smartphone, label: 'Ativação de Apps', path: '/activation-apps', adminOnly: false },
-
-  { icon: Users2, label: 'Extrair Grupos WhatsApp', path: '/group-extractor', adminOnly: false },
-  { icon: PiggyBank, label: 'Despesas', path: '/expenses', adminOnly: true },
-
-  { icon: ScrollText, label: 'Logs de Mensagens', path: '/message-logs', adminOnly: true },
-  { icon: UserCog, label: 'Revendas', path: '/resellers', adminOnly: false },
-  { icon: GraduationCap, label: 'Tutoriais', path: '/tutoriais', adminOnly: false },
-  { icon: Cog, label: 'Configurações', path: '/settings', adminOnly: false },
 ];
+
+const menuGroups: MenuGroup[] = [
+  {
+    id: 'clientes', label: 'Clientes', icon: Users2, items: [
+      { icon: Users2, label: 'Clientes', path: '/customers', adminOnly: false },
+      { icon: HardDrive, label: 'Servidores', path: '/servers', adminOnly: false },
+      { icon: Layers3, label: 'Planos', path: '/plans', adminOnly: false },
+      { icon: Wallet, label: 'Pagamentos', path: '/payments', adminOnly: false },
+      { icon: Receipt, label: 'Cobranças', path: '/billing', adminOnly: false },
+      { icon: UserCog, label: 'Revendas', path: '/resellers', adminOnly: false },
+      { icon: Smartphone, label: 'Ativação de Apps', path: '/activation-apps', adminOnly: false },
+    ],
+  },
+  {
+    id: 'ferramentas', label: 'Ferramentas', icon: Wrench, items: [
+      { icon: Megaphone, label: 'Disparo em Massa', path: '/mass-broadcast', adminOnly: false },
+      { icon: Trophy, label: 'Disparo Janela 24h', path: '/bolao-broadcast', adminOnly: false },
+      { icon: UserPlus, label: 'Captura de Leads', path: '/lead-capture', adminOnly: false },
+      { icon: Users2, label: 'Extrair Grupos WhatsApp', path: '/group-extractor', adminOnly: false },
+      { icon: Share2, label: 'Social Mídia', path: '/social-midia', adminOnly: false },
+      { icon: ImagePlus, label: 'Gerador de Banner', path: '/banner-generator', adminOnly: false },
+      { icon: GraduationCap, label: 'Treinamento e Automação IA', path: '/ai-training', adminOnly: false },
+      { icon: Calculator, label: 'Calculadora de Custo', path: '/cost-calculator', adminOnly: false },
+      { icon: ListChecks, label: 'Tarefas e Anotações', path: '/tarefas', adminOnly: false },
+      { icon: Coins, label: 'Comprar Créditos', path: '/creditos', adminOnly: false },
+      { icon: PiggyBank, label: 'Despesas', path: '/expenses', adminOnly: true },
+      { icon: ScrollText, label: 'Logs de Mensagens', path: '/message-logs', adminOnly: true },
+      { icon: GraduationCap, label: 'Tutoriais', path: '/tutoriais', adminOnly: false },
+    ],
+  },
+  {
+    id: 'configuracoes', label: 'Configurações', icon: Cog, items: [
+      { icon: Cog, label: 'Configurações gerais', path: '/settings', adminOnly: false },
+      { icon: Wallet, label: 'Config. Cobrança', path: '/billing-settings', adminOnly: false },
+      { icon: QrCode, label: 'Conexões WhatsApp', path: '/evolution-instances', adminOnly: false },
+      { icon: FileText, label: 'Templates CRM Oficial', path: '/crm-oficial-templates', adminOnly: false },
+      { icon: Bot, label: 'Robô CRM', path: '/crm-oficial-chatbots', adminOnly: false },
+    ],
+  },
+];
+
+const OPEN_KEY = 'sidebar_open_groups';
 
 export default function Sidebar() {
   const { signOut, user, isAdmin } = useAuth();
@@ -91,8 +106,68 @@ export default function Sidebar() {
   const { collapsed, setCollapsed, toggle } = useSidebar();
   const evolutionUnread = useEvolutionUnread();
 
-  const filteredMenuItems = menuItems.filter(item => !item.adminOnly || isAdmin);
+  const allow = (item: MenuItem) => !item.adminOnly || isAdmin;
+  const groups = menuGroups
+    .map(g => ({ ...g, items: g.items.filter(allow) }))
+    .filter(g => g.items.length > 0);
   const badgeCounts: Record<BadgeKey, number> = { evolution: evolutionUnread };
+
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem(OPEN_KEY) || '{}'); } catch { return {}; }
+  });
+  const activeGroupId = groups.find(g => g.items.some(i => i.path === location.pathname))?.id;
+  useEffect(() => {
+    if (activeGroupId && !openGroups[activeGroupId]) {
+      setOpenGroups(prev => ({ ...prev, [activeGroupId]: true }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeGroupId]);
+  useEffect(() => {
+    try { localStorage.setItem(OPEN_KEY, JSON.stringify(openGroups)); } catch { /* ignore */ }
+  }, [openGroups]);
+  const toggleGroup = (id: string) => setOpenGroups(prev => ({ ...prev, [id]: !prev[id] }));
+
+  const renderItem = (item: MenuItem, nested = false) => {
+    const isActive = location.pathname === item.path;
+    const badgeCount = item.badgeKey ? badgeCounts[item.badgeKey] : 0;
+    return (
+      <NavLink
+        key={item.path}
+        to={item.path}
+        title={collapsed ? item.label : undefined}
+        className={cn(
+          "group flex items-center gap-3 px-3 rounded-xl text-sm font-medium transition-all duration-200 relative",
+          nested && !collapsed ? "py-1.5" : "py-2",
+          "hover:bg-gradient-to-r hover:from-primary/10 hover:to-primary/5",
+          isActive
+            ? "bg-gradient-to-r from-primary/20 to-primary/10 text-primary shadow-sm border border-primary/20"
+            : "text-muted-foreground hover:text-foreground",
+          collapsed && "lg:justify-center lg:px-2"
+        )}
+      >
+        <div className={cn(
+          "flex items-center justify-center rounded-lg transition-all duration-200 relative",
+          collapsed ? "w-10 h-10" : nested ? "w-7 h-7" : "w-8 h-8",
+          isActive
+            ? "bg-primary text-primary-foreground shadow-md shadow-primary/30"
+            : "bg-secondary/50 group-hover:bg-secondary group-hover:scale-105"
+        )}>
+          <item.icon className={cn(collapsed ? "w-5 h-5" : "w-4 h-4")} />
+          {collapsed && badgeCount > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold flex items-center justify-center">
+              {badgeCount > 99 ? '99+' : badgeCount}
+            </span>
+          )}
+        </div>
+        {!collapsed && <span className="truncate flex-1">{item.label}</span>}
+        {!collapsed && badgeCount > 0 && (
+          <Badge className="h-5 min-w-5 px-1.5 text-[10px] bg-destructive text-destructive-foreground hover:bg-destructive">
+            {badgeCount > 99 ? '99+' : badgeCount}
+          </Badge>
+        )}
+      </NavLink>
+    );
+  };
 
   return (
     <>
