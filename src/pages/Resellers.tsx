@@ -336,6 +336,86 @@ export default function Resellers() {
     },
   });
 
+  // Desconecta todos os canais (API Oficial Meta + WhatsApp QR) da revenda no CRM
+  // e confere de novo na lista de canais. Retorna quantos restaram conectados.
+  const listChannelsRaw = async (apiKey: string): Promise<any[]> => {
+    const { data } = await supabase.functions.invoke('crm-oficial-sync', {
+      body: { action: 'list-channels', data: { apiKey } },
+    });
+    const body = data?.results?.channels?.body;
+    return Array.isArray(body) ? body : Array.isArray(body?.whatsapp) ? body.whatsapp : Array.isArray(body?.channels) ? body.channels : [];
+  };
+  const disconnectReseller = async (userId: string): Promise<{ removed: number; remaining: number; noKey: boolean }> => {
+    const apiKey = (officialSettings || []).find((o) => o.user_id === userId)?.api_key;
+    if (!apiKey) return { removed: 0, remaining: 0, noKey: true };
+    const before = await listChannelsRaw(apiKey);
+    let removed = 0;
+    for (const c of before) {
+      const id = c.id || c.channel_id;
+      if (!id) continue;
+      const { error } = await supabase.functions.invoke('crm-oficial-sync', {
+        body: { action: 'delete-channel', data: { apiKey, channel_id: id } },
+      });
+      if (!error) removed++;
+    }
+    const after = await listChannelsRaw(apiKey);
+    return { removed, remaining: after.length, noKey: false };
+  };
+
+  const [disconnectTarget, setDisconnectTarget] = useState<ResellerAccess | null>(null);
+  const [bulkExpiredOpen, setBulkExpiredOpen] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  const expiredOver3Days = (resellers || []).filter(
+    (r) => differenceInDays(new Date(), new Date(r.access_expires_at)) > 3,
+  );
+
+  const runDisconnectOne = async (r: ResellerAccess) => {
+    setDisconnecting(true);
+    try {
+      const res = await disconnectReseller(r.user_id);
+      queryClient.invalidateQueries({ queryKey: ['resellers-crm-channels'] });
+      toast({
+        title: res.remaining === 0 ? 'Desconectado e conferido' : 'Ainda há conexões',
+        description: res.noKey
+          ? 'Esta revenda não tem conexão com a API Oficial.'
+          : res.remaining === 0
+            ? `${res.removed} conexão(ões) removida(s). Conferido: nenhuma conexão restante.`
+            : `${res.removed} removida(s), mas ${res.remaining} ainda aparece(m) conectada(s).`,
+        variant: res.remaining === 0 ? undefined : 'destructive',
+      });
+    } catch (e: any) {
+      toast({ title: 'Erro ao desconectar', description: e.message, variant: 'destructive' });
+    } finally {
+      setDisconnecting(false);
+      setDisconnectTarget(null);
+    }
+  };
+
+  const runBulkExpired = async () => {
+    setDisconnecting(true);
+    let ok = 0, pending = 0, removed = 0;
+    for (const r of expiredOver3Days) {
+      try {
+        await supabase.from('reseller_access').update({ is_active: false }).eq('id', r.id);
+        const res = await disconnectReseller(r.user_id);
+        removed += res.removed;
+        res.remaining === 0 ? ok++ : pending++;
+      } catch {
+        pending++;
+      }
+    }
+    queryClient.invalidateQueries({ queryKey: ['reseller-access'] });
+    queryClient.invalidateQueries({ queryKey: ['resellers-crm-channels'] });
+    setDisconnecting(false);
+    setBulkExpiredOpen(false);
+    toast({
+      title: 'Vencidas desativadas',
+      description: `${expiredOver3Days.length} revenda(s) desativada(s), ${removed} conexão(ões) removida(s). Conferido sem conexão: ${ok}${pending ? ` · Ainda conectadas: ${pending}` : ''}.`,
+      variant: pending ? 'destructive' : undefined,
+    });
+  };
+
   const toggleActiveMutation = useMutation({
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
       const { error } = await supabase
