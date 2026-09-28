@@ -336,6 +336,86 @@ export default function Resellers() {
     },
   });
 
+  // Desconecta todos os canais (API Oficial Meta + WhatsApp QR) da revenda no CRM
+  // e confere de novo na lista de canais. Retorna quantos restaram conectados.
+  const listChannelsRaw = async (apiKey: string): Promise<any[]> => {
+    const { data } = await supabase.functions.invoke('crm-oficial-sync', {
+      body: { action: 'list-channels', data: { apiKey } },
+    });
+    const body = data?.results?.channels?.body;
+    return Array.isArray(body) ? body : Array.isArray(body?.whatsapp) ? body.whatsapp : Array.isArray(body?.channels) ? body.channels : [];
+  };
+  const disconnectReseller = async (userId: string): Promise<{ removed: number; remaining: number; noKey: boolean }> => {
+    const apiKey = (officialSettings || []).find((o) => o.user_id === userId)?.api_key;
+    if (!apiKey) return { removed: 0, remaining: 0, noKey: true };
+    const before = await listChannelsRaw(apiKey);
+    let removed = 0;
+    for (const c of before) {
+      const id = c.id || c.channel_id;
+      if (!id) continue;
+      const { error } = await supabase.functions.invoke('crm-oficial-sync', {
+        body: { action: 'delete-channel', data: { apiKey, channel_id: id } },
+      });
+      if (!error) removed++;
+    }
+    const after = await listChannelsRaw(apiKey);
+    return { removed, remaining: after.length, noKey: false };
+  };
+
+  const [disconnectTarget, setDisconnectTarget] = useState<ResellerAccess | null>(null);
+  const [bulkExpiredOpen, setBulkExpiredOpen] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  const expiredOver3Days = (resellers || []).filter(
+    (r) => differenceInDays(new Date(), new Date(r.access_expires_at)) > 3,
+  );
+
+  const runDisconnectOne = async (r: ResellerAccess) => {
+    setDisconnecting(true);
+    try {
+      const res = await disconnectReseller(r.user_id);
+      queryClient.invalidateQueries({ queryKey: ['resellers-crm-channels'] });
+      toast({
+        title: res.remaining === 0 ? 'Desconectado e conferido' : 'Ainda há conexões',
+        description: res.noKey
+          ? 'Esta revenda não tem conexão com a API Oficial.'
+          : res.remaining === 0
+            ? `${res.removed} conexão(ões) removida(s). Conferido: nenhuma conexão restante.`
+            : `${res.removed} removida(s), mas ${res.remaining} ainda aparece(m) conectada(s).`,
+        variant: res.remaining === 0 ? undefined : 'destructive',
+      });
+    } catch (e: any) {
+      toast({ title: 'Erro ao desconectar', description: e.message, variant: 'destructive' });
+    } finally {
+      setDisconnecting(false);
+      setDisconnectTarget(null);
+    }
+  };
+
+  const runBulkExpired = async () => {
+    setDisconnecting(true);
+    let ok = 0, pending = 0, removed = 0;
+    for (const r of expiredOver3Days) {
+      try {
+        await supabase.from('reseller_access').update({ is_active: false }).eq('id', r.id);
+        const res = await disconnectReseller(r.user_id);
+        removed += res.removed;
+        res.remaining === 0 ? ok++ : pending++;
+      } catch {
+        pending++;
+      }
+    }
+    queryClient.invalidateQueries({ queryKey: ['reseller-access'] });
+    queryClient.invalidateQueries({ queryKey: ['resellers-crm-channels'] });
+    setDisconnecting(false);
+    setBulkExpiredOpen(false);
+    toast({
+      title: 'Vencidas desativadas',
+      description: `${expiredOver3Days.length} revenda(s) desativada(s), ${removed} conexão(ões) removida(s). Conferido sem conexão: ${ok}${pending ? ` · Ainda conectadas: ${pending}` : ''}.`,
+      variant: pending ? 'destructive' : undefined,
+    });
+  };
+
   const toggleActiveMutation = useMutation({
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
       const { error } = await supabase
@@ -727,6 +807,15 @@ export default function Resellers() {
                 className="bg-card/60 backdrop-blur"
               >
                 <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setBulkExpiredOpen(true)}
+                disabled={expiredOver3Days.length === 0}
+                className="bg-card/60 backdrop-blur text-destructive hover:text-destructive"
+              >
+                <Ban className="h-4 w-4 mr-2" />
+                Desativar vencidas +3 dias ({expiredOver3Days.length})
               </Button>
               <Button onClick={() => setIsCreateDialogOpen(true)} className="shadow-md">
                 <UserPlus className="h-4 w-4 mr-2" />
@@ -1135,6 +1224,15 @@ export default function Resellers() {
                                 <><CheckCircle className="h-3.5 w-3.5 mr-1" />Ativar</>
                               )}
                             </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs text-destructive hover:text-destructive"
+                              onClick={() => setDisconnectTarget(reseller)}
+                              title="Desconectar da API Oficial e do WhatsApp QR"
+                            >
+                              <Smartphone className="h-3.5 w-3.5 mr-1" />Desconectar
+                            </Button>
                           </>
                         )}
                         {canManage && !isSelf && (
@@ -1161,6 +1259,55 @@ export default function Resellers() {
 
 
         {/* Delete confirmation */}
+        <AlertDialog open={!!disconnectTarget} onOpenChange={(o) => !o && !disconnecting && setDisconnectTarget(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Desconectar WhatsApp de {disconnectTarget?.full_name || disconnectTarget?.email}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Remove todos os números desta revenda da nossa API Oficial (Meta) e do WhatsApp por QR Code. Depois o sistema confere se sobrou alguma conexão.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={disconnecting}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={disconnecting}
+                onClick={(e) => { e.preventDefault(); if (disconnectTarget) runDisconnectOne(disconnectTarget); }}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {disconnecting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Desconectar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={bulkExpiredOpen} onOpenChange={(o) => !disconnecting && setBulkExpiredOpen(o)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Desativar {expiredOver3Days.length} revenda(s) vencida(s) há mais de 3 dias?</AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-2">
+                  <p>Cada uma será desativada e terá os números desconectados da API Oficial e do WhatsApp QR.</p>
+                  <div className="max-h-40 overflow-auto rounded border border-border p-2 text-xs">
+                    {expiredOver3Days.map((r) => (
+                      <div key={r.id}>{r.full_name || r.email} · venceu {format(new Date(r.access_expires_at), 'dd/MM/yyyy')}</div>
+                    ))}
+                  </div>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={disconnecting}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={disconnecting || expiredOver3Days.length === 0}
+                onClick={(e) => { e.preventDefault(); runBulkExpired(); }}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {disconnecting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Desativar e desconectar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         <AlertDialog open={!!resellerToDelete} onOpenChange={(o) => !o && setResellerToDelete(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
