@@ -808,6 +808,15 @@ export default function Resellers() {
               >
                 <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
               </Button>
+              <Button
+                variant="outline"
+                onClick={() => setBulkExpiredOpen(true)}
+                disabled={expiredOver3Days.length === 0}
+                className="bg-card/60 backdrop-blur text-destructive hover:text-destructive"
+              >
+                <Ban className="h-4 w-4 mr-2" />
+                Desativar vencidas +3 dias ({expiredOver3Days.length})
+              </Button>
               <Button onClick={() => setIsCreateDialogOpen(true)} className="shadow-md">
                 <UserPlus className="h-4 w-4 mr-2" />
                 {isAdmin ? 'Cadastrar Revendedor' : 'Criar Sub-Revenda'}
