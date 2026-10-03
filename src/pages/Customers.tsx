@@ -2635,6 +2635,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
 
     let deleted = 0;
     let errors = 0;
+    let firstDeleteError = '';
 
     try {
       // Busca TODOS os ids (não apenas os da página atual), em páginas de 1000
@@ -2658,8 +2659,8 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
         return;
       }
 
-      // Delete in batches of 200 for efficiency
-      const batchSize = 200;
+      // Lotes pequenos: 200 ids estouravam o tamanho máximo do endereço no servidor
+      const batchSize = 50;
       for (let i = 0; i < customerIds.length; i += batchSize) {
         const batch = customerIds.slice(i, i + batchSize);
 
@@ -2670,6 +2671,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
 
         if (error) {
           console.error('Erro ao excluir lote:', error);
+          if (!firstDeleteError) firstDeleteError = error.message || String(error);
           errors += batch.length;
         } else {
           deleted += batch.length;
@@ -2696,7 +2698,7 @@ const validatePhone = (phone: string): { valid: boolean; message: string } => {
     if (errors > 0) {
       toast({
         title: 'Exclusão parcial',
-        description: `${deleted} clientes excluídos. ${errors} erros.`,
+        description: `${deleted} clientes excluídos. ${errors} erros.${firstDeleteError ? ` Motivo: ${firstDeleteError}` : ''}`,
         variant: 'destructive',
       });
     } else {
