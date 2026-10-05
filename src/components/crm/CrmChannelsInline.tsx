@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Loader2, RefreshCw, Star, ExternalLink, Plus, Zap, Settings, QrCode, RotateCw } from 'lucide-react';
 import { MetaLogo } from '@/components/ui/meta-logo';
@@ -94,6 +94,7 @@ export default function CrmChannelsInline() {
   const [channels, setChannels] = useState<WAChannel[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [reconnect, setReconnect] = useState<{ id: string; name: string } | null>(null);
+  const repairTriedRef = useRef(false);
 
   const load = useCallback(async (key: string) => {
     if (!key) return;
@@ -192,11 +193,13 @@ export default function CrmChannelsInline() {
       }
 
 
-      if (!merged.length && key) {
-        // Fallback: se não carregou nada mas tem chave, tenta uma sincronização forçada
+      if (!merged.length && key && !repairTriedRef.current) {
+        // Fallback: tenta UMA sincronização forçada por abertura da tela.
+        // Antes repetia sem parar quando a lista seguia vazia e derrubava o login do sistema.
+        repairTriedRef.current = true;
         supabase.functions.invoke('crm-oficial-sync', {
           body: { action: 'repair-missing', data: { apiKey: key } },
-        }).then(() => load(key));
+        }).then(() => load(key)).catch(() => {});
       }
     } catch (e: any) {
       toast({ title: 'Erro ao listar canais oficiais', description: e.message, variant: 'destructive' });
