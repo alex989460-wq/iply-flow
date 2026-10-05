@@ -1,7 +1,7 @@
 # Roadmap
 
 ## Em andamento
-- [ ] Corrigir visual do ZUI Player sem alterar funções: azul/verde, títulos centralizados, efeitos modernos e celular.
+- [x] Corrigir visual do ZUI Player sem alterar funções: azul/verde, títulos centralizados, efeitos modernos e celular.
 - [x] Gerar aplicativo Android Super Gestor, conectado ao site em produção, pronto para Android Studio e Play Store
 - [x] Padronizar visualmente todas as ferramentas com o mesmo sistema do Dashboard
 - [x] Corrigir geração de teste Uniplay: evitar carregamento infinito e usar acesso protegido com fallback
