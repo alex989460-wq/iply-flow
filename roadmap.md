@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Em andamento
+- [ ] Refazer o visual rejeitado do ZUI com a imagem antiga, sem alterar funções; aguardando escolha visual.
 - [x] Corrigir visual do ZUI Player sem alterar funções: azul/verde, títulos centralizados, efeitos modernos e celular.
 - [x] Gerar aplicativo Android Super Gestor, conectado ao site em produção, pronto para Android Studio e Play Store
 - [x] Padronizar visualmente todas as ferramentas com o mesmo sistema do Dashboard
