@@ -1,7 +1,7 @@
 # Roadmap
 
 ## Em andamento
-- [ ] Atualizar ZUI para 1.2.7, recuperar acesso ao painel e preservar integralmente o site aprovado no celular.
+- [x] Atualizar ZUI para 1.2.7: login, menu compacto e atualização do painel conferidos; 18 arquivos do site preservados integralmente e os três sites abrindo normalmente.
 - [x] Refazer o visual rejeitado do ZUI com a TV antiga e Cinema moderno, sem alterar funções; páginas e menu conferidos.
 - [x] Corrigir visual do ZUI Player sem alterar funções: azul/verde, títulos centralizados, efeitos modernos e celular.
 - [x] Gerar aplicativo Android Super Gestor, conectado ao site em produção, pronto para Android Studio e Play Store
