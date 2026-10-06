@@ -1,0 +1,101 @@
+/* CAMOshield palette and effects only. No layout, handlers or TV-app selectors. */
+body.zv-public,body.site-admin{
+ --camo-bg:222 47% 4%;--camo-text:210 40% 98%;--camo-primary:183 74% 44%;
+ --camo-card:222 47% 6%;--camo-raised:222 30% 10%;--camo-border:222 30% 14%;
+ --camo-muted:215 20% 68%;--camo-success:142 76% 45%;--camo-warning:38 92% 55%;--camo-danger:0 84% 60%;
+ --camo-ink:222 47% 6%;--camo-glass:222 28% 7%;
+ --camo-shadow:0 20px 40px -20px hsl(0 0% 0% / .5);
+ --camo-glow:0 12px 32px -12px hsl(var(--camo-primary) / .22);
+ --camo-border-gradient:linear-gradient(135deg,hsl(var(--camo-primary) / .4),hsl(var(--camo-border)) 60%);
+ --essential-bg:hsl(var(--camo-bg));--essential-primary:hsl(var(--camo-primary));
+ --essential-green:hsl(var(--camo-success));--essential-text:hsl(var(--camo-text));
+ --essential-surface:hsl(var(--camo-card));--essential-raised:hsl(var(--camo-raised));
+ --essential-border:hsl(var(--camo-border));--essential-muted:hsl(var(--camo-muted));
+ --essential-shadow:var(--camo-shadow);--essential-glow:var(--camo-glow);
+ --essential-focus:0 0 0 3px hsl(var(--camo-primary) / .24);
+ --zv-bg:var(--camo-bg);--zv-text:var(--camo-text);--zv-accent:var(--camo-primary);
+ --zv-accent2:var(--camo-success);--zv-surface:var(--camo-card);--zv-muted:var(--camo-muted);
+ --zv-line:var(--camo-text);--zv-shadow:var(--camo-glow);
+ --site-accent:hsl(var(--camo-primary));--site-bg:hsl(var(--camo-bg));
+ --surface:hsl(var(--camo-card));--surface-raised:hsl(var(--camo-raised));
+ --line:hsl(var(--camo-border));--muted:hsl(var(--camo-muted));
+ --panel-surface:hsl(var(--camo-card));--panel-border:hsl(var(--camo-border));
+ --panel-accent:hsl(var(--camo-primary));--panel-text:hsl(var(--camo-text));
+ --panel-muted:hsl(var(--camo-muted));--panel-shadow:var(--camo-shadow);
+ background:hsl(var(--camo-bg))!important;color:hsl(var(--camo-text));
+}
+body.zv-public::selection,body.site-admin::selection{background:hsl(var(--camo-primary) / .22);color:hsl(var(--camo-text))}
+body.zv-public .site-header,body.site-admin .site-header,body.site-admin .sidebar{
+ background:hsl(var(--camo-glass) / .88)!important;
+ border-color:hsl(var(--camo-text) / .08)!important;
+ backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+}
+body.zv-public .site-links a,body.site-admin .site-links a{color:hsl(var(--camo-muted));transition:background .25s,color .25s,box-shadow .25s}
+body.zv-public .site-links a:hover,body.zv-public .site-links a[aria-current],body.site-admin .site-links a:hover,body.site-admin .site-links a[aria-current]{background:hsl(var(--camo-primary) / .1);color:hsl(var(--camo-text))}
+body.site-admin .sidebar nav button.active{background:hsl(var(--camo-primary) / .1)!important;color:hsl(var(--camo-primary))!important;border-color:hsl(var(--camo-primary) / .3)!important;box-shadow:inset 3px 0 hsl(var(--camo-primary))}
+body.zv-public .zv-card,body.zv-public .zv-steps li,body.zv-public .card,
+body.zv-public .playlist,body.zv-public .checkout-card,body.zv-public .checkout-plan,
+body.site-admin .stat,body.site-admin .card,body.site-admin .loginbox{
+ border:1px solid transparent!important;border-radius:8px!important;
+ background:linear-gradient(hsl(var(--camo-card)),hsl(var(--camo-card))) padding-box,var(--camo-border-gradient) border-box!important;
+ box-shadow:var(--camo-shadow)!important;
+ transition:transform .4s cubic-bezier(.4,0,.2,1),box-shadow .4s,border-color .4s;
+}
+body.zv-public .dialog,body.site-admin .modalbox,body.site-admin .tablewrap{
+ background:hsl(var(--camo-card) / .96)!important;border-color:hsl(var(--camo-text) / .08)!important;
+ border-radius:8px!important;box-shadow:var(--camo-shadow)!important;
+}
+body.zv-public .overlay,body.site-admin .modal{backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+body.zv-public button,body.zv-public .zv-btn,body.site-admin button{
+ background:hsl(var(--camo-raised))!important;color:hsl(var(--camo-text))!important;
+ border-color:hsl(var(--camo-border))!important;border-radius:6px;
+ transition:background .25s,border-color .25s,box-shadow .25s,transform .25s;
+}
+body.zv-public button.primary,body.zv-public .zv-btn-primary,body.site-admin button.primary{
+ background:hsl(var(--camo-primary))!important;color:hsl(var(--camo-ink))!important;
+ border-color:hsl(var(--camo-primary))!important;box-shadow:var(--camo-glow)!important;
+}
+body.zv-public button.danger{color:hsl(var(--camo-danger))!important}
+body.zv-public input,body.zv-public select,body.zv-public textarea,
+body.site-admin input,body.site-admin select,body.site-admin textarea{
+ background:hsl(var(--camo-bg))!important;border-color:hsl(var(--camo-border))!important;
+ color:hsl(var(--camo-text))!important;border-radius:6px;
+ transition:border-color .25s,box-shadow .25s;
+}
+body.zv-public :is(input,select,textarea):focus,body.site-admin :is(input,select,textarea):focus{
+ border-color:hsl(var(--camo-primary))!important;outline:2px solid hsl(var(--camo-primary) / .3);outline-offset:2px;
+}
+body.zv-public :is(button,a):focus-visible,body.site-admin :is(button,a):focus-visible{outline:2px solid hsl(var(--camo-primary));outline-offset:3px}
+body.zv-public .badge,body.site-admin .badge,body.zv-public .feature-icon,
+body.zv-public .activation-benefit>span{background:hsl(var(--camo-primary) / .08)!important;color:hsl(var(--camo-primary))!important;border-color:hsl(var(--camo-primary) / .22)!important}
+body.zv-public .notice,body.site-admin .notice{background:hsl(var(--camo-primary) / .05)!important;color:hsl(var(--camo-muted))!important;border-color:hsl(var(--camo-primary) / .2)!important}
+body.zv-public .muted,body.site-admin .muted,body.zv-public label,body.zv-public .checkout-note,
+body.zv-public .activation-copy>p,body.zv-public .activation-benefit p{color:hsl(var(--camo-muted))!important}
+body.zv-public .site-eyebrow,body.zv-public .eyebrow{color:hsl(var(--camo-primary))}
+body.site-admin .tablewrap th{background:hsl(var(--camo-raised));color:hsl(var(--camo-muted))}
+body.site-admin .tablewrap td{border-color:hsl(var(--camo-border));color:hsl(var(--camo-text))}
+body.site-admin .status,body.site-admin .online,body.zv-public .license-chip.valid{color:hsl(var(--camo-success));background:hsl(var(--camo-success) / .1)}
+body.site-admin .status.off,body.site-admin .error,body.zv-public .license-chip.expired{color:hsl(var(--camo-danger));background:hsl(var(--camo-danger) / .08)}
+body.zv-public .playlist.active{border-color:hsl(var(--camo-primary) / .55)!important}
+body.site-home .zv-tv-screen{background:hsl(var(--camo-card));border-color:hsl(var(--camo-border));box-shadow:var(--camo-shadow)}
+body.site-home .zv-tv-feature{background:linear-gradient(115deg,hsl(var(--camo-primary) / .09),hsl(var(--camo-success) / .04))}
+body.site-home .zv-tv-row .a,body.site-home .zv-tv-row .d{background:hsl(var(--camo-primary) / .55)}
+body.site-home .zv-float{background:hsl(var(--camo-glass) / .88);border-color:hsl(var(--camo-text) / .08);backdrop-filter:blur(20px)}
+@supports(background-clip:text){
+ body.site-home .zv-hero-copy h1{background:linear-gradient(135deg,hsl(var(--camo-text)) 45%,hsl(var(--camo-text) / .4));background-clip:text;-webkit-background-clip:text;color:transparent}
+}
+@media(hover:hover) and (pointer:fine){
+ body.zv-public .zv-card:hover,body.zv-public .zv-steps li:hover,body.zv-public .playlist:hover,body.site-admin .stat:hover{
+ transform:translateY(-2px);border-color:hsl(var(--camo-primary) / .55)!important;box-shadow:var(--camo-glow)!important;
+ }
+ body.zv-public button:not(:disabled):hover,body.zv-public .zv-btn:hover,body.site-admin button:not(:disabled):hover{border-color:hsl(var(--camo-primary))!important;box-shadow:var(--camo-glow)!important}
+ body.site-admin tbody tr:hover{background:hsl(var(--camo-primary) / .04)}
+}
+@keyframes camo-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:no-preference){
+ body.site-home .zv-hero-copy,body.zv-public #loginView,body.zv-public .activation-copy,body.site-admin .loginbox{animation:camo-enter .6s ease both}
+ body.site-home .zv-steps li{animation:camo-enter .55s ease both}
+ body.site-home .zv-steps li:nth-child(2){animation-delay:.1s}
+ body.site-home .zv-steps li:nth-child(3){animation-delay:.2s}
+}
+@media(prefers-reduced-motion:reduce){body.zv-public *,body.site-admin *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
