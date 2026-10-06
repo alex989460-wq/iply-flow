@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Em andamento
+- [x] ZUI 1.2.13: frontend atualizado, 259 arquivos do site/API iguais por hash, sem reiniciar; TV LG pendente.
 - [x] ZUI 1.2.12: frontend atualizado, site intacto por hash (55 arquivos), sem reiniciar; TV LG pendente.
 - [x] ZUI 1.2.11: frontend atualizado pelo instalador validado, site e logo intactos por hash, API e configurações preservadas, sem reiniciar serviços; teste na TV LG pendente.
 - [x] Logo verde substituída pelo arquivo azul enviado, idêntico por hash; topo 40×40 (36×36 no celular), ilustração e ícone da aba atualizados; quatro páginas e menus conferidos, arquivos operacionais intactos.
