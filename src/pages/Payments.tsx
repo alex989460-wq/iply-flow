@@ -47,7 +47,7 @@ export default function Payments() {
     customer_id: '',
     amount: 0,
     method: 'pix' as PaymentMethod,
-    payment_date: new Date().toISOString().split('T')[0],
+    payment_date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }),
   });
 
   const [search, setSearch] = useState('');
@@ -133,7 +133,7 @@ export default function Payments() {
       customer_id: '',
       amount: 0,
       method: 'pix',
-      payment_date: new Date().toISOString().split('T')[0],
+      payment_date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }),
     });
     setEditingPayment(null);
   };
@@ -386,7 +386,7 @@ export default function Payments() {
                           <span className="text-sm font-black text-foreground">{money(Number(p.amount))}</span>
                         </TableCell>
                         <TableCell className="py-4 px-6">
-                           <span className="text-xs font-bold text-muted-foreground">{format(new Date(p.payment_date), 'dd MMM, yyyy', { locale: ptBR })}</span>
+                           <span className="text-xs font-bold text-muted-foreground">{format(new Date(`${String(p.payment_date).slice(0, 10)}T12:00:00`), 'dd MMM, yyyy', { locale: ptBR })}</span>
                         </TableCell>
                         <TableCell className="py-4 px-6">
                            <Badge variant="secondary" className="bg-background/50 rounded-lg text-[9px] font-black uppercase tracking-tighter">
