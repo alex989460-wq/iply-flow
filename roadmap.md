@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Em andamento
+- [ ] Substituir logo verde rejeitada pelo ícone azul com Z enviado pelo usuário, sem redesenho; conferir tamanho, cortes e menus.
 - [x] Logo do topo reduzida a 88×40 (80×36 no celular), mesma logo oficial inteira na ilustração; referência do script atualizada para evitar cache antigo, quatro páginas e menus conferidos, arquivos operacionais preservados.
 - [x] Corrigir logo oficial no cabeçalho e na ilustração do app: proporções e imagens conferidas nas quatro páginas e no celular, menus/idiomas funcionando; backup criado e arquivos operacionais intactos por hash, sem reiniciar serviços.
 - [x] ZUI 1.2.10: frontend atualizado pelo instalador validado, sem reiniciar API; logo oficial no cabeçalho, opções de idiomas com contraste testadas nas quatro páginas; HTML preservado exceto CSS solicitado, 30 arquivos API/configurações protegidos por hash e backup disponível.
