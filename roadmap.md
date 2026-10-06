@@ -1,6 +1,8 @@
 # Roadmap
 
 ## Em andamento
+- [x] ZUI 1.2.10: frontend atualizado pelo instalador validado, sem reiniciar API; logo oficial no cabeçalho, opções de idiomas com contraste testadas nas quatro páginas; HTML preservado exceto CSS solicitado, 30 arquivos API/configurações protegidos por hash e backup disponível.
+- [x] Auditar segurança do ZUI: revisão do código efetivamente servido e testes públicos de autorização/traversal; proxy confiável, cookies seguros e bloqueios local/private ativos, sem falha explorável comprovada nesta revisão. CSP com scripts inline merece endurecimento planejado após testes de compatibilidade; não foi alterada. Reprodução, transações e painel autenticado não testados; aviso preexistente de API não configurada permanece no app.
 - [x] Aplicar somente cores e efeitos CAMOshield ao ZUI: quatro páginas publicadas, menus/idiomas/FAQ conferidos, 88 arquivos operacionais preservados por hash e comandos HTML intactos; painel autenticado e transações não testados.
 - [x] Atualizar ZUI para 1.2.9: site, painel, API e configurações preservados por hashes; navegação e interface verificadas, sem reiniciar serviços. Aviso de conexão preexistente permanece; reprodução em TV não testada.
 - [x] Atualizar ZUI para 1.2.8 preservando o site e os dados; painel autenticado, modal sem salvar e serviços existentes conferidos.
