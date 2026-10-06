@@ -1,7 +1,7 @@
 # Roadmap
 
 ## Em andamento
-- [ ] Corrigir apresentação da logo oficial no cabeçalho e substituir a letra antiga na ilustração do app; preservar funções e verificar as páginas publicadas.
+- [x] Corrigir logo oficial no cabeçalho e na ilustração do app: proporções e imagens conferidas nas quatro páginas e no celular, menus/idiomas funcionando; backup criado e arquivos operacionais intactos por hash, sem reiniciar serviços.
 - [x] ZUI 1.2.10: frontend atualizado pelo instalador validado, sem reiniciar API; logo oficial no cabeçalho, opções de idiomas com contraste testadas nas quatro páginas; HTML preservado exceto CSS solicitado, 30 arquivos API/configurações protegidos por hash e backup disponível.
 - [x] Auditar segurança do ZUI: revisão do código efetivamente servido e testes públicos de autorização/traversal; proxy confiável, cookies seguros e bloqueios local/private ativos, sem falha explorável comprovada nesta revisão. CSP com scripts inline merece endurecimento planejado após testes de compatibilidade; não foi alterada. Reprodução, transações e painel autenticado não testados; aviso preexistente de API não configurada permanece no app.
 - [x] Aplicar somente cores e efeitos CAMOshield ao ZUI: quatro páginas publicadas, menus/idiomas/FAQ conferidos, 88 arquivos operacionais preservados por hash e comandos HTML intactos; painel autenticado e transações não testados.
