@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Em andamento
+- [x] ZUI 1.2.11: frontend atualizado pelo instalador validado, site e logo intactos por hash, API e configurações preservadas, sem reiniciar serviços; teste na TV LG pendente.
 - [x] Logo verde substituída pelo arquivo azul enviado, idêntico por hash; topo 40×40 (36×36 no celular), ilustração e ícone da aba atualizados; quatro páginas e menus conferidos, arquivos operacionais intactos.
 - [x] Logo do topo reduzida a 88×40 (80×36 no celular), mesma logo oficial inteira na ilustração; referência do script atualizada para evitar cache antigo, quatro páginas e menus conferidos, arquivos operacionais preservados.
 - [x] Corrigir logo oficial no cabeçalho e na ilustração do app: proporções e imagens conferidas nas quatro páginas e no celular, menus/idiomas funcionando; backup criado e arquivos operacionais intactos por hash, sem reiniciar serviços.
