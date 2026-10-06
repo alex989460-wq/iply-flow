@@ -1,6 +1,8 @@
 # Roadmap
 
 ## Em andamento
+- [ ] ZUI 1.2.10: atualizar apenas o app, preservar site/painel, aplicar logo oficial no local solicitado e corrigir opções de idioma ilegíveis.
+- [ ] Auditar segurança do ZUI e corrigir falhas comprovadas com testes e rollback, sem alterar outros sistemas.
 - [x] Aplicar somente cores e efeitos CAMOshield ao ZUI: quatro páginas publicadas, menus/idiomas/FAQ conferidos, 88 arquivos operacionais preservados por hash e comandos HTML intactos; painel autenticado e transações não testados.
 - [x] Atualizar ZUI para 1.2.9: site, painel, API e configurações preservados por hashes; navegação e interface verificadas, sem reiniciar serviços. Aviso de conexão preexistente permanece; reprodução em TV não testada.
 - [x] Atualizar ZUI para 1.2.8 preservando o site e os dados; painel autenticado, modal sem salvar e serviços existentes conferidos.
