@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Em andamento
+- [ ] Aplicar somente cores e efeitos CAMOshield ao site completo do ZUI, preservando funções e composição; conferir páginas, menus e hashes protegidos.
 - [x] Atualizar ZUI para 1.2.9: site, painel, API e configurações preservados por hashes; navegação e interface verificadas, sem reiniciar serviços. Aviso de conexão preexistente permanece; reprodução em TV não testada.
 - [x] Atualizar ZUI para 1.2.8 preservando o site e os dados; painel autenticado, modal sem salvar e serviços existentes conferidos.
 - [x] Aplicar Essencial moderno: imagem antiga sem sobreposição no desktop, fontes Sora/Manrope e painel organizado; site e painel conferidos no desktop e celular, sem alterar handlers.
