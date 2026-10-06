@@ -1,6 +1,8 @@
 # Roadmap
 
 ## Em andamento
+- [ ] Atualizar ZUI para 1.2.8 preservando o site e os dados; conferir painel autenticado e serviços existentes.
+- [ ] Corrigir composição da imagem no desktop e modernizar fontes, efeitos e organização do painel sem alterar funções; aguarda escolha visual.
 - [x] Atualizar ZUI para 1.2.7: login, menu compacto e atualização do painel conferidos; 18 arquivos do site preservados integralmente e os três sites abrindo normalmente.
 - [x] Refazer o visual rejeitado do ZUI com a TV antiga e Cinema moderno, sem alterar funções; páginas e menu conferidos.
 - [x] Corrigir visual do ZUI Player sem alterar funções: azul/verde, títulos centralizados, efeitos modernos e celular.
