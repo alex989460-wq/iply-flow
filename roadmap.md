@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Em andamento
+- [x] Atualizar ZUI para 1.2.9: site, painel, API e configurações preservados por hashes; navegação e interface verificadas, sem reiniciar serviços. Aviso de conexão preexistente permanece; reprodução em TV não testada.
 - [x] Atualizar ZUI para 1.2.8 preservando o site e os dados; painel autenticado, modal sem salvar e serviços existentes conferidos.
 - [x] Aplicar Essencial moderno: imagem antiga sem sobreposição no desktop, fontes Sora/Manrope e painel organizado; site e painel conferidos no desktop e celular, sem alterar handlers.
 - [x] Atualizar ZUI para 1.2.7: login, menu compacto e atualização do painel conferidos; 18 arquivos do site preservados integralmente e os três sites abrindo normalmente.
