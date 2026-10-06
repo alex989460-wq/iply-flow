@@ -1,11 +1,11 @@
 /* Site-only branding and native language menu contrast. */
 body.zv-public .site-header .site-mark,body.site-admin .site-header .site-mark{
- width:148px;height:67px;border-radius:0!important;background:transparent!important;
+ width:88px!important;height:40px!important;min-width:0!important;min-height:0!important;max-width:88px!important;max-height:40px!important;border-radius:0!important;background:transparent!important;
  box-shadow:none!important;flex:none;
 }
 body.zv-public .site-header .site-logo strong,body.site-admin .site-header .site-logo strong{display:none}
 body.zv-public .site-header .site-mark img,body.site-admin .site-header .site-mark img{
- display:block;width:100%!important;height:100%!important;object-fit:contain;object-position:center;
+ display:block;width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;min-width:0!important;min-height:0!important;object-fit:contain;object-position:center;
 }
 body.site-home .zv-cinema .zv-tv-side .zv-dot-logo{
  display:grid;place-items:center;background:transparent!important;box-shadow:none!important;overflow:hidden;
@@ -13,7 +13,7 @@ body.site-home .zv-cinema .zv-tv-side .zv-dot-logo{
 body.site-home .zv-dot-logo img{display:block;width:100%;height:100%;object-fit:contain}
 body.site-home .zv-tv-top .zv-app-wordmark{display:block;width:100px;height:45px;object-fit:contain;object-position:left center}
 @media(max-width:760px){
- body.zv-public .site-header .site-mark,body.site-admin .site-header .site-mark{width:120px;height:54px}
+ body.zv-public .site-header .site-mark,body.site-admin .site-header .site-mark{width:80px!important;height:36px!important;max-width:80px!important;max-height:36px!important}
  body.site-home .zv-tv-top .zv-app-wordmark{width:60px;height:27px}
 }
 body.zv-public #siteLanguage,body.site-admin #siteLanguage{
