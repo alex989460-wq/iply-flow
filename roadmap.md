@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Em andamento
+- [x] ZUI 1.2.17: API idêntica, só frontend atualizado sem reiniciar; 57 arquivos do site/API iguais por hash; TV LG pendente.
 - [x] ZUI 1.2.16: frontend atualizado sem reiniciar, 287 arquivos do site/API iguais por hash; TV LG pendente.
 - [x] ZUI 1.2.15: atualizador completo (API media.mjs + app), só zuiplayer reiniciado; site público recolocado e idêntico por hash; TV LG pendente.
 - [x] ZUI 1.2.14: frontend atualizado, 259 arquivos do site/API iguais por hash, sem reiniciar; TV LG pendente.
