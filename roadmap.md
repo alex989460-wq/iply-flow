@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Em andamento
+- [x] ZUI 1.2.23: só frontend, sem reiniciar; 58 arquivos do site/API iguais por hash; TV LG pendente.
 - [x] ZUI 1.2.20: só frontend, sem reiniciar; 58 arquivos do site/API iguais por hash; TV LG pendente.
 - [x] ZUI 1.2.19 Legacy: só frontend, sem reiniciar; 58 arquivos do site/API iguais por hash; TV LG pendente.
 - [x] Política de Privacidade do ZUI publicada com link no rodapé, aviso explícito de que o player não fornece conteúdos nem playlists, visual conferido no computador e celular, página inicial e arquivos operacionais preservados por hash.
