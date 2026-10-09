@@ -1,7 +1,7 @@
 # Roadmap
 
 ## Em andamento
-- [ ] Promover ZUI Leve 2.1.0 ao app oficial em /app/, preservando site, API, configurações e cópia de rollback.
+- [x] Promover ZUI Leve 2.1.0 ao app oficial em /app/: 20 arquivos conferidos, 58 arquivos site/API/configurações preservados por hash, backup em /root/zui-official-before-1791549539, sem reiniciar; entrada do app e cinco páginas verificadas, login autenticado/reprodução/TV não testados.
 - [x] ZUI 1.2.23: só frontend, sem reiniciar; 58 arquivos do site/API iguais por hash; TV LG pendente.
 - [x] ZUI 1.2.20: só frontend, sem reiniciar; 58 arquivos do site/API iguais por hash; TV LG pendente.
 - [x] ZUI 1.2.19 Legacy: só frontend, sem reiniciar; 58 arquivos do site/API iguais por hash; TV LG pendente.
