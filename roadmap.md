@@ -50,3 +50,4 @@
 - [x] ZapCRM: corrigir "[mensagem não suportada] — Message type unknown" em mensagens recebidas pela API Oficial
 
 - [x] Conexão individual do Google Drive por revenda
+- [x] ZUI 2.1.15/API 1.2.36 + Pix Efí para licenças (anual/vitalícia)

@@ -13,3 +13,4 @@
 - Keep homepage illustration navigation in a self-contained, site-home-scoped demo with fictional artwork and in-memory state; never connect demo interactions to account, playlist, payment or playback handlers.
 - Keep ZUI backup decompression bounded and test oversized valid archives plus tamper rejection; accumulated static releases can exceed the upstream bound without indicating a wrong encryption key.
 - Organize ZUI admin navigation by ordering existing page buttons and adding presentation labels only; preserve all operational listeners and recognize late-loaded admin pages without changing authorization.
+- Keep ZUI license Pix as a separate bridge (deploy/zui-efi-pix) wired through ZUI's external HMAC provider and confirmed by polling Efí, so ZUI upgrades don't overwrite it and Super Gestor's Efí webhook stays untouched.
