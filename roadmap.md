@@ -1,7 +1,7 @@
 # Roadmap
 
 ## Em andamento
-- [x] ZUI 2.1.13/API 1.2.34 atualizado com backup validado; site e painel reorganizados com quatro grupos de navegação, logo oficial e demonstração preservadas. Gestão do Sistema e Jogos do Dia verificados em consulta; desktop/celular sem overflow ou erros de página. 519 arquivos operacionais intactos por hash; apresentação sem reiniciar serviços.
+- [x] ZUI 2.1.14/API 1.2.35 atualizado com backup validado; site e painel reorganizados com quatro grupos de navegação, logo oficial e demonstração preservadas. Gestão do Sistema e Jogos do Dia verificados em consulta; desktop/celular sem overflow ou erros de página. 519 arquivos operacionais intactos por hash; apresentação sem reiniciar serviços.
 - [x] Imagem inicial publicada como demonstração navegável: categorias, detalhes, favoritos temporários, busca e ampliação verificados no navegador; celular sem overflow, nenhum erro. 482 arquivos protegidos intactos, backup /root/zui-interactive-before-1791639051; nenhum serviço reiniciado.
 - [x] Bloqueio de backup superado antes da atualização 2.1.13: limite de descompressão aumentado de 128 para 192 MiB, criptografia e rejeição de adulteração preservadas, três testes passando; seleção de campeonatos instalada com API 1.2.34.
 - [x] Logo 3D fornecida publicada idêntica por hash; imagem inicial recriada conforme print, com capas ilustrativas originais sem catálogo fornecido. Cinco páginas e idioma/menu mobile conferidos sem overflow nem erros; 476 arquivos operacionais e cinco corpos HTML intactos. Backup inicial /root/zui-app-preview-before-1791637800; ajuste de apresentação /root/zui-app-preview-before-1791637876. Nada reiniciado; reprodução/transações não testadas.
