@@ -1,6 +1,8 @@
 # Roadmap
 
 ## Em andamento
+- [ ] Transformar a imagem inicial em demonstração navegável, sem catálogo ou reprodução reais, preservando as funções do site.
+- [ ] Revisar e instalar ZUI 2.1.12 e novidades do painel com backup e proteção do site aprovado.
 - [x] Logo 3D fornecida publicada idêntica por hash; imagem inicial recriada conforme print, com capas ilustrativas originais sem catálogo fornecido. Cinco páginas e idioma/menu mobile conferidos sem overflow nem erros; 476 arquivos operacionais e cinco corpos HTML intactos. Backup inicial /root/zui-app-preview-before-1791637800; ajuste de apresentação /root/zui-app-preview-before-1791637876. Nada reiniciado; reprodução/transações não testadas.
 - [x] Aplicar efeitos de vidro, brilho e movimento inspirados no RXPurple às cinco páginas do ZUI, usando a logo atual do app; 476 arquivos operacionais intactos por hash, backup /root/zui-rx-before-1791637252, sem reiniciar API. Páginas e idioma verificados no navegador sem erros; movimento reduzido respeitado. CSP/anti-frame/referrer adicionados à política e caminhos internos bloqueados no Nginx com reload validado. Não testados: painel autenticado, transações, playback e TV.
 - [ ] Concluir endurecimento de segurança sem quebrar clientes legados: portal aceita chave curta de 8 caracteres (fluxo intencional da TV), rever proteção por alvo no login do portal; manter autenticação atual até testes. Portas públicas dos bancos/root SSH ainda pendentes; não foram modificados. Não é possível impedir cópia completa de frontend público.
