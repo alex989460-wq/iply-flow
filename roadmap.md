@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Em andamento
+- [ ] Atualizar primeiro ZUI 2.1.13/API 1.2.34 com backup validado; depois modernizar e reorganizar site e painel admin, preservando funções, dados, identidade e demonstração navegável.
 - [x] Imagem inicial publicada como demonstração navegável: categorias, detalhes, favoritos temporários, busca e ampliação verificados no navegador; celular sem overflow, nenhum erro. 482 arquivos protegidos intactos, backup /root/zui-interactive-before-1791639051; nenhum serviço reiniciado.
 - [ ] Instalar ZUI 2.1.12/API 1.2.33: revisão e preflight aprovados, mas instalador bloqueado antes de parar o serviço porque o backup interno falha na validação ("Backup alterado, incompleto ou chave/senha incorreta"). dist acumulado 87 MB pode exceder limite de descompressão de 128 MiB; causa ainda não comprovada. Não enfraquecer proteção nem excluir versões usadas. API 1.2.32 e app 2.1.11 preservados; seleção de campeonatos ainda não instalada.
 - [x] Logo 3D fornecida publicada idêntica por hash; imagem inicial recriada conforme print, com capas ilustrativas originais sem catálogo fornecido. Cinco páginas e idioma/menu mobile conferidos sem overflow nem erros; 476 arquivos operacionais e cinco corpos HTML intactos. Backup inicial /root/zui-app-preview-before-1791637800; ajuste de apresentação /root/zui-app-preview-before-1791637876. Nada reiniciado; reprodução/transações não testadas.

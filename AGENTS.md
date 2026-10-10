@@ -11,3 +11,5 @@
 - Apply ZUI motion as a site-scoped CSS-only override with reduced-motion support and keep security headers isolated to reviewed Nginx locations, because site polish must not modify device authentication or playback compatibility.
 - Embed reviewed homepage preview imagery when the installed static asset allowlist does not serve its path, keeping original branding bytes and operational handlers unchanged rather than weakening the allowlist.
 - Keep homepage illustration navigation in a self-contained, site-home-scoped demo with fictional artwork and in-memory state; never connect demo interactions to account, playlist, payment or playback handlers.
+- Keep ZUI backup decompression bounded and test oversized valid archives plus tamper rejection; accumulated static releases can exceed the upstream bound without indicating a wrong encryption key.
+- Organize ZUI admin navigation by ordering existing page buttons and adding presentation labels only; preserve all operational listeners and recognize late-loaded admin pages without changing authorization.
