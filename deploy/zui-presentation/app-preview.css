@@ -1,0 +1,36 @@
+/* Actual supplied 3D branding; illustrative artwork, never live catalog data. */
+body.zv-public .site-mark,body.site-admin .site-mark{
+ width:144px!important;height:48px!important;flex:0 0 144px!important;
+}
+body.zv-public .site-mark img,body.site-admin .site-mark img{
+ width:100%!important;height:100%!important;object-fit:contain!important;
+}
+body.site-home .zv-hero-copy h1{
+ display:block!important;font-size:0!important;line-height:0!important;
+ background:none!important;min-height:0;
+}
+body.site-home .zv-hero-copy h1::before{
+ width:min(510px,100%)!important;height:auto!important;aspect-ratio:3/1;
+ background-image:url('/site-assets/branding/logo.png?v=zui-3d-20261010')!important;
+ background-size:contain!important;background-position:left center!important;
+}
+body.site-home .zv-cinema .zv-hero-art{
+ width:82%!important;max-width:980px!important;margin-top:32px!important;
+}
+body.site-home .zv-hero-art::before{
+ content:"";display:block;width:100%;aspect-ratio:16/9;
+ background:url('/site-assets/branding/home-preview.jpg?v=20261010') center/contain no-repeat;
+ border:1px solid hsl(var(--rx-border));border-radius:8px;
+ box-shadow:var(--rx-shadow),var(--rx-glow);
+}
+body.site-home .zv-hero-art > *{display:none!important}
+@media(max-width:760px){
+ body.zv-public .site-mark,body.site-admin .site-mark{
+  width:120px!important;height:40px!important;flex-basis:120px!important;
+ }
+ body.site-home .zv-cinema .zv-hero-art{width:100%!important;margin-top:0!important}
+ body.site-home .zv-hero-copy h1::before{width:min(330px,100%)!important}
+}
+@media(prefers-reduced-motion:no-preference){
+ body.site-home .zv-hero-art::before{animation:zui-rx-float 6s ease-in-out infinite}
+}
