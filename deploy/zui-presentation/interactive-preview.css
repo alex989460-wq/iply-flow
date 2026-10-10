@@ -5,6 +5,7 @@ body.site-home .zv-cinema{display:flex!important;flex-direction:column!important
 body.site-home .zv-cinema .zv-hero-copy{order:0!important}
 body.site-home .zv-cinema .zv-hero-art{order:1!important;inset:auto!important;transform:none!important;flex-shrink:0!important;min-height:0!important;aspect-ratio:16/9;margin-top:24px!important}
 body.site-home .zv-hero-art::before{animation:none!important}
+body.site-home .zv-hero-art::after{display:none!important}
 body.site-home .zv-hero-art > .zui-demo{display:block!important;position:absolute;inset:0;z-index:2;overflow:hidden;border-radius:8px}
 body.site-home .zv-hero-art > .zui-demo-controls{display:flex!important;justify-content:flex-end;position:absolute;right:8px;bottom:8px;z-index:3}
 .zui-demo [hidden]{display:none!important}
