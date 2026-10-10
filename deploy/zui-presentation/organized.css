@@ -3,6 +3,7 @@ body.zv-public,body.site-admin{--organized-surface:225 22% 8%;--organized-raised
 body.zv-public .site-header,body.site-admin .site-header{min-height:72px;padding:12px max(20px,calc((100% - 1200px)/2))!important;gap:20px;box-shadow:none!important}
 body.zv-public .site-links a,body.site-admin .site-links a{font-size:13px;padding:10px 14px!important}
 body.site-home .zv-cinema{padding:40px max(24px,calc((100% - 1120px)/2)) 36px!important;gap:0;align-items:center!important}
+body.site-home .zv-cinema::after{display:none!important}
 body.site-home .zv-cinema .zv-hero-copy{width:100%;max-width:900px!important;text-align:center;margin:0 auto!important}
 body.site-home .zv-chip{font-size:11px;padding:6px 12px;border-radius:4px;letter-spacing:0}
 body.site-home .zv-hero-copy h1{margin:12px auto 6px!important}
