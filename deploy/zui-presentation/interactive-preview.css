@@ -1,5 +1,7 @@
 body.site-home{--demo-overlay:0 0% 0% / .96;--demo-focus:217 91% 64% / .2;--demo-surface:228 28% 9%;--demo-text:210 40% 98%}
 body.site-home .zv-cinema .zv-hero-art{position:relative;isolation:isolate;pointer-events:auto!important}
+body.site-home .zv-cinema .zv-hero-copy{position:relative!important;inset:auto!important;transform:none!important}
+body.site-home .zv-cinema .zv-hero-art{flex-shrink:0!important;min-height:0!important;aspect-ratio:16/9}
 body.site-home .zv-hero-art::before{animation:none!important}
 body.site-home .zv-hero-art > .zui-demo{display:block!important;position:absolute;inset:0;z-index:2;overflow:hidden;border-radius:8px}
 body.site-home .zv-hero-art > .zui-demo-controls{display:flex!important;justify-content:flex-end;position:absolute;right:8px;bottom:8px;z-index:3}
