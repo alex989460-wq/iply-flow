@@ -1,5 +1,5 @@
 body.site-home{--demo-overlay:0 0% 0% / .96;--demo-focus:217 91% 64% / .2;--demo-surface:228 28% 9%;--demo-text:210 40% 98%}
-body.site-home .zv-hero-art{position:relative;isolation:isolate}
+body.site-home .zv-cinema .zv-hero-art{position:relative;isolation:isolate;pointer-events:auto!important}
 body.site-home .zv-hero-art::before{animation:none!important}
 body.site-home .zv-hero-art > .zui-demo{display:block!important;position:absolute;inset:0;z-index:2;overflow:hidden;border-radius:8px}
 body.site-home .zv-hero-art > .zui-demo-controls{display:flex!important;justify-content:flex-end;position:absolute;right:8px;bottom:8px;z-index:3}
@@ -7,8 +7,8 @@ body.site-home .zv-hero-art > .zui-demo-controls{display:flex!important;justify-
 .zui-demo-button{font:inherit;color:hsl(var(--demo-text));border:1px solid hsl(var(--rx-border));background:hsl(var(--demo-surface));border-radius:6px;cursor:pointer;min-width:32px;min-height:32px;letter-spacing:0}
 .zui-demo-button:hover,.zui-demo-button:focus-visible{border-color:hsl(var(--rx-blue));outline:2px solid hsl(var(--rx-blue));outline-offset:-2px;background:hsl(var(--demo-focus))}
 .zui-demo-hits{position:absolute;inset:0}
-.zui-demo-hits .zui-demo-button{position:absolute;background:transparent;border-color:transparent;min-height:0;min-width:0}
-.zui-demo-hits .zui-demo-button:hover,.zui-demo-hits .zui-demo-button:focus-visible{background:hsl(var(--demo-focus));border-color:hsl(var(--rx-blue))}
+body.site-home .zui-demo-hits .zui-demo-button{position:absolute;background:transparent!important;border-color:transparent!important;box-shadow:none!important;min-height:0;min-width:0;padding:0!important}
+body.site-home .zui-demo-hits .zui-demo-button:hover,body.site-home .zui-demo-hits .zui-demo-button:focus-visible{background:hsl(var(--demo-focus))!important;border-color:hsl(var(--rx-blue))!important}
 .zui-demo-nav{left:.6%;width:4.1%;height:6%}
 .zui-demo-nav-0{top:13.3%}.zui-demo-nav-1{top:6.8%}.zui-demo-nav-2{top:19.9%}.zui-demo-nav-3{top:25.7%}.zui-demo-nav-4{top:32%}.zui-demo-nav-5{top:44.2%}.zui-demo-nav-6{top:87%}
 .zui-demo-category{top:11.1%;height:12.5%;width:28.8%}.zui-demo-category-0{left:7%}.zui-demo-category-1{left:38.4%}.zui-demo-category-2{left:69.5%}
