@@ -1196,8 +1196,9 @@ serve(async (req) => {
                     screens: newCustomer.screens || 1,
                   }),
                 });
-                console.log(`[Cakto] Rush criar ${newCustomer.username}: ok=${rushResp.ok}`);
-                if (rushResp.ok) { activatedServerId = serverData.id; activatedServerName = serverData.server_name; }
+                const rushBody = await rushResp.json().catch(() => ({}));
+                console.log(`[Cakto] Rush criar ${newCustomer.username}: ok=${rushResp.ok}`, JSON.stringify(rushBody));
+                if (rushResp.ok && rushBody?.success === true) { activatedServerId = serverData.id; activatedServerName = serverData.server_name; }
               }
             } catch (e) {
               console.error(`[Cakto] Erro ativando no servidor ${serverData.server_name}:`, e);
