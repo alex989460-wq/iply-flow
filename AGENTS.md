@@ -9,3 +9,4 @@
 - Embed reviewed ZUI presentation CSS and self-contained font faces in the existing served HTML when custom asset routes are unavailable, so typography works under the existing security policy without relaxing it.
 - Build Super Gestor for supergestor.top with the VPS env (/opt/supergestor/src-app/.env.production values exported in the shell) and confirm the bundle contains only https://supergestor.top before deploying; a sandbox build silently points the live site at the stale Cloud database.
 - Apply ZUI motion as a site-scoped CSS-only override with reduced-motion support and keep security headers isolated to reviewed Nginx locations, because site polish must not modify device authentication or playback compatibility.
+- Embed reviewed homepage preview imagery when the installed static asset allowlist does not serve its path, keeping original branding bytes and operational handlers unchanged rather than weakening the allowlist.

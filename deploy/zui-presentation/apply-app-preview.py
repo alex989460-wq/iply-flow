@@ -1,6 +1,7 @@
 """Publish reviewed imagery/CSS without changing HTML bodies or operational scripts."""
 from pathlib import Path
 import hashlib
+import base64
 import json
 import re
 import shutil
@@ -36,6 +37,10 @@ try:
         temp.chmod(0o644)
         temp.replace(target)
     css = (source / 'app-preview.css').read_text()
+    # The API permits only logo/background branding paths. Embed the reviewed
+    # illustration rather than relaxing its allowlist or restarting services.
+    preview_uri = 'data:image/jpeg;base64,' + base64.b64encode((source / 'zui-home-preview.jpg').read_bytes()).decode('ascii')
+    css = css.replace('/site-assets/branding/home-preview.jpg?v=20261010', preview_uri)
     for page in pages:
         original = page.read_text()
         clean = re.sub(r'<style id="zui-app-preview">[\s\S]*?</style>', '', original)

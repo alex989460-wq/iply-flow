@@ -1,6 +1,6 @@
 /* Actual supplied 3D branding; illustrative artwork, never live catalog data. */
-body.zv-public .site-mark,body.site-admin .site-mark{
- width:144px!important;height:48px!important;flex:0 0 144px!important;
+body.zv-public .site-header .site-mark,body.site-admin .site-header .site-mark{
+ width:144px!important;height:48px!important;max-width:144px!important;max-height:48px!important;flex:0 0 144px!important;
 }
 body.zv-public .site-mark img,body.site-admin .site-mark img{
  width:100%!important;height:100%!important;object-fit:contain!important;
@@ -25,8 +25,8 @@ body.site-home .zv-hero-art::before{
 }
 body.site-home .zv-hero-art > *{display:none!important}
 @media(max-width:760px){
- body.zv-public .site-mark,body.site-admin .site-mark{
-  width:120px!important;height:40px!important;flex-basis:120px!important;
+ body.zv-public .site-header .site-mark,body.site-admin .site-header .site-mark{
+  width:120px!important;height:40px!important;max-width:120px!important;max-height:40px!important;flex-basis:120px!important;
  }
  body.site-home .zv-cinema .zv-hero-art{width:100%!important;margin-top:0!important}
  body.site-home .zv-hero-copy h1::before{width:min(330px,100%)!important}
