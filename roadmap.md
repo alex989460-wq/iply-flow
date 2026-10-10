@@ -51,3 +51,9 @@
 
 - [x] Conexão individual do Google Drive por revenda
 - [x] ZUI 2.1.15/API 1.2.36 + Pix Efí para licenças (anual/vitalícia)
+
+## Em andamento (10/10/2026)
+- [x] Reconectar à VPS 167.114.208.135 (acesso refeito).
+- [x] Publicar correção rush-renew (painel sem crédito não conta mais como renovado).
+- [ ] Conferir resultado da comparação SG vs Rush (/tmp/rush_out.txt, /tmp/rush_report.json; script /tmp/rush_check.py ainda rodando).
+- [ ] Carregar clientes afetados no painel Pendências para renovação em massa (aguarda lista confirmada).
