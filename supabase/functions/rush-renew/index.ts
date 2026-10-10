@@ -232,8 +232,27 @@ serve(async (req) => {
       );
     }
 
-    const renewData = await renewResponse.json();
-    console.log(`[Rush] Renovação bem sucedida:`, JSON.stringify(renewData));
+    const renewText = await renewResponse.text();
+    let renewData: any = {};
+    try { renewData = renewText ? JSON.parse(renewText) : {}; } catch { renewData = { raw: renewText }; }
+
+    // A Rush pode responder HTTP 200 mesmo sem crédito no painel. Nesses casos
+    // a renovação NÃO aconteceu e precisa virar pendência para renovar depois.
+    const rushMsg = JSON.stringify(renewData).toLowerCase();
+    const rushFailed =
+      renewData?.success === false ||
+      renewData?.status === false ||
+      renewData?.status === 'error' ||
+      !!renewData?.error ||
+      /cr[eé]dito|saldo|credit|insufficient|insuficiente|sem limite|not enough|erro|error|fail/.test(rushMsg) && !/sucesso|success"\s*:\s*true/.test(rushMsg);
+    if (rushFailed) {
+      console.error(`[Rush] Painel recusou a renovação (provável falta de crédito):`, renewText);
+      return new Response(
+        JSON.stringify({ success: false, error: explainPanelError("Rush", 402, renewText), panel_response: renewData }),
+        { headers: jsonHeaders },
+      );
+    }
+    console.log(`[Rush] Renovação bem sucedida:`, renewText);
 
     // Credit deduction
     if (customer_id) {
