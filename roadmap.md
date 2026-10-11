@@ -57,3 +57,7 @@
 - [x] Publicar correção rush-renew (painel sem crédito não conta mais como renovado).
 - [ ] Conferir resultado da comparação SG vs Rush (/tmp/rush_out.txt, /tmp/rush_report.json; script /tmp/rush_check.py ainda rodando).
 - [ ] Carregar clientes afetados no painel Pendências para renovação em massa (aguarda lista confirmada).
+- [x] ZUI 2.1.20 / painel 1.2.40 aplicado.
+- [x] Backup ZUI para Telegram a cada 10 min.
+- [x] /app adaptado para celular (iPhone/Android).
+- [ ] Fechar portas de banco 5432/6543/8000/8100 e login root por senha no SSH (aguarda autorização do usuário).
