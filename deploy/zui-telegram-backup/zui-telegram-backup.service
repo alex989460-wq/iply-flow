@@ -1,0 +1,7 @@
+[Unit]
+Description=Backup ZUI para Telegram
+[Service]
+Type=oneshot
+Nice=10
+IOSchedulingClass=idle
+ExecStart=/usr/local/bin/zui-telegram-backup
