@@ -1,0 +1,74 @@
+/* ZUI /app em celular (iPhone/Android). Só apresentação: nada muda em TV (>=761px). */
+@media screen and (max-width: 760px) {
+  html, body { -webkit-text-size-adjust: 100%; overscroll-behavior: none; }
+  input, select, textarea { font-size: 16px !important; } /* evita zoom automático no iOS */
+
+  /* Menu lateral vira barra inferior com rolagem horizontal */
+  #rail {
+    position: fixed !important; top: auto !important; bottom: 0 !important; left: 0 !important; right: 0 !important;
+    width: 100% !important; height: calc(60px + env(safe-area-inset-bottom)) !important; min-height: 0 !important;
+    display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: flex-start !important;
+    overflow-x: auto !important; overflow-y: hidden !important; padding: 4px 6px env(safe-area-inset-bottom) !important;
+    z-index: 450 !important; border-right: 0 !important; border-top: 1px solid rgba(255,255,255,.08) !important;
+    background: rgba(6,8,14,.97) !important; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  #rail::-webkit-scrollbar { display: none; }
+  #rail .rail-brand, #rail .rail-spacer { display: none !important; }
+  #rail .rail-btn { flex: 0 0 50px !important; width: 50px !important; height: 48px !important; margin: 0 1px !important; padding: 0 !important; }
+
+  #main { position: absolute !important; left: 0 !important; right: 0 !important; top: 0 !important; bottom: calc(60px + env(safe-area-inset-bottom)) !important;
+    width: auto !important; height: auto !important; margin: 0 !important; }
+  #workspace { width: 100% !important; height: 100% !important; }
+  #workspace > div { left: 0 !important; right: 0 !important; width: auto !important; }
+  #workspace .home-wrap { padding: calc(10px + env(safe-area-inset-top)) 14px 24px !important; overflow-y: auto !important; -webkit-overflow-scrolling: touch; }
+  #workspace .home-top-shell, #workspace #zui-weekly-home, #workspace .shelf, #workspace .zui-content-notice { width: auto !important; max-width: 100% !important; margin-left: 0 !important; margin-right: 0 !important; }
+
+  /* Cartões TV / Filmes / Séries */
+  #workspace .home-top-head { padding-right: 96px !important; }
+  #workspace .home-top-grid { display: grid !important; grid-template-columns: repeat(3, minmax(0,1fr)) !important; gap: 8px !important; }
+  #workspace .home-top-grid > * { width: auto !important; min-width: 0 !important; margin: 0 !important; float: none !important; }
+  #workspace .home-top-grid [class*="card"], #workspace .home-top-grid button { min-height: 0 !important; height: auto !important; padding: 10px 6px !important;
+    flex-direction: column !important; text-align: center !important; overflow: hidden; }
+  #workspace .home-top-grid svg { width: 26px !important; height: 26px !important; }
+  #workspace .home-top-grid * { font-size: 12px; }
+  #workspace .home-top-grid strong, #workspace .home-top-grid b { font-size: 20px !important; }
+  #workspace .home-top-grid .btn { font-size: 12px !important; padding: 6px 4px !important; }
+
+  /* Top 10 e prateleiras com rolagem lateral por toque */
+  #workspace .zui-weekly-section h2, #workspace [class*="top10-title"] { font-size: 40px !important; }
+  #workspace .shelf-row, #workspace .rail-row, #workspace [class*="row-scroll"], #workspace [class*="-track"] { overflow-x: auto !important; -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity; }
+  #workspace .poster-card { scroll-snap-align: start; }
+  #workspace .status-box, #workspace .empty-state { font-size: 15px !important; }
+  #workspace .zui-content-notice { font-size: 13px !important; }
+
+  /* Grades de canais/filmes/séries */
+  #workspace .grid-wrap { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)) !important; gap: 10px !important; }
+  #workspace .grid-pane .poster-card { width: auto !important; }
+
+  /* Janelas e player */
+  .modal-card { width: calc(100vw - 24px) !important; max-width: 520px !important; max-height: calc(100vh - 32px) !important; overflow-y: auto !important; }
+  #overlay-player .overlay-controls { padding-bottom: calc(14px + env(safe-area-inset-bottom)) !important; }
+  #overlay-player .overlay-buttons { flex-wrap: wrap !important; gap: 6px !important; justify-content: center !important; }
+  .zui-home-clock { transform: scale(.8); transform-origin: top right; }
+
+  /* Página de entrada (login.html) */
+  .lp-shell, .lp-site-layout { display: block !important; width: auto !important; max-width: 100% !important; padding: calc(16px + env(safe-area-inset-top)) 14px 24px !important; margin: 0 !important; height: auto !important; min-height: 100vh; overflow-y: auto; }
+  .lp-brand-panel { width: auto !important; max-width: 100% !important; text-align: center !important; padding: 8px 0 16px !important; margin: 0 !important; }
+  .lp-brand-panel .brand-logo, .lp-brand-panel img { max-width: 180px !important; height: auto !important; margin: 0 auto !important; }
+  .lp-brand-line { margin: 12px auto !important; }
+  .lp-site-copy, .zui-login-notice { font-size: 13px !important; line-height: 1.45 !important; }
+  .lp-shell > *:not(.lp-brand-panel), .lp-site-layout > *:not(.lp-brand-panel) { width: auto !important; max-width: 100% !important; margin: 0 0 12px !important; }
+  .lp-field-row { display: block !important; }
+  .lp-field-row > * { width: 100% !important; margin: 0 0 12px !important; }
+  .lp-field input, .lp-field select { width: 100% !important; box-sizing: border-box !important; height: 48px !important; }
+  .lp-tabs .tab-btn, .lp-actions .btn, .zui-language-login { width: 100% !important; min-height: 46px !important; box-sizing: border-box !important; }
+  .lp-tools { display: block !important; word-break: break-all; }
+  body.zui-touch .lp-head ~ * [class*="hint"], .lp-tools .muted { display: none; }
+}
+
+/* Celular deitado: barra inferior mais baixa */
+@media screen and (max-height: 500px) and (pointer: coarse) {
+  #rail { height: calc(48px + env(safe-area-inset-bottom)) !important; }
+  #rail .rail-btn { height: 42px !important; }
+  #main { bottom: calc(48px + env(safe-area-inset-bottom)) !important; }
+}
