@@ -65,10 +65,3 @@
   .lp-tools { display: block !important; word-break: break-all; }
   body.zui-touch .lp-head ~ * [class*="hint"], .lp-tools .muted { display: none; }
 }
-
-/* Celular deitado: barra inferior mais baixa */
-@media screen and (max-height: 500px) and (pointer: coarse) {
-  #rail { height: calc(48px + env(safe-area-inset-bottom)) !important; }
-  #rail .rail-btn { height: 42px !important; }
-  #main { bottom: calc(48px + env(safe-area-inset-bottom)) !important; }
-}
