@@ -52,16 +52,40 @@
   .zui-home-clock { transform: scale(.8); transform-origin: top right; }
 
   /* Página de entrada (login.html) */
-  .lp-shell, .lp-site-layout { display: block !important; width: auto !important; max-width: 100% !important; padding: calc(16px + env(safe-area-inset-top)) 14px 24px !important; margin: 0 !important; height: auto !important; min-height: 100vh; overflow-y: auto; }
+  .lp-site-layout { display: block !important; width: auto !important; max-width: 100% !important; padding: calc(16px + env(safe-area-inset-top)) 14px 24px !important; margin: 0 !important; height: auto !important; min-height: 100vh; overflow-y: auto; }
   .lp-brand-panel { width: auto !important; max-width: 100% !important; text-align: center !important; padding: 8px 0 16px !important; margin: 0 !important; }
   .lp-brand-panel .brand-logo, .lp-brand-panel img { max-width: 180px !important; height: auto !important; margin: 0 auto !important; }
   .lp-brand-line { margin: 12px auto !important; }
   .lp-site-copy, .zui-login-notice { font-size: 13px !important; line-height: 1.45 !important; }
-  .lp-shell > *:not(.lp-brand-panel), .lp-site-layout > *:not(.lp-brand-panel) { width: auto !important; max-width: 100% !important; margin: 0 0 12px !important; }
+  .lp-site-layout > *:not(.lp-brand-panel) { width: auto !important; max-width: 100% !important; margin: 0 0 12px !important; }
   .lp-field-row { display: block !important; }
   .lp-field-row > * { width: 100% !important; margin: 0 0 12px !important; }
   .lp-field input, .lp-field select { width: 100% !important; box-sizing: border-box !important; height: 48px !important; }
   .lp-tabs .tab-btn, .lp-actions .btn, .zui-language-login { width: 100% !important; min-height: 46px !important; box-sizing: border-box !important; }
   .lp-tools { display: block !important; word-break: break-all; }
   body.zui-touch .lp-head ~ * [class*="hint"], .lp-tools .muted { display: none; }
+
+  /* Telas com colunas (Categorias | Lista | Detalhe) viram uma coluna */
+  #workspace .split-layout { display: flex !important; flex-direction: column !important; overflow: hidden !important; }
+  #workspace .split-layout > .category-pane { flex: 0 0 auto !important; width: auto !important; height: auto !important; max-height: none !important; border-right: 0 !important; padding: 8px 10px 4px !important; }
+  #workspace .split-layout > .category-pane .section-toolbar { margin: 0 0 6px !important; }
+  #workspace .split-layout > .category-pane .pane-scroll { display: flex !important; flex-wrap: nowrap !important; overflow-x: auto !important; overflow-y: hidden !important; gap: 8px !important; height: auto !important; max-height: none !important; padding-bottom: 6px !important; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  #workspace .split-layout > .category-pane .pane-scroll > * { flex: 0 0 auto !important; width: auto !important; min-width: 120px !important; max-width: 70vw !important; margin: 0 !important; padding: 8px 12px !important; min-height: 0 !important; }
+  #workspace .split-layout > .list-pane, #workspace .split-layout > .grid-pane { flex: 1 1 auto !important; width: auto !important; min-height: 0 !important; padding: 4px 10px 0 !important; }
+  #workspace .split-layout .pane-scroll { -webkit-overflow-scrolling: touch; }
+  #workspace .split-layout > .list-pane .pane-scroll, #workspace .split-layout > .grid-pane .pane-scroll { height: auto !important; max-height: none !important; }
+  #workspace .split-layout > .detail-pane { order: -1; flex: 0 0 auto !important; width: auto !important; max-width: 100% !important; padding: 0 !important; }
+  #workspace .split-layout > .detail-pane:empty, #workspace .split-layout > .detail-pane > :empty { display: none; }
+  #workspace .section-toolbar { flex-wrap: wrap !important; gap: 6px !important; }
+  #workspace .section-toolbar h1, #workspace .section-toolbar h2 { font-size: 20px !important; }
+
+  /* Cartão de entrada empilhado */
+  #login-page { align-items: flex-start !important; overflow-y: auto !important; height: auto !important; min-height: 100vh; }
+  #login-page .lp-shell { flex-direction: column !important; width: 100% !important; padding: calc(14px + env(safe-area-inset-top)) 14px 24px !important; box-sizing: border-box !important; }
+  #login-card { width: 100% !important; max-width: 100% !important; box-sizing: border-box !important; padding: 16px !important; margin: 0 !important; height: auto !important; }
+  #login-card > * { width: 100% !important; max-width: 100% !important; box-sizing: border-box !important; }
+  #login-card .lp-tabs, #login-card .lp-actions { display: flex !important; gap: 8px !important; }
+  #login-card .lp-tabs > *, #login-card .lp-actions > * { flex: 1 1 0 !important; width: auto !important; min-width: 0 !important; margin: 0 !important; font-size: 14px !important; }
+  #login-card .zui-identity { display: block !important; }
+  #login-card .zui-identity * { font-size: 13px !important; word-break: break-all; white-space: normal !important; }
 }
