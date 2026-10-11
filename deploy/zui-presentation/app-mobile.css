@@ -67,7 +67,7 @@
 
   /* Telas com colunas (Categorias | Lista | Detalhe) viram uma coluna */
   #workspace .split-layout { display: flex !important; flex-direction: column !important; overflow: hidden !important; }
-  #workspace .split-layout > .category-pane { flex: 0 0 auto !important; width: auto !important; height: auto !important; max-height: none !important; border-right: 0 !important; padding: 8px 10px 4px !important; }
+  html body #app-shell #workspace .split-layout > .category-pane { flex: 0 0 auto !important; align-self: stretch !important; width: 100% !important; min-width: 100% !important; max-width: 100% !important; box-sizing: border-box !important; height: auto !important; max-height: none !important; border-right: 0 !important; padding: 8px 10px 4px !important; }
   #workspace .split-layout > .category-pane > * { width: 100% !important; max-width: 100% !important; box-sizing: border-box !important; }
   #workspace .split-layout > .category-pane .section-toolbar { margin: 0 0 6px !important; }
   #workspace .split-layout > .category-pane .pane-scroll { display: flex !important; flex-wrap: nowrap !important; overflow-x: auto !important; overflow-y: hidden !important; gap: 8px !important; height: auto !important; max-height: none !important; padding-bottom: 6px !important; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
