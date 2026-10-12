@@ -1,0 +1,13 @@
+[Unit]
+Description=Block direct public database and internal application ports
+After=network-pre.target
+Before=docker.service
+Wants=network-pre.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/zui-private-ports enp6s0
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

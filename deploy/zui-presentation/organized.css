@@ -68,3 +68,48 @@ body.site-admin .loginbox{max-width:420px;width:calc(100% - 32px);padding:32px!i
 @media(max-width:760px){body.zv-public .site-header,body.site-admin .site-header{padding:10px 16px!important;min-height:64px;gap:10px}body.site-home .zv-cinema{padding:26px 16px 28px!important}body.site-home .zv-hero-copy h1::before{width:220px!important}body.site-home .zv-tagline{font-size:22px!important;margin-bottom:18px!important}body.site-home .zv-cinema .zv-hero-art{margin-top:22px!important}body.site-home .zv-section{padding:32px 20px!important}body.site-home .zv-head h2{font-size:23px!important}body.site-home .zv-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}body.site-home .zv-card{padding:16px!important}body.site-home .zv-steps{display:grid!important;grid-template-columns:1fr!important;gap:12px!important}body.site-home .zv-steps li{border-bottom:1px solid hsl(var(--organized-line))!important}body.site-home .zv-legal{margin:0 16px 24px!important;padding:18px!important}body.site-admin .sidebar{top:64px!important;width:min(300px,100%)!important;left:auto!important;right:0!important}body.site-admin .main{margin-left:0!important;padding:20px 16px 40px!important}body.site-admin .header h1{font-size:22px!important}body.site-admin .header{align-items:flex-start;gap:12px}body.site-admin .stats{grid-template-columns:repeat(2,minmax(0,1fr))!important}body.site-admin .stat strong{font-size:26px!important}body.site-admin .stat{min-height:100px!important;padding:14px!important}}
 @media(max-width:400px){body.site-home .zv-grid{grid-template-columns:1fr!important}body.site-home .zv-actions .zv-btn{padding:10px 14px!important;font-size:12px!important}}
 @media(prefers-reduced-motion:reduce){body.zv-public *,body.site-admin *{animation:none!important;transition:none!important}}
+/* Clearer hierarchy, scroll-safe navigation and editors; no operational changes. */
+body.zv-public,body.site-admin{--organized-overlay:225 30% 3%;--organized-focus:0 0 0 3px hsl(var(--organized-blue)/.25)}
+body.zv-public h1,body.zv-public h2,body.site-admin h1,body.site-admin h2{letter-spacing:0!important}
+body.site-home .zv-cinema{padding-top:24px!important}
+body.site-home .zv-tagline{max-width:700px;margin-left:auto!important;margin-right:auto!important}
+body.site-home .zv-head{display:flex;flex-direction:column;gap:8px}
+body.zv-public :is(button,input,select,textarea,a):focus-visible,body.site-admin :is(button,input,select,textarea,a):focus-visible{outline:2px solid hsl(var(--organized-blue));outline-offset:3px}
+body.site-admin .sidebar{display:flex!important;flex-direction:column!important;gap:12px}
+body.site-admin .sidebar .foot{position:static!important;flex-shrink:0;margin-top:auto!important}
+body.site-admin .sidebar .logo{flex-shrink:0}
+body.site-admin .header{flex-wrap:wrap}
+body.site-admin .grid{gap:18px!important}
+body.site-admin .tablewrap table{min-width:800px}
+body.site-admin td:last-child{min-width:240px!important}
+body.site-admin td button{margin:3px 2px;white-space:nowrap}
+body.site-admin .modal{padding:24px!important;background:hsl(var(--organized-overlay)/.85)!important;backdrop-filter:none!important}
+body.site-admin .modalbox{width:700px!important;max-width:100%!important;max-height:calc(100dvh - 48px)!important;padding:24px!important;border-radius:8px!important;background:hsl(var(--organized-raised))!important;border:1px solid hsl(var(--organized-line))!important;scrollbar-gutter:stable}
+body.site-admin .modalhead{padding-bottom:18px;border-bottom:1px solid hsl(var(--organized-line));margin-bottom:20px}
+body.site-admin .modalhead h2{font-size:20px!important;line-height:1.4;overflow-wrap:anywhere}
+body.site-admin #modalFields>label{margin:16px 0 7px!important;font-size:12px!important;font-weight:600}
+body.site-admin #modalFields .editor-row,body.site-admin .formrow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+body.site-admin #modalFields .editor-row>*{min-width:0}
+body.site-admin #modalFields input,body.site-admin #modalFields select{border-radius:6px!important;background:hsl(var(--organized-surface))!important;border-color:hsl(var(--organized-line))!important}
+body.site-admin #modalForm>.actions{position:sticky;bottom:-24px;padding:16px 0;background:hsl(var(--organized-raised));border-top:1px solid hsl(var(--organized-line));margin-top:24px}
+body.site-admin #modalFields:has(#sourceType)>label[for=sourceType]::before{content:'Conexão da playlist';display:block;color:hsl(var(--organized-green));font-size:11px;margin-bottom:16px}
+body.zv-public:has(#loginView) main{max-width:1120px!important;margin:0 auto;padding:48px 24px!important}
+body.zv-public #loginView{gap:48px!important;align-items:center}
+body.zv-public #loginView h1{font-size:36px!important;line-height:1.25}
+body.zv-public #loginForm{padding:28px!important;border-radius:8px!important;background:hsl(var(--organized-surface))!important}
+body.zv-public #accountView>.row{flex-wrap:wrap;gap:16px;margin-bottom:24px}
+body.zv-public #accountView .status-grid{gap:16px;margin-bottom:32px}
+body.zv-public #accountView .card,body.zv-public #playlists .playlist{border-radius:8px!important;padding:20px!important;background:hsl(var(--organized-surface))!important;border-color:hsl(var(--organized-line))!important}
+body.zv-public #accountView .actions{flex-wrap:wrap;gap:8px}
+body.zv-public #editor,body.zv-public #deleteDialog{padding:24px!important;background:hsl(var(--organized-overlay)/.85)!important;backdrop-filter:none!important}
+body.zv-public #editForm,body.zv-public #deleteDialog .dialog{width:680px!important;max-width:100%!important;max-height:calc(100dvh - 48px)!important;overflow:auto!important;border-radius:8px!important;padding:24px!important;background:hsl(var(--organized-raised))!important;border:1px solid hsl(var(--organized-line))!important;scrollbar-gutter:stable}
+body.zv-public #editForm>.row{padding-bottom:18px;margin-bottom:20px;border-bottom:1px solid hsl(var(--organized-line));align-items:center;gap:12px}
+body.zv-public #editForm h2{font-size:20px!important}
+body.zv-public #editForm label{font-size:12px!important;font-weight:600;margin:16px 0 0!important;line-height:1.6;color:hsl(var(--organized-muted))!important}
+body.zv-public #editForm :is(input,select){margin-top:7px!important;min-height:44px!important;border-radius:6px!important;background:hsl(var(--organized-surface))!important;border-color:hsl(var(--organized-line))!important;font-size:14px!important;color:hsl(var(--organized-text))!important}
+body.zv-public #editForm label:has(#managementPassword){padding-top:20px;margin-top:24px!important;border-top:1px solid hsl(var(--organized-line))}
+body.zv-public #editForm .two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+body.zv-public #editForm #save{position:sticky;bottom:0;min-height:44px;width:100%;margin-top:24px!important;border-radius:6px!important}
+body.zv-public #mac,body.site-admin input[id*=Mac],body.site-admin input[id*=mac]{font-family:ui-monospace,monospace!important}
+body.zv-public #editForm [hidden],body.zv-public #accountView[hidden],body.zv-public #loginView[hidden]{display:none!important}
+@media(max-width:760px){body.site-admin .modal,body.zv-public #editor,body.zv-public #deleteDialog{padding:12px!important}body.site-admin .modalbox,body.zv-public #editForm,body.zv-public #deleteDialog .dialog{max-height:calc(100dvh - 24px)!important;padding:20px!important}body.site-admin .grid,body.site-admin .formrow,body.site-admin #modalFields .editor-row,body.zv-public #editForm .two{grid-template-columns:1fr!important}body.site-admin #modalForm>.actions{bottom:-20px}body.zv-public:has(#loginView) main{padding:28px 16px!important}body.zv-public #loginView{grid-template-columns:1fr!important;gap:24px!important}body.zv-public #loginView h1{font-size:28px!important}body.zv-public #editForm :is(input,select){font-size:16px!important}body.zv-public #accountView .status-grid{grid-template-columns:1fr!important}body.site-admin .modalhead h2{font-size:18px!important}}
