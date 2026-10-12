@@ -5,10 +5,10 @@
   const groups = [
     ['Operação', ['dashboard','management','devices','playlists','games']],
     ['Comercial', ['resellers','credits','commerce']],
-    ['Sistema', ['servers','partners','branding','settings','migrations']],
+    ['Sistema', ['servers','partners','branding','settings','health','migrations']],
     ['Proteção', ['audit','security']]
   ];
-  const icons = {dashboard:'◫',management:'▤',devices:'▣',playlists:'≡',games:'⚽',resellers:'♙',credits:'◇',commerce:'▱',servers:'⌘',partners:'⇄',branding:'◐',settings:'⚙',migrations:'↗',audit:'☷',security:'♧'};
+  const icons = {dashboard:'◫',management:'▤',devices:'▣',playlists:'≡',games:'⚽',resellers:'♙',credits:'◇',commerce:'▱',servers:'⌘',partners:'⇄',branding:'◐',settings:'⚙',health:'♡',migrations:'↗',audit:'☷',security:'♧'};
   function organize() {
     const nav = document.querySelector('.sidebar nav');
     if (!nav) return;
@@ -34,8 +34,6 @@
         if (button.dataset.navIcon !== icons[page]) button.dataset.navIcon = icons[page];
       }
     }
-    const release = document.querySelector('.web-release');
-    if (release && release.textContent !== 'App web 2.1.13') release.textContent = 'App web 2.1.13';
   }
   organize();
   let scheduled = false;
