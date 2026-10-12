@@ -1,6 +1,8 @@
 # Roadmap
 
 ## Em andamento
+- [ ] Organizar site ZUI, painel e edição de playlists; aplicar somente apresentação com backup e verificar fluxos.
+- [ ] Fechar portas públicas de bancos após mapear dependências; revisar outras exposições. Autorizado em 12/10/2026.
 - [x] ZUI 2.1.14/API 1.2.35 atualizado com backup validado; site e painel reorganizados com quatro grupos de navegação, logo oficial e demonstração preservadas. Gestão do Sistema e Jogos do Dia verificados em consulta; desktop/celular sem overflow ou erros de página. 519 arquivos operacionais intactos por hash; apresentação sem reiniciar serviços.
 - [x] Imagem inicial publicada como demonstração navegável: categorias, detalhes, favoritos temporários, busca e ampliação verificados no navegador; celular sem overflow, nenhum erro. 482 arquivos protegidos intactos, backup /root/zui-interactive-before-1791639051; nenhum serviço reiniciado.
 - [x] Bloqueio de backup superado antes da atualização 2.1.13: limite de descompressão aumentado de 128 para 192 MiB, criptografia e rejeição de adulteração preservadas, três testes passando; seleção de campeonatos instalada com API 1.2.34.
@@ -60,4 +62,4 @@
 - [x] ZUI 2.1.20 / painel 1.2.40 aplicado.
 - [x] Backup ZUI para Telegram a cada 10 min.
 - [x] /app adaptado para celular (iPhone/Android).
-- [ ] Fechar portas de banco 5432/6543/8000/8100 e login root por senha no SSH (aguarda autorização do usuário).
+- [ ] Fechar portas de banco 5432/6543/8000/8100 (autorizado); endurecer SSH somente após validar acesso por chave e recuperação.
