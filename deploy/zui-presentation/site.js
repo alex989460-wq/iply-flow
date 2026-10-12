@@ -11,7 +11,7 @@ if(!path.startsWith('/admin')){
  const foot=document.createElement('footer');foot.className='zv-foot';
  foot.innerHTML='<div class="zv-foot-notice"><strong data-i18n="f_noticeT">Aviso importante</strong><p data-i18n="f_notice">O ZUI Player não vende, não fornece e não hospeda nenhum conteúdo. Todo conteúdo adicionado ao aplicativo é de inteira responsabilidade do usuário.</p></div><div class="zv-foot-row"><span>© '+new Date().getFullYear()+' ZUI Player · <span data-i18n="f_license">A ativação licencia exclusivamente o aplicativo.</span></span><nav><a href="/#aviso-legal" data-i18n="f_legal">Aviso legal</a><a href="/politica-de-privacidade" data-i18n="f_privacy">Política de Privacidade</a><a href="/termos-de-uso" data-i18n="f_terms">Termos de Uso</a><a href="mailto:contato@zuiplayer.com"><span data-i18n="f_contact">Contato</span>: contato@zuiplayer.com</a><a href="/minhas-listas" data-i18n="listsNav">Minhas playlists</a><a href="/ativar" data-i18n="activateNav">Ativar / renovar</a><a href="/admin" data-i18n="f_panel">Painel</a></nav></div>';
  const mount=()=>document.body.append(foot);if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount);else mount();
-}const languageScript=document.createElement('script');languageScript.src='/site-assets/site-i18n.js?v=luminous-20261005';document.head.append(languageScript);
+}const languageScript=document.createElement('script');languageScript.src='/site-assets/site-i18n.js?v=langs-20261012';document.head.append(languageScript);
 if(path.startsWith('/admin')){
  document.body.classList.add('site-admin');
  const syncHeaderHeight=()=>document.documentElement.style.setProperty('--site-header-height',Math.ceil(header.getBoundingClientRect().height)+'px');
