@@ -2229,7 +2229,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (action === "set-account-billing") {
+    if (action === "set-account-billing" && !(Deno.env.get("SUPABASE_URL") ?? "").includes("supergestor.top")) {
+      results.billing = { skipped: "not_primary" };
+    } else if (action === "set-account-billing") {
       results.billing = await crmFetch("/api/public/v1/account-billing", {
         method: "POST",
         body: JSON.stringify({

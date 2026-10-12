@@ -7,6 +7,14 @@ const GRACE_DAYS = 3;
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  // Só a instalação real (VPS) pode enviar vencimentos ao ZapCRM; a cópia antiga
+  // na nuvem tem datas desatualizadas e suspendia contas já pagas.
+  if (!(Deno.env.get("SUPABASE_URL") ?? "").includes("supergestor.top")) {
+    return new Response(JSON.stringify({ ok: true, skipped: "not_primary" }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
     const admin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
