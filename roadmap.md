@@ -65,6 +65,8 @@
 - [ ] Fechar portas de banco 5432/6543/8000/8100 (autorizado); endurecer SSH somente após validar acesso por chave e recuperação.
 
 ## ZUI (13/10/2026)
+- [ ] Adicionar vencimento da delegação de parceria sem alterar reprodução/licenças existentes; testar permissões.
+- [ ] Publicar páginas Pool e plataformas com imagens, logos por aparelho e links reais; verificar desktop/celular.
 - [x] Login por código em servidores "Direto" com provedor bloqueando a VPS.
 - [x] Versão web (/app no navegador): listas HTTP agora passam pelo servidor ZUI (só no navegador).
 - [x] Painel admin: adicionar/remover dias da licença do app (números negativos removem).
