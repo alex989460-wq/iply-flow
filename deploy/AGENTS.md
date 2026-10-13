@@ -21,3 +21,4 @@
 - Keep ZUI Pool, partner-server delegation and contacts in deploy/zui-pool (zui-pool.mjs wired into server.mjs by apply-server.py, admin pages via apply-admin.py); pool is count-only over existing playback leases and partner DNS changes reuse the audited migration flow, so playback and licence rules stay untouched. Re-apply after API/admin upgrades.
 - Keep optional partnership deadlines in partnership-policy.mjs and enforce them only on delegated management endpoints; device licences and playback remain governed by their existing rules.
 - Serve Pool/platform pages and platform marks through dedicated ZUI Nginx static locations, leaving app, public homepage and operational handlers unchanged.
+- Keep ZUI customer MAC transfer in deploy/zui-mac-transfer: it swaps only entitlement fields between two registered devices (both proven by MAC+key, max 3 per licence, audited), never device MACs/credentials; re-apply after client.mjs/playlist-portal.js upgrades.
