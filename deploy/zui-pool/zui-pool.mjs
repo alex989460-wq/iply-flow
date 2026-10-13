@@ -54,7 +54,7 @@ export async function zuiPool(req,res,url,user,db,input,ctx){
   if(req.method!=='POST')fail('Método inválido.',405);
   const email=cleanContact(input.email,120);if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))fail('E-mail inválido.');
   const whatsapp=cleanContact(input.whatsapp,30).replace(/[^\d+]/g,'');if(whatsapp&&!/^\+?\d{10,15}$/.test(whatsapp))fail('WhatsApp inválido. Use DDI e DDD, ex: +5541999999999.');
-  const telegram=cleanContact(input.telegram,64).replace(/^https?:\/\/t\.me\//,'@').replace(/^@?/,v=>input.telegram?'@':'');if(telegram&&!/^@[A-Za-z0-9_]{4,32}$/.test(telegram))fail('Telegram inválido. Use @usuario.');
+  let telegram=cleanContact(input.telegram,64).replace(/^https?:\/\/t\.me\//,'');if(telegram&&!telegram.startsWith('@'))telegram='@'+telegram;if(telegram&&!/^@[A-Za-z0-9_]{4,32}$/.test(telegram))fail('Telegram inválido. Use @usuario.');
   db.settings||={};db.settings.contacts={telegram,whatsapp,email,updatedAt:Date.now()};audit(db,'contacts.update','settings');saveDb(db);send(res,200,{contacts:db.settings.contacts});return true;
  }
  if(path==='/api/admin/pool'&&req.method==='GET'){
