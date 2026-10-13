@@ -1,5 +1,5 @@
 /* zui-pool admin pages: ZUI Pool (count only), Servidores parceiros, Contatos. */
-(() => {
+document.addEventListener('DOMContentLoaded', () => {
   'use strict';
   if (typeof render !== 'function' || typeof api !== 'function') return;
   const MINE = {
@@ -116,4 +116,4 @@
   }
 
   if (typeof user !== 'undefined' && user) { addNav(); if (MINE[page]) render(); }
-})();
+});
