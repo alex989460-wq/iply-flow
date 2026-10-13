@@ -1,6 +1,8 @@
 # Roadmap
 
 ## Em andamento
+- [ ] Liberar exclusivamente os IPs e intervalos fornecidos para testes LG no ZUI, preservando autenticação, licenças e portas privadas; conferir VPS e eventual Cloudflare.
+- [ ] Investigação da lentidão do ZapCRM pausada por solicitação do usuário em 13/10/2026; nenhuma correção aplicada nesta investigação.
 - [ ] Organizar site ZUI, painel e edição de playlists; aplicar somente apresentação com backup e verificar fluxos.
 - [ ] Fechar portas públicas de bancos após mapear dependências; revisar outras exposições. Autorizado em 12/10/2026.
 - [x] ZUI 2.1.14/API 1.2.35 atualizado com backup validado; site e painel reorganizados com quatro grupos de navegação, logo oficial e demonstração preservadas. Gestão do Sistema e Jogos do Dia verificados em consulta; desktop/celular sem overflow ou erros de página. 519 arquivos operacionais intactos por hash; apresentação sem reiniciar serviços.
