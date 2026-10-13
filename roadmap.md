@@ -84,3 +84,4 @@
 - [x] ZUI Pool (contagem), Parceiros: DNS e aparelhos, Contatos no painel
 - [ ] Bloqueio do Pool quando lotar (aguarda decisão)
 - [ ] Contatos reais (usuário vai cadastrar)
+- [x] Transferência de MAC em /minhas-listas: troca licença+playlists entre aparelhos, exige MAC+chave do novo, limite 3, auditado; testado em cópia isolada. Backup /root/zui-mac-transfer-before-1791917825.
