@@ -4,7 +4,7 @@
   if (typeof render !== 'function' || typeof api !== 'function') return;
   const MINE = {
     pool: ['ZUI Pool', 'Reproduções simultâneas por parceiro. Por enquanto só contamos — ninguém é bloqueado.'],
-    'partner-servers': ['Servidores parceiros', 'Servidores atribuídos a revendedores: aparelhos, DNS e migração em massa.'],
+    'partner-servers': ['Parceiros: DNS e aparelhos', 'Servidores atribuídos a revendedores: aparelhos, DNS e migração em massa.'],
     contacts: ['Contatos', 'Telegram, WhatsApp e e-mail de atendimento.']
   };
   const money = v => v == null ? 'Sob consulta' : 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 0 });
@@ -16,7 +16,7 @@
   function addNav() {
     const nav = document.querySelector('.sidebar nav'); if (!nav || nav.querySelector('[data-page="pool"]')) return;
     const after = nav.querySelector('[data-page="resellers"]') || nav.lastElementChild;
-    const html = [['partner-servers', 'Servidores parceiros', '🛰', false], ['pool', 'ZUI Pool', '◎', false], ['contacts', 'Contatos', '✆', true]]
+    const html = [['partner-servers', 'Parceiros: DNS e aparelhos', '🛰', false], ['pool', 'ZUI Pool', '◎', false], ['contacts', 'Contatos', '✆', true]]
       .filter(x => !x[3] || user?.role === 'admin')
       .map(x => '<button data-page="' + x[0] + '" data-nav-icon="' + x[2] + '" data-zpool>' + x[1] + '</button>').join('');
     after.insertAdjacentHTML('afterend', html);
@@ -47,7 +47,7 @@
       (Object.keys(p.days).length ? '<p class="muted small">Picos por dia: ' + Object.entries(p.days).slice(-7).map(([d, v]) => d.slice(5).split('-').reverse().join('/') + ' = ' + v).join(' · ') + '</p>' : '') +
       (admin ? '<div class="zprow"><select data-plan="' + esc(p.ownerId) + '"><option value="">Sem plano</option>' + r.plans.map(pl => '<option value="' + pl.id + '"' + (p.plan?.id === pl.id ? ' selected' : '') + '>' + esc(pl.name) + ' — ' + (pl.slots || '∞') + ' vagas · ' + money(pl.monthly) + '</option>').join('') + '</select><button data-extra="' + esc(p.ownerId) + '">+ Vagas para evento</button></div>' : '') + '</div>';
     const plans = '<div class="card"><h2>Planos</h2><table class="zptable"><tr><th>Plano</th><th>Reproduções simultâneas</th><th>Mensalidade</th><th>Por vaga/mês</th></tr>' + r.plans.map(pl => '<tr><td>' + esc(pl.name) + '</td><td>' + (pl.slots ? pl.slots.toLocaleString('pt-BR') : 'Ilimitado') + '</td><td>' + (pl.monthly == null ? 'Conforme a regra de cobrança' : money(pl.monthly)) + '</td><td>R$ ' + (pl.perSlot ?? pl.monthly / pl.slots).toFixed(2).replace('.', ',') + '</td></tr>').join('') + '</table><p class="muted small">Navegar no app não ocupa vaga. Reproduzir ou ver prévia ocupa uma; trocar de canal mantém a mesma. A vaga é liberada ao encerrar ou 90 s depois que a TV para de responder. Hoje só contamos: quando lotar, ninguém é bloqueado.</p></div>';
-    content().innerHTML = '<div class="card zpinfo"><p>Modo atual: <b>somente contagem</b>. O vídeo continua direto da TV para o provedor.</p></div>' + (r.pools.map(card).join('') || '<div class="card"><p class="muted">Nenhum parceiro com servidor atribuído. Atribua em Servidores parceiros.</p></div>') + plans;
+    content().innerHTML = '<div class="card zpinfo"><p>Modo atual: <b>somente contagem</b>. O vídeo continua direto da TV para o provedor.</p></div>' + (r.pools.map(card).join('') || '<div class="card"><p class="muted">Nenhum parceiro com servidor atribuído. Atribua em Parceiros: DNS e aparelhos.</p></div>') + plans;
     content().querySelectorAll('[data-plan]').forEach(s => s.onchange = async () => { try { await api('admin/pool/plan', 'POST', { ownerId: s.dataset.plan, planId: s.value }); render(); } catch (e) { alert(e.message); } });
     content().querySelectorAll('[data-extra]').forEach(b => b.onclick = () => openModal('Vagas extras para evento', field('zpSlots', 'Quantidade de vagas', '200', 'number') + field('zpHours', 'Duração em horas', '24', 'number'), async () => {
       const cur = r.pools.find(p => p.ownerId === b.dataset.extra);
