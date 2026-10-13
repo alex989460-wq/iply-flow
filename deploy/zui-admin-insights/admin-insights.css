@@ -1,0 +1,17 @@
+body.site-admin .zcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:24px}
+body.site-admin .zcard,body.site-admin .zplat{position:relative;overflow:hidden;text-align:left;display:flex;flex-direction:column;gap:6px;padding:16px;border-radius:14px;border:1px solid rgba(140,170,255,.18);background:rgba(255,255,255,.04);cursor:pointer;color:inherit}
+body.site-admin .zcard span,body.site-admin .zplat span{font-size:12px;opacity:.75;text-transform:uppercase;letter-spacing:.06em}
+body.site-admin .zcard strong,body.site-admin .zplat strong{font-size:26px;line-height:1}
+body.site-admin .zcard:hover,body.site-admin .zplat:hover{border-color:rgba(120,170,255,.6)}
+body.site-admin .zcard{border-top:3px solid #6f9bff}
+body.site-admin .z-paid{border-top-color:#f2b84b}body.site-admin .z-partner{border-top-color:#9b7bff}body.site-admin .z-trial{border-top-color:#3ccf8e}
+body.site-admin .z-online{border-top-color:#38bdf8}body.site-admin .z-warn{border-top-color:#ff9f43}body.site-admin .z-off{border-top-color:#ff5d6c}
+body.site-admin .zh{margin:4px 0 14px}
+body.site-admin .zplats{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:28px}
+body.site-admin .zplat i{position:absolute;left:0;bottom:0;height:3px;background:linear-gradient(90deg,#4f8cff,#9b7bff)}
+body.site-admin .zfilters{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end;margin-bottom:14px;padding:14px}
+body.site-admin .zf{display:flex;flex-direction:column;gap:4px;min-width:140px;flex:1 1 140px;margin:0}
+body.site-admin .zf span{font-size:11px;opacity:.7;text-transform:uppercase;letter-spacing:.05em}
+body.site-admin .zf select{width:100%}
+body.site-admin .zfcount{display:flex;align-items:center;gap:10px;margin-left:auto;font-size:14px}
+body.site-admin .zlic{font-weight:600}body.site-admin .zlic.warn{color:#ff9f43}body.site-admin .zlic.off{color:#ff5d6c}
