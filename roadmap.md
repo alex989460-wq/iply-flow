@@ -65,6 +65,8 @@
 - [ ] Fechar portas de banco 5432/6543/8000/8100 (autorizado); endurecer SSH somente após validar acesso por chave e recuperação.
 
 ## ZUI (13/10/2026)
+- [x] Vencimento opcional da delegação: salvar/ler/remover testado no servidor Tester e restaurado; quatro testes de data/permissão passaram. Reprodução e licenças intactas.
+- [x] Páginas https://zuiplayer.com/pool e /disponivel publicadas; logos em aparelhos; computador/celular sem overflow/imagens quebradas; painel autenticado sem erros. Backup /root/zui-partner-expiry-before-1791895003; 1440 arquivos protegidos intactos, somente ZUI reiniciado. Demais plataformas ficam como não confirmadas, sem inventar aprovação em lojas.
 - [x] Login por código em servidores "Direto" com provedor bloqueando a VPS.
 - [x] Versão web (/app no navegador): listas HTTP agora passam pelo servidor ZUI (só no navegador).
 - [x] Painel admin: adicionar/remover dias da licença do app (números negativos removem).
