@@ -7,7 +7,7 @@ import {pathToFileURL} from 'node:url';
 test('expired partner cannot manage DNS, admin can renew and unrelated owner cannot access',async()=>{
  const dir=mkdtempSync(join(tmpdir(),'zui-partner-test-'));
  try{
-  for(const name of ['zui-pool.mjs','partnership-policy.mjs'])copyFileSync(new URL(name,import.meta.url),join(dir,name));
+  for(const name of ['zui-pool.mjs','partnership-policy.mjs','platform-policy.mjs'])copyFileSync(new URL(name,import.meta.url),join(dir,name));
   writeFileSync(join(dir,'security.mjs'),`export function fail(m,status=400){throw Object.assign(Error(m),{status})} export const origin=v=>new URL(v).origin;export const visibleAccounts=(db,u)=>db.users.filter(a=>a.id===u.id);export const audit=()=>{};`);
   writeFileSync(join(dir,'client.mjs'),'export const devicePlaylists=d=>d.playlists||[];');
   writeFileSync(join(dir,'commerce.mjs'),'export const license=()=>({status:"active"});');
@@ -23,5 +23,14 @@ test('expired partner cannot manage DNS, admin can renew and unrelated owner can
   await assert.rejects(request('/api/admin/partner-servers/assign',partner,'POST',{serverId:'s',expiresOn:'2026-10-13'}));
   await request('/api/admin/partner-servers/assign',{role:'admin'},'POST',{serverId:'s',ownerId:'p',expiresOn:'2099-10-13'});
   await request('/api/admin/partner-servers',partner);assert.equal(result.servers[0].canManage,true);assert.equal(db.servers[0].host,'https://example.com');assert.equal(saves,1);
+  await assert.rejects(request('/api/admin/platforms',partner));
+  await assert.rejects(request('/api/admin/partner-servers/delete',partner,'POST',{serverId:'s',confirmCode:'002'}));
+  db.servers[0].code='002';
+  await assert.rejects(request('/api/admin/partner-servers/delete',{role:'admin'},'POST',{serverId:'s',confirmCode:'002'}));assert.equal(db.servers.length,1);
+  db.servers.push({id:'unused',code:'003',host:'https://unused.example.com'});
+  await assert.rejects(request('/api/admin/partner-servers/delete',{role:'admin'},'POST',{serverId:'unused',confirmCode:'wrong'}));
+  await request('/api/admin/partner-servers/delete',{role:'admin'},'POST',{serverId:'unused',confirmCode:'003'});assert.equal(db.servers.length,1);
+  db.devices.push({id:'tv',playlists:[{source:{host:'https://example.com',serverCode:'002'}}]});
+  await assert.rejects(request('/api/admin/servers',{role:'admin'},'POST',{id:'s',code:'999',host:'https://example.com'}));assert.equal(db.servers[0].code,'002');
  }finally{rmSync(dir,{recursive:true,force:true});}
 });

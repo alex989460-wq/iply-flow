@@ -1,11 +1,31 @@
 body.site-admin .zpool{margin-bottom:16px}
 body.site-admin .zphead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
 body.site-admin .zpbig{font-size:28px}body.site-admin .zpbig small{font-size:13px;opacity:.7;font-weight:500}
-body.site-admin .zpbar{height:10px;border-radius:6px;background:#ffffff14;overflow:hidden;margin:10px 0 6px}body.site-admin .zpbar i{display:block;height:100%}
-body.site-admin .zptable{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}body.site-admin .zptable th,body.site-admin .zptable td{padding:8px;border-bottom:1px solid #ffffff14;text-align:left;vertical-align:top}
+body.site-admin .zpbar{height:10px;border-radius:6px;background:var(--zp-line);overflow:hidden;margin:10px 0 6px}body.site-admin .zpbar i{display:block;height:100%}
+body.site-admin .zptable{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}body.site-admin .zptable th,body.site-admin .zptable td{padding:12px;border-bottom:1px solid var(--zp-line);text-align:left;vertical-align:top}
 body.site-admin .zprow{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}body.site-admin .zprow>*{flex:1;min-width:180px}
 body.site-admin .zpact{display:flex;gap:6px;flex-wrap:wrap}body.site-admin .zpact button{padding:6px 10px;font-size:12px}
 body.site-admin .zpinfo{margin-bottom:16px}
-body.site-admin{--zp-logo-filter:invert(1)}
+body.site-admin{--zp-logo-filter:invert(1);--zp-primary:#3b82f6;--zp-accent:#34d399;--zp-warning:#fbbf24;--zp-danger:#fb7185;--zp-line:#263244;--zp-surface:#111721;--zp-bg:#080b12;--zp-fg:#f5f5f5;--zp-muted:#a7b2c6}
 body.site-admin .zp-platform-mark{display:inline-block;width:30px;height:20px;object-fit:contain;vertical-align:middle;margin-right:8px;filter:var(--zp-logo-filter)}
 @media(max-width:760px){body.site-admin .zptable{display:block;overflow-x:auto;white-space:nowrap}}
+body.site-admin .zp-platform-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+body.site-admin .zp-platform-form h2{font-size:20px}
+body.site-admin textarea{font:inherit;width:100%;padding:12px;border:1px solid var(--zp-line);border-radius:6px;background:var(--zp-bg);color:var(--zp-fg);resize:vertical}
+body.site-admin .zpcheck{display:flex;align-items:center;gap:10px}body.site-admin .zpcheck input{width:18px;height:18px}
+body.site-admin .zp-platform-form button{margin-top:18px}
+body.site-admin :is(button,input,select,textarea):focus-visible{outline:2px solid var(--zp-primary);outline-offset:3px}
+body.site-admin .zp-device-actions{position:relative;min-width:48px}
+body.site-admin .zp-device-actions summary{cursor:pointer;list-style:none;width:40px;height:36px;display:grid;place-items:center;border:1px solid var(--zp-line);border-radius:6px;font-weight:700}
+body.site-admin .zp-device-actions[open] div{display:flex;flex-wrap:wrap;gap:6px;width:240px;padding-top:8px}
+body.site-admin .zp-device-actions button{flex:1;white-space:nowrap}
+body.site-admin .header h1{font-size:30px;letter-spacing:0}
+body.site-admin .main :is(.card,.tablewrap){background:var(--zp-surface)!important;border-color:var(--zp-line)!important}
+body.site-admin .tablewrap th{font-size:11px;text-transform:uppercase;letter-spacing:0;background:var(--zp-bg)}
+body.site-admin .tablewrap :is(th,td){padding:14px 16px}
+body.site-admin .tablewrap tbody tr:hover{background:var(--zp-bg)}
+body.site-admin .zpool{border-left:3px solid var(--zp-accent)!important}
+body.site-admin .zpact{min-width:220px}
+body.site-admin .zphead{margin-bottom:16px}
+body.site-admin .sidebar nav button{padding:11px 14px!important;font-size:13px}
+@media(max-width:900px){body.site-admin .zp-platform-grid{grid-template-columns:1fr}}

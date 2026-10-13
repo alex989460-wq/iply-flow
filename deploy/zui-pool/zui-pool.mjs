@@ -7,6 +7,7 @@ import {devicePlaylists} from './client.mjs';
 import {license} from './commerce.mjs';
 import {fail,origin,visibleAccounts,audit} from './security.mjs';
 import {partnershipExpiry,partnershipActive,partnershipDate} from './partnership-policy.mjs';
+import {platformCatalogue,validatePlatform} from './platform-policy.mjs';
 
 export const POOL_PLANS=[
  {id:'inicial',name:'Inicial',slots:100,monthly:199},
@@ -47,9 +48,28 @@ const cleanContact=(v,max=160)=>String(v||'').trim().slice(0,max);
 
 export async function zuiPool(req,res,url,user,db,input,ctx){
  const path=url.pathname,{send,saveDb,database,loadDb,dataDir}=ctx;
- if(!path.startsWith('/api/admin/pool')&&!path.startsWith('/api/admin/partner-servers')&&path!=='/api/admin/contacts')return false;
+ if(path==='/api/public/platforms'&&req.method==='GET'){send(res,200,{platforms:platformCatalogue(db).filter(p=>p.visible)},true);return true;}
+ if(path==='/api/admin/servers'&&req.method==='POST'){
+  if(user?.role!=='admin')fail('Acesso restrito ao administrador',403);
+  const current=db.servers.find(s=>s.id===input.id);
+  if(input.id&&!current)fail('Servidor não encontrado.',404);
+  if(current){
+   const bound=db.devices.some(d=>deviceUsesServer(d,current)||d.partnerLicense?.serverId===current.id);
+   if(bound&&(String(input.code).trim()!==current.code||origin(input.host)!==origin(current.host)))fail('Este código possui aparelhos vinculados. Use Trocar DNS com prévia e confirmação; não altere o código em uso.',409);
+  }
+  return false;
+ }
+ if(!path.startsWith('/api/admin/pool')&&!path.startsWith('/api/admin/partner-servers')&&!['/api/admin/contacts','/api/admin/platforms'].includes(path))return false;
  loadHist(dataDir);if(!timer){timer=setInterval(()=>{try{sample(loadDb(),database);}catch{}},300000);timer.unref();}
  const accounts=visibleAccounts(db,user),isAdmin=user.role==='admin';
+ if(path==='/api/admin/platforms'){
+  if(!isAdmin)fail('Acesso restrito ao administrador',403);
+  if(req.method==='GET'){send(res,200,{platforms:platformCatalogue(db)});return true;}
+  if(req.method!=='POST')fail('Método inválido.',405);
+  let p;try{p=validatePlatform(input);}catch(e){fail(e.message);}
+  db.settings||={};db.settings.platforms||={};db.settings.platforms[p.id]=p;
+  audit(db,'platform.update',p.id,{status:p.status,visible:p.visible});saveDb(db);send(res,200,{platform:p});return true;
+ }
  if(path==='/api/admin/contacts'){
   if(!isAdmin)fail('Acesso restrito ao administrador',403);
   if(req.method==='GET'){send(res,200,{contacts:db.settings?.contacts||{}});return true;}
@@ -83,6 +103,13 @@ export async function zuiPool(req,res,url,user,db,input,ctx){
   if(Object.hasOwn(input,'expiresOn')){try{s.partnerExpiresAt=partnershipExpiry(input.expiresOn);}catch(e){fail(e.message);}}
   else if(s.partnerOwnerId!==(input.ownerId||null))s.partnerExpiresAt=null;
   s.partnerOwnerId=input.ownerId||null;audit(db,'partner.assign',s.id);saveDb(db);send(res,200,{ok:true});return true;
+ }
+ if(path==='/api/admin/partner-servers/delete'&&req.method==='POST'){
+  if(!isAdmin)fail('Somente o administrador exclui códigos.',403);
+  const s=db.servers.find(s=>s.id===input.serverId);if(!s)fail('Servidor não encontrado.',404);
+  if(input.confirmCode!==s.code)fail('Digite o código exato para confirmar.');
+  if(s.partnerOwnerId||db.devices.some(d=>deviceUsesServer(d,s)||d.partnerLicense?.serverId===s.id||d.serverCode===s.code)||database.activePlayback(s.id)>0)fail('Código em uso. Remova a delegação e migre os aparelhos antes de excluir. Para interromper novos logins, desative o código.',409);
+  db.servers=db.servers.filter(x=>x.id!==s.id);audit(db,'partner.deleted',s.id,{code:s.code,name:s.name});saveDb(db);send(res,200,{ok:true});return true;
  }
  if(path==='/api/admin/partner-servers/devices'&&req.method==='GET'){
   const s=db.servers.find(s=>s.id===url.searchParams.get('id'));if(!s||!canManage(db,user,s))fail('Servidor não encontrado.',404);

@@ -4,11 +4,11 @@
   document.body.classList.add('site-admin');
   const groups = [
     ['Operação', ['dashboard','management','devices','playlists','games']],
-    ['Comercial', ['resellers','credits','commerce']],
-    ['Sistema', ['servers','partners','branding','settings','health','migrations']],
+    ['Parcerias e comercial', ['resellers','partner-servers','pool','credits','commerce']],
+    ['Aplicativo e sistema', ['servers','partners','platforms','branding','contacts','settings','health','migrations']],
     ['Proteção', ['audit','security']]
   ];
-  const icons = {dashboard:'◫',management:'▤',devices:'▣',playlists:'≡',games:'⚽',resellers:'♙',credits:'◇',commerce:'▱',servers:'⌘',partners:'⇄',branding:'◐',settings:'⚙',health:'♡',migrations:'↗',audit:'☷',security:'♧'};
+  const icons = {'partner-servers':'⇄',pool:'◎',platforms:'▣',contacts:'✆',dashboard:'◫',management:'▤',devices:'▣',playlists:'≡',games:'⚽',resellers:'♙',credits:'◇',commerce:'▱',servers:'⌘',partners:'⇄',branding:'◐',settings:'⚙',health:'♡',migrations:'↗',audit:'☷',security:'♧'};
   function organize() {
     const nav = document.querySelector('.sidebar nav');
     if (!nav) return;
@@ -29,6 +29,7 @@
       if (heading.style.order !== order) heading.style.order = order;
       for (const button of buttons) {
         const page = button.dataset.page;
+        if(page==='partners'&&button.textContent==='Servidores parceiros')button.textContent='Atividade dos parceiros';
         const buttonOrder = String(groupIndex * 100 + pages.indexOf(page) + 1);
         if (button.style.order !== buttonOrder) button.style.order = buttonOrder;
         if (button.dataset.navIcon !== icons[page]) button.dataset.navIcon = icons[page];
