@@ -4,8 +4,8 @@
   document.body.classList.add('site-admin');
   const groups = [
     ['Operação', ['dashboard','management','devices','playlists','games']],
-    ['Comercial', ['resellers','credits','commerce']],
-    ['Sistema', ['servers','partners','branding','settings','health','migrations']],
+    ['Parcerias e comercial', ['resellers','partner-servers','pool','credits','commerce']],
+    ['Aplicativo e sistema', ['servers','partners','platforms','branding','contacts','settings','health','migrations']],
     ['Proteção', ['audit','security']]
   ];
   const icons = {dashboard:'◫',management:'▤',devices:'▣',playlists:'≡',games:'⚽',resellers:'♙',credits:'◇',commerce:'▱',servers:'⌘',partners:'⇄',branding:'◐',settings:'⚙',health:'♡',migrations:'↗',audit:'☷',security:'♧'};

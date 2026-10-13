@@ -13,7 +13,7 @@
   const platName = p => ({ webos: 'LG webOS', lg: 'LG webOS', roku: 'Roku TV', tizen: 'Samsung Tizen', samsung: 'Samsung Tizen', android: 'Android', androidtv: 'Android TV', web: 'Navegador', browser: 'Navegador', ios: 'iPhone / iPad' }[p] || p.toUpperCase());
   const lic = d => d.license || {};
   const exp = d => Number(lic(d).expiresAt || 0);
-  const date = t => t ? new Date(t).toLocaleDateString('pt-BR') : '—';
+  const date = t => t ? new Date(t).toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo'}) : '—';
   const ago = t => { if (!t) return 'Nunca'; const m = Math.round((Date.now() - t) / 60000); if (m < 2) return 'agora'; if (m < 60) return m + ' min'; const h = Math.round(m / 60); if (h < 48) return h + ' h'; return Math.round(h / 24) + ' dias'; };
   const statusLabel = { active: 'Ativa', trial: 'Teste', expired: 'Vencida', disabled: 'Desativada' };
   const kindLabel = { paid: 'Paga', partner: 'Código parceiro', trial: 'Teste grátis' };
@@ -52,7 +52,7 @@
         '<td>' + E(d.source?.name || 'Não configurada') + '<div class="sourcehint">' + E(d.source?.type?.toUpperCase() || 'Aguardando lista') + ((d.playlists || []).length > 1 ? ' · ' + d.playlists.length + ' listas' : '') + '</div></td>' +
         '<td><span class="zlic ' + warn + '">' + E(statusLabel[l.status] || l.status || '—') + '</span><div class="sourcehint">' + E(kindLabel[l.activationKind] || '') + (e ? ' · vence ' + date(e) + (days != null ? ' (' + days + 'd)' : '') : l.activationKind === 'partner' ? ' · conforme a playlist' : '') + '</div></td>' +
         '<td><span class="status ' + (d.enabled ? '' : 'off') + '"><i class="dot"></i>' + (d.enabled ? 'Ativo' : 'Desativado') + '</span></td>' +
-        '<td><button data-action="source" data-id="' + E(d.id) + '">Editar playlist</button> <button data-action="addSource" data-id="' + E(d.id) + '">Adicionar playlist</button> <button data-action="details" data-id="' + E(d.id) + '">Detalhes</button> <button data-action="license" data-id="' + E(d.id) + '">' + (user.role === 'reseller' ? 'Ativar com créditos' : 'Licença') + '</button> <button data-action="enabled" data-id="' + E(d.id) + '">' + (d.enabled ? 'Desativar' : 'Ativar') + '</button></td></tr>';
+        '<td><details class="zp-device-actions"><summary aria-label="Ações do aparelho">•••</summary><div><button data-action="source" data-id="' + E(d.id) + '">Editar playlist</button> <button data-action="addSource" data-id="' + E(d.id) + '">Adicionar playlist</button> <button data-action="details" data-id="' + E(d.id) + '">Detalhes</button> <button data-action="license" data-id="' + E(d.id) + '">' + (user.role === 'reseller' ? 'Ativar com créditos' : 'Licença') + '</button> <button data-action="enabled" data-id="' + E(d.id) + '">' + (d.enabled ? 'Desativar' : 'Ativar') + '</button></div></details></td></tr>';
     }).join('');
   }
   const head = '<div class="tablewrap"><table><thead><tr><th>Dispositivo</th><th>MAC do aplicativo</th><th>Conexão</th><th>Playlist</th><th>Licença</th><th>Status</th><th>Ações</th></tr></thead><tbody>';
@@ -121,9 +121,10 @@
     if (!user) return;
     if (page === 'dashboard') {
       const content = document.getElementById('content'), stats = content?.querySelector('.stats');
+      content?.querySelector('.notice')?.remove();
       if (stats && !content.querySelector('.zcards')) stats.outerHTML = insights();
     }
-    if (page === 'dashboard' || page === 'devices') bind();
+    if (page === 'dashboard' || page === 'devices' || page === 'playlists') bind();
   };
   if (typeof user !== 'undefined' && user) render();
 })();
