@@ -84,3 +84,4 @@
 - [x] ZUI Pool (contagem), Parceiros: DNS e aparelhos, Contatos no painel
 - [ ] Bloqueio do Pool quando lotar (aguarda decisão)
 - [ ] Contatos reais (usuário vai cadastrar)
+- [ ] Transferência de MAC na "Minha lista" (troca entre aparelhos, limite 3, igual Smarters): aguarda acesso à VPS e decisões de segurança.
