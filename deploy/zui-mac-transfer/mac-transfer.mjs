@@ -24,7 +24,6 @@ export function transferActivation(from, to, now = Date.now()) {
     if (a[k] === undefined) delete to[k]; else to[k] = a[k];
   }
   to.macTransfers = {count: used + 1, lastAt: now, lastFromMac: from.mac};
-  if (from.macTransfers?.count === undefined && from.macTransfers) delete from.macTransfers;
   for (const d of [from, to]) { d.revision = (d.revision || 0) + 1; d.updatedAt = now; }
   return {remaining: TRANSFER_LIMIT - used - 1};
 }
