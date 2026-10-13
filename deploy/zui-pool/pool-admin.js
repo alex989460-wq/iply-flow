@@ -14,7 +14,8 @@
   const err = e => '<div class="card"><p class="error">' + esc(e.message || e) + '</p></div>';
 
   function addNav() {
-    const nav = document.querySelector('.sidebar nav'); if (!nav || nav.querySelector('[data-page="pool"]')) return;
+    const nav = document.querySelector('.sidebar nav'); if (!nav) return;
+    if (nav.querySelector('[data-page="pool"]')) { const r = nav.querySelector('[data-page="resellers"]'), mine = [...nav.querySelectorAll('[data-zpool]')]; if (r && r.nextElementSibling !== mine[0]) r.after(...mine); return; }
     const after = nav.querySelector('[data-page="resellers"]') || nav.lastElementChild;
     const html = [['partner-servers', 'Parceiros: DNS e aparelhos', '🛰', false], ['pool', 'ZUI Pool', '◎', false], ['contacts', 'Contatos', '✆', true]]
       .filter(x => !x[3] || user?.role === 'admin')
