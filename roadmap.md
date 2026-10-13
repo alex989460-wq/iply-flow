@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Em andamento
+- [ ] Diagnosticar HTTP 502 do catálogo do código 4101 no Web Player/app Microsoft; propor correção isolada sem alterar clientes LG/Roku/Android funcionais.
 - [ ] Testes LG: VPS já permite todos os IPs fornecidos em HTTP/HTTPS; nenhuma regra adicional necessária na VPS. App e catálogo retornaram 200, ZUI/ZapCRM ativos. Exceção Cloudflare pendente de autorização/acesso; domínio usa proxy Cloudflare, regras externas ainda não verificadas. Manter autenticação e portas privadas.
 - [ ] Investigação da lentidão do ZapCRM pausada por solicitação do usuário em 13/10/2026; nenhuma correção aplicada nesta investigação.
 - [ ] Organizar site ZUI, painel e edição de playlists; aplicar somente apresentação com backup e verificar fluxos.
