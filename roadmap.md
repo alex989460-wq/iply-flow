@@ -63,3 +63,11 @@
 - [x] Backup ZUI para Telegram a cada 10 min.
 - [x] /app adaptado para celular (iPhone/Android).
 - [ ] Fechar portas de banco 5432/6543/8000/8100 (autorizado); endurecer SSH somente após validar acesso por chave e recuperação.
+
+## ZUI (13/10/2026)
+- [x] Login por código em servidores "Direto" com provedor bloqueando a VPS.
+- [ ] Versão web (/app no navegador): listas HTTP bloqueadas pelo navegador.
+- [ ] Painel admin: adicionar/remover dias da licença do app (teste do aviso de vencimento).
+- [ ] Cloudflare Turnstile no login do painel ZUI (igual Super Gestor).
+- [ ] Painel admin/revenda: referências do strimotv (divisões, parceiros, filtros).
+- [ ] Legenda LG antiga: extração progressiva pelo servidor (aguarda autorização).
