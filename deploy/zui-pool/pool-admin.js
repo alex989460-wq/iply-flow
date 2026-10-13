@@ -6,7 +6,8 @@
     pool: ['ZUI Pool', 'Reproduções simultâneas por parceiro. Por enquanto só contamos — ninguém é bloqueado.'],
     'partner-servers': ['Servidores parceiros', 'Códigos, delegações e validade das parcerias.'],
     platforms: ['Disponibilidade do app', 'Plataformas e links de instalação.'],
-    contacts: ['Contatos', 'Telegram, WhatsApp e e-mail de atendimento.']
+    contacts: ['Contatos', 'Telegram, WhatsApp e e-mail de atendimento.'],
+    resellers: ['Revendedores', 'Contas, saldo e sub-revendas.']
   };
   const money = v => v == null ? 'Sob consulta' : 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 0 });
   const date = t => t ? new Date(t).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}) : '—';
@@ -35,7 +36,7 @@
     document.getElementById('pageSubtitle').textContent = MINE[page][1];
     document.querySelectorAll('[data-page]').forEach(b => b.classList.toggle('active', b.dataset.page === page));
     content().innerHTML = '<div class="card"><p class="muted">Carregando…</p></div>';
-    ({ pool: pagePool, 'partner-servers': pageServers, contacts: pageContacts, platforms: pagePlatforms })[page]().catch(e => { content().innerHTML = err(e); });
+    ({ pool: pagePool, 'partner-servers': pageServers, contacts: pageContacts, platforms: pagePlatforms, resellers: pageResellers })[page]().catch(e => { content().innerHTML = err(e); });
   };
 
   // ---------- ZUI Pool ----------
@@ -90,6 +91,14 @@
       await api('admin/partner-servers/' + kind + '/execute', 'POST', { ...input, token: p.token, confirm: true });
       alert('Pronto: ' + p.count + ' lista(s) atualizada(s).'); render();
     });
+  }
+
+  async function pageResellers() {
+    const [a,c,p]=await Promise.all([api('admin/accounts'),api('admin/credits'),api('admin/partner-servers')]);
+    const accounts=a.accounts.filter(x=>x.role!=='admin'),balance=new Map(c.accounts.map(x=>[x.id,x.balance]));
+    content().innerHTML='<div class="toolbar"><input id="zpAccountSearch" placeholder="Buscar nome ou e-mail">'+(user.role!=='subreseller'?'<button id="zpCreateAccount" class="primary">+ Criar revenda</button>':'')+'</div><div class="tablewrap"><table id="zpAccounts"><thead><tr><th>Revenda</th><th>Perfil / responsável</th><th>Créditos</th><th>Aparelhos</th><th>Sub-revendas</th><th>Servidores parceiros</th></tr></thead><tbody>'+accounts.map(u=>'<tr><td><strong>'+esc(u.name)+'</strong><div class="sourcehint">'+esc(u.email)+'</div></td><td>'+esc(u.role==='subreseller'?'Sub-revenda':'Revendedor')+'<div class="sourcehint">'+esc(a.accounts.find(x=>x.id===u.parentId)?.name||'—')+'</div></td><td>'+Number(balance.get(u.id)||0)+'</td><td>'+devices.filter(d=>d.resellerId===u.id).length+'</td><td>'+a.accounts.filter(x=>x.parentId===u.id).length+'</td><td>'+p.servers.filter(s=>s.partnerOwnerId===u.id).map(s=>esc(s.name)+' · '+esc(s.code)+'<div class="sourcehint">'+(s.partnerExpiresAt?date(s.partnerExpiresAt):'Sem vencimento')+'</div>').join('')+'</td></tr>').join('')+'</tbody></table></div>';
+    document.getElementById('zpAccountSearch').oninput=ev=>{const q=ev.target.value.toLowerCase();content().querySelectorAll('#zpAccounts tbody tr').forEach(tr=>tr.hidden=!tr.textContent.toLowerCase().includes(q));};
+    const create=document.getElementById('zpCreateAccount');if(create)create.onclick=()=>{const admin=user.role==='admin';openModal('Criar revenda',field('zpAccountName','Nome')+field('zpAccountEmail','E-mail','','email')+field('zpAccountPassword','Senha (mínimo 12 caracteres)','','password')+(admin?'<label>Perfil<select id="zpAccountRole"><option value="reseller">Revendedor</option><option value="subreseller">Sub-revenda</option></select></label><label>Revendedor responsável<select id="zpAccountParent"><option value="">Nenhum</option>'+a.accounts.filter(u=>u.role==='reseller').map(u=>'<option value="'+esc(u.id)+'">'+esc(u.name)+'</option>').join('')+'</select></label>':''),async()=>{const email=document.getElementById('zpAccountEmail').value.trim(),password=document.getElementById('zpAccountPassword').value;if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||password.length<12)throw Error('Informe e-mail válido e senha de pelo menos 12 caracteres.');await api('admin/accounts','POST',{name:document.getElementById('zpAccountName').value.trim().slice(0,80),email,password,role:admin?document.getElementById('zpAccountRole').value:'subreseller',parentId:admin?document.getElementById('zpAccountParent').value:undefined});});};
   }
 
   async function pagePlatforms() {
