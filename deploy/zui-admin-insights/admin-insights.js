@@ -9,8 +9,8 @@
   let zp = 0, lastQuery = '';
   const save = () => sessionStorage.setItem(KEY, JSON.stringify(f));
   const online = d => Date.now() - (d.lastSeenAt || 0) < 90000;
-  const plat = d => String(d.platform || 'outro').toLowerCase().replace(/[^a-z0-9]+/g, '') || 'outro';
-  const platName = p => ({ webos: 'LG webOS', lg: 'LG webOS', roku: 'Roku TV', tizen: 'Samsung Tizen', samsung: 'Samsung Tizen', android: 'Android', androidtv: 'Android TV', web: 'Navegador', browser: 'Navegador', ios: 'iPhone / iPad' }[p] || p.toUpperCase());
+  const plat = d => { const p=String(d.platform||'').toLowerCase(); return /roku/.test(p)?'roku':/webos|lgwebos/.test(p)?'webos':/tizen|samsung/.test(p)?'tizen':/android/.test(p)?'android':/fire/.test(p)?'firetv':/ios|iphone|ipad/.test(p)?'ios':/web|browser/.test(p)?'browser':'outro'; };
+  const platName = p => ({ webos: 'LG webOS', lg: 'LG webOS', roku: 'Roku TV', tizen: 'Samsung Tizen', samsung: 'Samsung Tizen', android: 'Android', androidtv: 'Android TV', web: 'Navegador', browser: 'Navegador', ios: 'iPhone / iPad', firetv: 'Fire TV', outro: 'Outro aparelho' }[p] || p.toUpperCase());
   const lic = d => d.license || {};
   const exp = d => Number(lic(d).expiresAt || 0);
   const date = t => t ? new Date(t).toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo'}) : '—';
