@@ -1,7 +1,7 @@
 # Roadmap
 
 ## Em andamento
-- [ ] Liberar exclusivamente os IPs e intervalos fornecidos para testes LG no ZUI, preservando autenticação, licenças e portas privadas; conferir VPS e eventual Cloudflare.
+- [ ] Testes LG: VPS já permite todos os IPs fornecidos em HTTP/HTTPS; nenhuma regra adicional necessária na VPS. App e catálogo retornaram 200, ZUI/ZapCRM ativos. Exceção Cloudflare pendente de autorização/acesso; domínio usa proxy Cloudflare, regras externas ainda não verificadas. Manter autenticação e portas privadas.
 - [ ] Investigação da lentidão do ZapCRM pausada por solicitação do usuário em 13/10/2026; nenhuma correção aplicada nesta investigação.
 - [ ] Organizar site ZUI, painel e edição de playlists; aplicar somente apresentação com backup e verificar fluxos.
 - [ ] Fechar portas públicas de bancos após mapear dependências; revisar outras exposições. Autorizado em 12/10/2026.
