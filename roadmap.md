@@ -66,8 +66,8 @@
 
 ## ZUI (13/10/2026)
 - [x] Login por código em servidores "Direto" com provedor bloqueando a VPS.
-- [ ] Versão web (/app no navegador): listas HTTP bloqueadas pelo navegador.
-- [ ] Painel admin: adicionar/remover dias da licença do app (teste do aviso de vencimento).
-- [ ] Cloudflare Turnstile no login do painel ZUI (igual Super Gestor).
-- [ ] Painel admin/revenda: referências do strimotv (divisões, parceiros, filtros).
+- [x] Versão web (/app no navegador): listas HTTP agora passam pelo servidor ZUI (só no navegador).
+- [x] Painel admin: adicionar/remover dias da licença do app (números negativos removem).
+- [ ] Cloudflare Turnstile no login do painel ZUI: suporte já existe; aguarda usuário liberar zuiplayer.com no widget do Cloudflare.
+- [ ] Painel admin/revenda: referências do strimotv coletadas; aguarda aprovação da lista de melhorias.
 - [ ] Legenda LG antiga: extração progressiva pelo servidor (aguarda autorização).
