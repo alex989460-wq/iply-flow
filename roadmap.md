@@ -71,3 +71,7 @@
 - [ ] Cloudflare Turnstile no login do painel ZUI: suporte já existe; aguarda usuário liberar zuiplayer.com no widget do Cloudflare.
 - [ ] Painel admin/revenda: referências do strimotv coletadas; aguarda aprovação da lista de melhorias.
 - [ ] Legenda LG antiga: extração progressiva pelo servidor (aguarda autorização).
+
+- [x] ZUI Pool (contagem), Parceiros: DNS e aparelhos, Contatos no painel
+- [ ] Bloqueio do Pool quando lotar (aguarda decisão)
+- [ ] Contatos reais (usuário vai cadastrar)

@@ -1,0 +1,9 @@
+body.site-admin .zpool{margin-bottom:16px}
+body.site-admin .zphead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+body.site-admin .zpbig{font-size:28px}body.site-admin .zpbig small{font-size:13px;opacity:.7;font-weight:500}
+body.site-admin .zpbar{height:10px;border-radius:6px;background:#ffffff14;overflow:hidden;margin:10px 0 6px}body.site-admin .zpbar i{display:block;height:100%}
+body.site-admin .zptable{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}body.site-admin .zptable th,body.site-admin .zptable td{padding:8px;border-bottom:1px solid #ffffff14;text-align:left;vertical-align:top}
+body.site-admin .zprow{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}body.site-admin .zprow>*{flex:1;min-width:180px}
+body.site-admin .zpact{display:flex;gap:6px;flex-wrap:wrap}body.site-admin .zpact button{padding:6px 10px;font-size:12px}
+body.site-admin .zpinfo{margin-bottom:16px}
+@media(max-width:760px){body.site-admin .zptable{display:block;overflow-x:auto;white-space:nowrap}}
