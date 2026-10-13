@@ -6,6 +6,7 @@ import {migrate} from './migrations.mjs';
 import {devicePlaylists} from './client.mjs';
 import {license} from './commerce.mjs';
 import {fail,origin,visibleAccounts,audit} from './security.mjs';
+import {partnershipExpiry,partnershipActive,partnershipDate} from './partnership-policy.mjs';
 
 export const POOL_PLANS=[
  {id:'inicial',name:'Inicial',slots:100,monthly:199},
@@ -40,7 +41,8 @@ function sample(db,database){
  saveHist();
 }
 const deviceUsesServer=(d,s)=>devicePlaylists(d).some(p=>{try{return origin(p.source.host||p.source.url)===origin(s.host)&&(!p.source.serverCode||p.source.serverCode===s.code);}catch{return false;}});
-function canManage(db,user,s){return user.role==='admin'||(s.partnerOwnerId&&visibleAccounts(db,user).some(a=>a.id===s.partnerOwnerId));}
+function canView(db,user,s){return user.role==='admin'||(s.partnerOwnerId&&visibleAccounts(db,user).some(a=>a.id===s.partnerOwnerId));}
+function canManage(db,user,s){return user.role==='admin'||(canView(db,user,s)&&partnershipActive(s));}
 const cleanContact=(v,max=160)=>String(v||'').trim().slice(0,max);
 
 export async function zuiPool(req,res,url,user,db,input,ctx){
@@ -71,13 +73,15 @@ export async function zuiPool(req,res,url,user,db,input,ctx){
  }
  if(path==='/api/admin/partner-servers'&&req.method==='GET'){
   const owners=new Map(db.users.map(u=>[u.id,u.name]));
-  const list=db.servers.filter(s=>canManage(db,user,s)).map(s=>({id:s.id,code:s.code,name:s.name,host:s.host,enabled:s.enabled!==false,requestRoute:s.requestRoute||'auto',maxConnections:s.maxConnections||0,partnerOwnerId:s.partnerOwnerId||null,ownerName:owners.get(s.partnerOwnerId)||'',active:database.activePlayback(s.id),devices:db.devices.filter(d=>deviceUsesServer(d,s)).length}));
+  const list=db.servers.filter(s=>canView(db,user,s)).map(s=>({id:s.id,code:s.code,name:s.name,host:s.host,enabled:s.enabled!==false,requestRoute:s.requestRoute||'auto',maxConnections:s.maxConnections||0,partnerOwnerId:s.partnerOwnerId||null,partnerExpiresAt:s.partnerExpiresAt||null,partnerExpiresOn:partnershipDate(s.partnerExpiresAt),partnershipActive:partnershipActive(s),canManage:canManage(db,user,s),ownerName:owners.get(s.partnerOwnerId)||'',active:database.activePlayback(s.id),devices:db.devices.filter(d=>deviceUsesServer(d,s)).length}));
   send(res,200,{servers:list,owners:isAdmin?db.users.filter(u=>['reseller','subreseller'].includes(u.role)).map(u=>({id:u.id,name:u.name,email:u.email})):[]});return true;
  }
  if(path==='/api/admin/partner-servers/assign'&&req.method==='POST'){
   if(!isAdmin)fail('Somente o administrador atribui servidores.',403);
   const s=db.servers.find(s=>s.id===input.serverId);if(!s)fail('Servidor não encontrado.',404);
   if(input.ownerId&&!db.users.some(u=>u.id===input.ownerId&&['reseller','subreseller'].includes(u.role)))fail('Revendedor inválido.');
+  if(Object.hasOwn(input,'expiresOn')){try{s.partnerExpiresAt=partnershipExpiry(input.expiresOn);}catch(e){fail(e.message);}}
+  else if(s.partnerOwnerId!==(input.ownerId||null))s.partnerExpiresAt=null;
   s.partnerOwnerId=input.ownerId||null;audit(db,'partner.assign',s.id);saveDb(db);send(res,200,{ok:true});return true;
  }
  if(path==='/api/admin/partner-servers/devices'&&req.method==='GET'){
