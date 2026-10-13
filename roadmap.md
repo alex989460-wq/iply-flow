@@ -65,15 +65,16 @@
 - [ ] Fechar portas de banco 5432/6543/8000/8100 (autorizado); endurecer SSH somente após validar acesso por chave e recuperação.
 
 ## ZUI (13/10/2026)
-- [ ] Modernizar painéis admin/revenda e Pool; separar aparelhos, retirar Web da vitrine de plataformas e permitir editar disponibilidade pelo admin.
-- [ ] Revisar gestão de códigos parceiros, edição/exclusão, validade e permissões; testar isoladamente e publicar com backup sem mudar reprodução.
+- [x] Modernizar painéis admin/revenda e Pool; aparelhos agrupados por plataforma e ações compactas; Web retirado da vitrine sem apagar aparelhos; disponibilidade, descrição e link editáveis no admin. Salvamento/leitura verificados no painel real.
+- [x] Gestão de códigos com edição/exclusão e validade; exclusão bloqueada para códigos vinculados, confirmação digitada e auditoria; troca de código/DNS em uso bloqueada no editor, mantendo migração confirmada. Sete testes passaram; painel admin autenticado e páginas públicas sem erros/overflow. Backup /root/zui-management-before-1791898771, 1449 arquivos protegidos intactos; só ZUI reiniciado.
+- [ ] Verificação final com sessão real de revendedor e TV: não há sessão/senha da revenda disponível neste teste; TV requer teste do usuário. Revisão não garante ausência de golpes.
 - [x] Vencimento opcional da delegação: salvar/ler/remover testado no servidor Tester e restaurado; quatro testes de data/permissão passaram. Reprodução e licenças intactas.
 - [x] Páginas https://zuiplayer.com/pool e /disponivel publicadas; logos em aparelhos; computador/celular sem overflow/imagens quebradas; painel autenticado sem erros. Backup /root/zui-partner-expiry-before-1791895003; 1440 arquivos protegidos intactos, somente ZUI reiniciado. Demais plataformas ficam como não confirmadas, sem inventar aprovação em lojas.
 - [x] Login por código em servidores "Direto" com provedor bloqueando a VPS.
 - [x] Versão web (/app no navegador): listas HTTP agora passam pelo servidor ZUI (só no navegador).
 - [x] Painel admin: adicionar/remover dias da licença do app (números negativos removem).
 - [ ] Cloudflare Turnstile no login do painel ZUI: suporte já existe; aguarda usuário liberar zuiplayer.com no widget do Cloudflare.
-- [ ] Painel admin/revenda: referências do strimotv coletadas; aguarda aprovação da lista de melhorias.
+- [x] Painel admin/revenda reorganizado: contas, saldo, aparelhos, sub-revendas e servidores com validade na mesma tabela; criação reutiliza permissões existentes.
 - [ ] Legenda LG antiga: extração progressiva pelo servidor (aguarda autorização).
 
 - [x] ZUI Pool (contagem), Parceiros: DNS e aparelhos, Contatos no painel
