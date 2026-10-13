@@ -4,6 +4,7 @@ Usage: apply.py admin-insights.js admin-insights.css   (re-run replaces the prev
 import os, re, shutil, sys, time
 H = '/opt/zuiplayer/admin-api/public/index.html'
 js, css = open(sys.argv[1], encoding='utf8').read(), open(sys.argv[2], encoding='utf8').read()
+if len(sys.argv)>3: js+='\n'+open(sys.argv[3],encoding='utf8').read()
 h = open(H, encoding='utf8').read()
 block = '<style id="zui-pool-admin-css">' + css + '</style><script id="zui-pool-admin">' + js + '</script>'
 h2 = re.sub(r'<style id="zui-pool-admin-css">.*?</script>', lambda m: block, h, flags=re.S) if 'id="zui-pool-admin"' in h else None
