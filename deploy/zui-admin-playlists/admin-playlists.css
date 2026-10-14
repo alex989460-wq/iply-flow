@@ -1,0 +1,45 @@
+/* Gestor de playlists + correções de celular do painel admin/revenda (somente apresentação). */
+body.site-admin .zpl-cell{cursor:pointer;text-decoration:underline dotted #3b82f680;text-underline-offset:4px}
+.zpl-lock{overflow:hidden}
+.zpl-overlay{position:fixed;inset:0;z-index:300;background:#03060cd9;display:flex;align-items:center;justify-content:center;padding:16px}
+.zpl-box{width:min(640px,100%);max-height:calc(100vh - 32px);display:flex;flex-direction:column;background:#0d1420;border:1px solid #253246;border-radius:12px;box-shadow:0 24px 60px #000a;color:#f5f5f5}
+.zpl-head{display:flex;justify-content:space-between;gap:12px;padding:18px 18px 12px;border-bottom:1px solid #253246}
+.zpl-head h2{margin:0;font-size:20px}.zpl-head p{margin:4px 0 0;color:#9fb2cd;font-size:13px;word-break:break-all}
+.zpl-x{width:40px;height:40px;flex:none;border-radius:8px;font-size:22px;line-height:1;padding:0}
+.zpl-body{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 18px;display:grid;gap:10px}
+.zpl-item{border:1px solid #253246;border-radius:10px;padding:12px;background:#0a1019;display:grid;gap:10px}
+.zpl-item.on{border-color:#3b82f6;box-shadow:inset 3px 0 0 #3b82f6}
+.zpl-info{display:flex;flex-wrap:wrap;align-items:center;gap:6px}.zpl-info strong{font-size:15px;margin-right:4px}
+.zpl-info small{flex-basis:100%;color:#9fb2cd;font-size:12px;word-break:break-all}
+.zpl-tag{font-size:11px;padding:2px 8px;border-radius:999px;background:#34d39922;color:#34d399}.zpl-tag.lock{background:#f59e0b22;color:#fbbf24}
+.zpl-acts{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.zpl-acts button,.zpl-foot button{min-height:40px;padding:8px 14px;border-radius:8px;font-size:13px}
+.zpl-acts .danger{color:#fca5a5;border-color:#7f1d1d}
+.zpl-form{display:grid;gap:10px;border-top:1px dashed #253246;padding-top:10px}
+.zpl-form[hidden]{display:none!important}
+.zpl-form label{display:grid;gap:4px;font-size:12px;color:#9fb2cd}.zpl-form em{font-style:normal;opacity:.7}
+.zpl-form input{width:100%;box-sizing:border-box;min-height:44px;font-size:16px}
+.zpl-err{color:#fca5a5;font-size:13px;margin:0;min-height:0}
+.zpl-empty{color:#9fb2cd;text-align:center;padding:24px 0}
+.zpl-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 18px;border-top:1px solid #253246;color:#9fb2cd;font-size:13px}
+@media(max-width:760px){
+ body.site-admin:not(.panel-nav-open) .sidebar{display:none!important}
+ .zpl-overlay{align-items:flex-end;padding:0}
+ .zpl-box{width:100%;max-height:92vh;border-radius:16px 16px 0 0;padding-bottom:env(safe-area-inset-bottom)}
+ .zpl-acts button{flex:1 1 auto}
+ body.site-admin .modal{align-items:flex-end!important}
+ body.site-admin .modalbox{max-height:92vh!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch}
+ body.site-admin #modalClose{min-width:40px;min-height:40px}
+ /* Tabela de aparelhos vira cartões */
+ body.site-admin #content .tablewrap{overflow:visible!important;border:0!important;background:none!important}
+ body.site-admin #content .tablewrap table,body.site-admin #content .tablewrap tbody{display:block!important;width:100%!important;min-width:0!important;max-width:100%!important}
+ body.site-admin #content .tablewrap tr{box-sizing:border-box;width:100%!important;min-width:0!important}
+ body.site-admin #content .tablewrap thead{display:none}
+ body.site-admin #content .tablewrap tr{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;padding:14px;margin:0 0 10px;border:1px solid #253246;border-radius:12px;background:#0d1420}
+ body.site-admin #content .tablewrap td{display:block;padding:0!important;border:0!important;min-width:0;white-space:normal!important;word-break:break-word}
+ body.site-admin #content .tablewrap td:first-child{grid-column:1/-1}
+ body.site-admin #content .tablewrap td:last-child{grid-column:1/-1}
+ body.site-admin #content .zp-device-actions summary{width:100%;min-height:42px;display:flex;align-items:center;justify-content:center;border:1px solid #253246;border-radius:8px}
+ body.site-admin #content .zp-device-actions[open]>div{position:static!important;display:grid!important;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;box-shadow:none!important;width:auto!important}
+ body.site-admin #content .zp-device-actions[open]>div button{min-height:42px;width:100%}
+}
