@@ -56,7 +56,7 @@
  document.addEventListener('click',e=>{
   const t=e.target instanceof Element?e.target.closest('[data-zpool]'):null;
   if(!t)return;history.pushState({},'',pathFor(t.dataset.page));closeMenus();
- });
+ },true);
  let initialized=false;
  const restore=()=>{
   if(typeof user==='undefined'||!user||typeof render!=='function')return false;
