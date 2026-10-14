@@ -6,17 +6,26 @@ body.zv-public,body.site-admin,body.zui-partner-public{
  --ref-danger:0 67% 42%;--ref-warning:36 85% 33%;letter-spacing:0;
 }
 body.zv-public,body.zui-partner-public{
- --ref-backdrop:215 32% 87%;--ref-band:215 28% 92%;--ref-raised:215 28% 92%;--ref-line:214 22% 80%;
- --camo-bg:var(--ref-backdrop);--bg:hsl(var(--ref-backdrop));
- --camo-raised:var(--ref-raised);--organized-raised:var(--ref-raised);
- --camo-border:var(--ref-line);--organized-line:var(--ref-line);--rx-border:var(--ref-line);
+ --ref-backdrop:222 38% 5%;--ref-band:222 32% 7%;--ref-raised:222 30% 10%;--ref-line:220 20% 16%;
+ --ref-ink:220 25% 96%;--ref-paper:222 30% 9%;--ref-muted:218 12% 68%;--ref-on-primary:0 0% 100%;
+ --ref-shadow:0 8px 24px -16px hsl(220 80% 2% / .85);
+ --camo-bg:var(--ref-backdrop);--camo-text:var(--ref-ink);--camo-muted:var(--ref-muted);
+ --camo-card:var(--ref-paper);--camo-glass:var(--ref-paper);--camo-raised:var(--ref-raised);--camo-border:var(--ref-line);
+ --organized-surface:var(--ref-paper);--organized-raised:var(--ref-raised);--organized-line:var(--ref-line);--organized-text:var(--ref-ink);--organized-muted:var(--ref-muted);
+ --rx-glass:var(--ref-paper);--rx-border:var(--ref-line);--rx-shine:var(--ref-ink);--rx-lavender:215 30% 62%;
+ --public-ink:var(--ref-ink);--public-paper:var(--ref-paper);
+ --bg:var(--ref-backdrop);--surface:var(--ref-paper);--surface-raised:var(--ref-raised);--fg:var(--ref-ink);--muted:var(--ref-muted);--line:var(--ref-line);
+ --hover-shadow:0 12px 32px hsl(220 90% 2% / .55);
  --hero-shade:linear-gradient(90deg,hsl(var(--ref-backdrop) / .99),hsl(var(--ref-backdrop) / .93) 48%,hsl(var(--ref-backdrop) / .14));
+ color-scheme:dark;
  background-color:hsl(var(--ref-backdrop))!important;
- background-image:radial-gradient(820px 420px at 84% -4%,hsl(215 52% 76% / .55),transparent 70%)!important;
+ background-image:
+  radial-gradient(ellipse 100% 80% at 50% 0%,hsl(207 100% 47% / .12) 0%,transparent 60%),
+  radial-gradient(ellipse 46% 52% at 50% 26%,hsl(220 100% 22% / .30) 0%,transparent 56%)!important;
 }
-body.zv-public,body.zui-partner-public{--ref-muted:218 14% 32%;--camo-muted:var(--ref-muted);--organized-muted:var(--ref-muted)}
-body.zui-partner-public :is(.hero p,.platform-lead p){color:hsl(218 16% 24%)!important}
-body.zv-public .zv-art-note{color:hsl(218 14% 32%)!important}
+body.zv-public,body.zui-partner-public{--ref-blue:209 100% 47%}
+body.zui-partner-public :is(.hero p,.platform-lead p){color:hsl(220 16% 78%)!important}
+body.zv-public .zv-art-note{color:hsl(218 14% 68%)!important}
 body.zv-public :is(.zv-faq,.zv-legal){background-color:hsl(var(--ref-band))!important}
 body.zui-partner-public .section:nth-of-type(even){background-color:hsl(var(--ref-band))}
 body.site-admin{
@@ -29,7 +38,7 @@ body:is(.zv-public,.site-admin,.zui-partner-public) :is(input,select,textarea){b
 body:is(.zv-public,.site-admin,.zui-partner-public) :is(input,textarea)::placeholder{color:hsl(var(--ref-muted));opacity:1}
 body:is(.zv-public,.site-admin,.zui-partner-public) :is(button,a,input,select,textarea,summary):focus-visible{outline:2px solid hsl(var(--ref-blue))!important;outline-offset:3px}
 body:is(.zv-public,.site-admin,.zui-partner-public) :is(button,.btn,.zv-btn){border-radius:6px!important;transition:background-color .18s,border-color .18s,box-shadow .18s,transform .18s}
-body:is(.zv-public,.site-admin,.zui-partner-public) :is(button.primary,.btn.primary,.zv-btn.primary){background:hsl(var(--ref-blue))!important;color:hsl(var(--ref-paper))!important;border-color:hsl(var(--ref-blue))!important;box-shadow:var(--ref-shadow)!important}
+body:is(.zv-public,.site-admin,.zui-partner-public) :is(button.primary,.btn.primary,.zv-btn.primary){background:hsl(var(--ref-blue))!important;color:hsl(var(--ref-on-primary,var(--ref-paper)))!important;border-color:hsl(var(--ref-blue))!important;box-shadow:var(--ref-shadow)!important}
 body:is(.zv-public,.site-admin,.zui-partner-public) button:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
 body:is(.zv-public,.site-admin,.zui-partner-public) :is(.actions,.row,.toolbar,.zprow,.zpl-acts,.zpl-foot){flex-wrap:wrap}
 body:is(.zv-public,.site-admin,.zui-partner-public) :is(.row,.formrow,.grid,.two,.zfilters)>*{min-width:0}
@@ -89,6 +98,11 @@ body.zui-partner-public header{box-shadow:none!important;border-bottom:1px solid
 body.zui-partner-public :is(.hero,.platform-lead):after{background:var(--hero-shade),linear-gradient(180deg,transparent 58%,hsl(var(--ref-backdrop)/.88))!important}
 @media(max-width:760px){body.zui-partner-public :is(.hero .copy,.platform-lead .lead){background:hsl(var(--ref-backdrop)/.93);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:10px;padding:16px 18px}}
 body.zui-partner-public :is(.filters,.platform-filters){padding-bottom:16px;border-bottom:1px solid hsl(var(--ref-line))}
+body.zui-partner-public :is(h1,h2,h3,h4){color:hsl(var(--ref-ink))!important}
+body.zui-partner-public .btn:not(.primary){color:hsl(var(--ref-ink))!important;border-color:hsl(var(--ref-line))!important}
+body.zui-partner-public :is(footer p,footer small){color:hsl(var(--ref-muted))!important}
+body.zui-partner-public footer a{color:hsl(var(--ref-muted))!important}
+body.zui-partner-public footer a:hover{color:hsl(var(--ref-ink))!important}
 @media(hover:hover){
  body:is(.zv-public,.site-admin,.zui-partner-public) :is(button,.btn,.zv-btn):not(:disabled):hover{border-color:hsl(var(--ref-blue))!important;box-shadow:var(--ref-shadow)!important}
  body.site-admin .sidebar nav button:hover{background:hsl(var(--ref-raised))!important}
