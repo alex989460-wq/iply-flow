@@ -6,7 +6,7 @@ test('Web is absent from the public platform catalogue, without altering devices
  assert.equal(platformCatalogue(db).some(p=>p.id==='web'),false);assert.equal(db.devices[0].platform,'web');
 });
 test('Administrator availability changes survive catalogue readback',()=>{
- const p=validatePlatform({...PLATFORM_DEFAULTS[0],status:'available',url:'https://zuiplayer.com/install/lg',visible:false});
+ const p=validatePlatform({...PLATFORM_DEFAULTS.find(p=>p.id==='lg'),status:'available',url:'https://zuiplayer.com/install/lg',visible:false});
  const read=platformCatalogue({settings:{platforms:{lg:p}}}).find(x=>x.id==='lg');assert.equal(read.status,'available');assert.equal(read.visible,false);assert.equal(read.url,'https://zuiplayer.com/install/lg');
 });
 test('Windows links to the supplied Microsoft listing; Xbox remains unconfirmed until supported',()=>{
@@ -20,6 +20,7 @@ test('Administrator can enable Xbox independently when its package is released',
  const read=platformCatalogue({settings:{platforms:{xbox}}});
  assert.equal(read.find(p=>p.id==='xbox').status,'available');
  assert.equal(read.find(p=>p.id==='windows').status,'available');
+ assert.equal(read.find(p=>p.id==='xbox').url,'https://apps.microsoft.com/detail/9NX9KT313W7P');
 });
 test('Catalogue rejects executable, credential and private links',()=>{
  for(const url of ['javascript:alert(1)','http://store.example/app','https://user:pass@store.example/app','https://127.0.0.1/app','https://localhost/app'])assert.throws(()=>platformUrl(url));

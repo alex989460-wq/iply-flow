@@ -1,6 +1,7 @@
 # Roadmap
 
 ## ZUI (14/10/2026)
+- [x] Página inicial com Disponível e Parceiros no menu e rodapé, mais link Xbox e computadores; Xbox habilitado via controle admin no mesmo link Microsoft, conforme confirmação do usuário. Navegação e catálogo verificados em computador/celular, sem erros ou overflow. Backup /root/zui-home-links-before-1791989349; 1458 arquivos protegidos intactos; nenhum serviço reiniciado.
 - [ ] Limpeza antiga: zero MACs restantes no manifesto do estresse ou nos identificadores históricos comprovados; 173 aparelhos preservados. Para excluir outros inativos há mais de três dias falta identificação confiável de quais eram testes; não inferir pelo nome genérico ou lista vazia.
 - [x] Disponível e Parceiros modernizados; Abrir player retirado dessas páginas sem desativar app Web. Windows disponível no link Microsoft fornecido; Xbox editável, em confirmação pois loja informa apenas PC. Nove testes passaram; painel autenticado salvou/releu Windows e catálogo público confirmou. Computador/celular sem overflow/imagens quebradas/erros de página. Backup /root/zui-platform-refresh-before-1791988855, 1452 arquivos protegidos intactos; apenas ZUI reiniciado, ZapCRM ativo.
 
