@@ -59,7 +59,7 @@
  },true);
  let initialized=false;
  const restore=()=>{
-  if(typeof user==='undefined'||!user||typeof render!=='function')return false;
+  if(document.readyState==='loading'||typeof user==='undefined'||!user||typeof render!=='function'||typeof refreshBusy==='undefined'||refreshBusy||!document.querySelector('[data-zpool]'))return false;
   const v=requested();
   if(views.has(v)){page=v;render();}
   return true;
