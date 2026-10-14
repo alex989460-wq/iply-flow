@@ -9,8 +9,8 @@
   let zp = 0, lastQuery = '';
   const save = () => sessionStorage.setItem(KEY, JSON.stringify(f));
   const online = d => typeof d.online === 'boolean' ? d.online : !!d.lastSeenAt && Date.now() - d.lastSeenAt < 90000;
-  const plat = d => { const p=String(d.platform||'').toLowerCase(); return /roku/.test(p)?'roku':/webos|lgwebos/.test(p)?'webos':/tizen|samsung/.test(p)?'tizen':/android/.test(p)?'android':/fire/.test(p)?'firetv':/ios|iphone|ipad/.test(p)?'ios':/web|browser/.test(p)?'browser':'outro'; };
-  const platName = p => ({ webos: 'LG webOS', lg: 'LG webOS', roku: 'Roku TV', tizen: 'Samsung Tizen', samsung: 'Samsung Tizen', android: 'Android', androidtv: 'Android TV', web: 'Navegador', browser: 'Navegador', ios: 'iPhone / iPad', firetv: 'Fire TV', outro: 'Outro aparelho' }[p] || p.toUpperCase());
+  const plat = d => { const p=String(d.platform||'').toLowerCase(); return /roku/.test(p)?'roku':/webos|lgwebos/.test(p)?'webos':/tizen|samsung/.test(p)?'tizen':/fire/.test(p)?'firetv':/android/.test(p)?'android':/ios|iphone|ipad/.test(p)?'ios':/xbox/.test(p)?'xbox':/windows|win32|win64/.test(p)?'windows':/web|browser|navegador/.test(p)?'browser':'outro'; };
+  const platName = p => ({ webos: 'LG webOS', lg: 'LG webOS', roku: 'Roku TV', tizen: 'Samsung Tizen', samsung: 'Samsung Tizen', android: 'Android', androidtv: 'Android TV', web: 'Navegador', browser: 'Navegador', windows: 'Computadores', xbox: 'Xbox', ios: 'iPhone / iPad', firetv: 'Fire TV', outro: 'Outro aparelho' }[p] || p.toUpperCase());
   const lic = d => d.license || {};
   const exp = d => Number(lic(d).expiresAt || 0);
   const date = t => t ? new Date(t).toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo'}) : '—';
@@ -33,7 +33,7 @@
       if (f.conn === 'stale' && now - (d.lastSeenAt || 0) < 30 * DAY) return false;
       if (f.due === 'expired' && !(l.status === 'expired')) return false;
       if (['3', '7', '30'].includes(f.due) && !(e > now && e - now <= Number(f.due) * DAY)) return false;
-      if (f.due === 'nolist' && d.source) return false;
+      if (f.due === 'nolist' && (d.source || (d.playlists || []).length)) return false;
       if (f.reseller === 'admin' && d.resellerId) return false;
       if (f.reseller && f.reseller !== 'admin' && d.resellerId !== f.reseller) return false;
       return true;
@@ -129,8 +129,8 @@
   if (typeof user !== 'undefined' && user) render();
   let presenceBusy = false;
   async function updatePresence() {
-    if (!user || !['devices', 'playlists'].includes(page) || document.hidden || presenceBusy || refreshBusy) return;
-    if (!document.getElementById('modal')?.classList.contains('hidden') || document.querySelector('details[open]') || /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement?.tagName || '')) return;
+    if (!user || !['dashboard', 'devices', 'playlists'].includes(page) || document.hidden || presenceBusy || refreshBusy) return;
+    if (!document.getElementById('modal')?.classList.contains('hidden') || document.getElementById('zplOverlay') || document.querySelector('details[open]') || /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement?.tagName || '')) return;
     presenceBusy = true;
     try { devices = (await api('admin/devices')).devices; render(); } catch { /* Manual refresh retains existing error handling. */ }
     finally { presenceBusy = false; }

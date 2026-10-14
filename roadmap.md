@@ -1,6 +1,7 @@
 # Roadmap
 
 ## ZUI (14/10/2026)
+- [x] Revisar presença LG/Roku/demais: mesma evidência de contato/lease; nenhum online durante esta consulta, sem fabricar estado. Oito páginas modernizadas com divisões, contraste, efeitos leves e foco; 20 abas conferidas em computador/celular, pagamentos sem overflow, filtros Windows corretos, editor preservado por 16s e fechado por Esc; Pool/Disponibilidade mantêm aba no reload. Backup /root/zui-refined-before-1792012411; 1452 arquivos protegidos intactos, nenhum serviço reiniciado. Sessão real de revenda/TV e transações não testadas.
 - [x] Presença corrigida: contato recente ou reprodução válida; listagem atualiza a cada 15s sem interromper editor. Painel autenticado mostrou Android online, API confirmou online=1/playing=1 e atualização preservou filtro; três testes passaram. Backup /root/zui-presence-light-before-1792011303; só ZUI reiniciado, ZapCRM ativo; TV/revenda real não testadas.
 - [x] Site público, Disponível e Pool com superfícies claras e azul discreto; computador/celular sem overflow ou erros de página, identidade preservada. 84 arquivos operacionais protegidos intactos, sem alterações de licenças/listas.
 - [x] Página inicial com Disponível e Parceiros no menu e rodapé, mais link Xbox e computadores; Xbox habilitado via controle admin no mesmo link Microsoft, conforme confirmação do usuário. Navegação e catálogo verificados em computador/celular, sem erros ou overflow. Backup /root/zui-home-links-before-1791989349; 1458 arquivos protegidos intactos; nenhum serviço reiniciado.
@@ -12,7 +13,7 @@
 - [ ] Correção Web/Windows 4101 depende de DNS HTTPS com CORS acessível ao cliente ou liberação do IP da VPS pelo provedor; alternativa Windows exige identificar o pacote e suporte a transporte nativo, sem simplesmente desativar segurança do navegador.
 - [ ] Testes LG: VPS já permite todos os IPs fornecidos em HTTP/HTTPS; nenhuma regra adicional necessária na VPS. App e catálogo retornaram 200, ZUI/ZapCRM ativos. Exceção Cloudflare pendente de autorização/acesso; domínio usa proxy Cloudflare, regras externas ainda não verificadas. Manter autenticação e portas privadas.
 - [ ] Investigação da lentidão do ZapCRM pausada por solicitação do usuário em 13/10/2026; nenhuma correção aplicada nesta investigação.
-- [ ] Organizar site ZUI, painel e edição de playlists; aplicar somente apresentação com backup e verificar fluxos.
+- [x] Organizar site ZUI, painel e edição de playlists; apresentação com backup e fluxos de consulta/edição sem salvar verificados em 14/10/2026.
 - [ ] Fechar portas públicas de bancos após mapear dependências; revisar outras exposições. Autorizado em 12/10/2026.
 - [x] ZUI 2.1.14/API 1.2.35 atualizado com backup validado; site e painel reorganizados com quatro grupos de navegação, logo oficial e demonstração preservadas. Gestão do Sistema e Jogos do Dia verificados em consulta; desktop/celular sem overflow ou erros de página. 519 arquivos operacionais intactos por hash; apresentação sem reiniciar serviços.
 - [x] Imagem inicial publicada como demonstração navegável: categorias, detalhes, favoritos temporários, busca e ampliação verificados no navegador; celular sem overflow, nenhum erro. 482 arquivos protegidos intactos, backup /root/zui-interactive-before-1791639051; nenhum serviço reiniciado.

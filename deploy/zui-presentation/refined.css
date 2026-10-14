@@ -1,0 +1,101 @@
+/* Shared presentation polish. No selectors target the installed player. */
+body.zv-public,body.site-admin,body.zui-partner-public{
+ --ref-ink:220 24% 17%;--ref-paper:0 0% 100%;--ref-blue:215 72% 40%;--ref-green:160 68% 29%;
+ --ref-line:214 18% 85%;--ref-muted:218 12% 39%;--ref-raised:210 20% 95%;
+ --ref-shadow:0 8px 24px -16px hsl(var(--ref-ink)/.18);--ref-overlay:220 30% 5%;
+ --ref-danger:0 67% 42%;--ref-warning:36 85% 33%;letter-spacing:0;
+}
+body.site-admin{
+ --ref-ink:210 25% 96%;--ref-paper:225 22% 8%;--ref-blue:217 91% 64%;--ref-green:158 64% 56%;
+ --ref-line:225 15% 23%;--ref-muted:220 12% 72%;--ref-raised:225 19% 12%;
+ --ref-danger:0 85% 75%;--ref-warning:40 85% 70%;--ref-shadow:0 8px 24px -16px hsl(var(--ref-overlay)/.6);
+}
+body:is(.zv-public,.site-admin,.zui-partner-public) :is(h1,h2,h3,strong,button,a){letter-spacing:0!important}
+body:is(.zv-public,.site-admin,.zui-partner-public) :is(input,select,textarea){border-radius:6px!important;box-shadow:none!important;border:1px solid hsl(var(--ref-line))!important;color:hsl(var(--ref-ink))!important;background:hsl(var(--ref-paper))!important;min-width:0;max-width:100%}
+body:is(.zv-public,.site-admin,.zui-partner-public) :is(input,textarea)::placeholder{color:hsl(var(--ref-muted));opacity:1}
+body:is(.zv-public,.site-admin,.zui-partner-public) :is(button,a,input,select,textarea,summary):focus-visible{outline:2px solid hsl(var(--ref-blue))!important;outline-offset:3px}
+body:is(.zv-public,.site-admin,.zui-partner-public) :is(button,.btn,.zv-btn){border-radius:6px!important;transition:background-color .18s,border-color .18s,box-shadow .18s,transform .18s}
+body:is(.zv-public,.site-admin,.zui-partner-public) :is(button.primary,.btn.primary,.zv-btn.primary){background:hsl(var(--ref-blue))!important;color:hsl(var(--ref-paper))!important;border-color:hsl(var(--ref-blue))!important;box-shadow:var(--ref-shadow)!important}
+body:is(.zv-public,.site-admin,.zui-partner-public) button:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
+body:is(.zv-public,.site-admin,.zui-partner-public) :is(.actions,.row,.toolbar,.zprow,.zpl-acts,.zpl-foot){flex-wrap:wrap}
+body:is(.zv-public,.site-admin,.zui-partner-public) :is(.row,.formrow,.grid,.two,.zfilters)>*{min-width:0}
+body.zv-public :is(.muted,.sourcehint,.form-card>p,.activation-card>p){color:hsl(var(--ref-muted))!important}
+body.zv-public :is(.card,.form-card,.activation-card,.loginbox){border-color:hsl(var(--ref-line))!important;border-radius:8px!important;box-shadow:var(--ref-shadow)!important}
+body.zv-public :is(.zv-section,.zv-legal,.zv-foot){border-color:hsl(var(--ref-line))!important}
+body.zv-public .zv-head{padding-left:16px;border-left:3px solid hsl(var(--ref-green))}
+body.zv-public .zv-legal{border-radius:0!important;box-shadow:none!important;background:transparent!important;border-top:1px solid hsl(var(--ref-line));border-bottom:1px solid hsl(var(--ref-line))}
+body.zv-public .zv-foot{background:hsl(var(--ref-paper))!important}
+body.zv-public .zv-foot-row nav{display:flex;flex-wrap:wrap;gap:12px 20px}
+body.zv-public .zv-foot-row nav a{line-height:1.6;overflow-wrap:anywhere}
+body.zv-public :is(#editForm,#deleteDialog .dialog){background:hsl(var(--ref-paper))!important;color:hsl(var(--ref-ink))!important}
+body.zv-public #loginForm{border:1px solid hsl(var(--ref-line));border-top:3px solid hsl(var(--ref-blue));padding:28px!important}
+body.zv-public #loginForm h2{font-size:24px!important;line-height:1.35}
+body.zv-public #loginForm :is(input,button){min-height:46px}
+body.zv-public :is(#loginForm,#form) label{color:hsl(var(--ref-muted))!important;line-height:1.5}
+body.zv-public :is(#accountView .row,#identity){overflow-wrap:anywhere}
+body.zv-public :is(.zv-policy-section,.legal-section){border:0!important;border-top:1px solid hsl(var(--ref-line))!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}
+body.site-admin .site-header{border-bottom:1px solid hsl(var(--ref-line))!important}
+body.site-admin .sidebar{border-right:1px solid hsl(var(--ref-line))!important}
+body.site-admin .sidebar nav button{border-color:transparent!important;background:transparent!important;box-shadow:none!important;min-height:40px!important}
+body.site-admin .sidebar nav button.active{background:hsl(var(--ref-blue)/.12)!important;box-shadow:inset 3px 0 hsl(var(--ref-blue))!important}
+body.site-admin .organized-nav-label{border-top:1px solid hsl(var(--ref-line));margin-top:10px;padding-top:14px!important}
+body.site-admin .organized-nav-label:first-child{border-top:0;margin-top:0}
+body.site-admin .header{border-bottom:1px solid hsl(var(--ref-line));padding-bottom:20px}
+body.site-admin :is(.zcard,.stat){border-radius:8px!important;box-shadow:var(--ref-shadow)!important}
+body.site-admin .zcard strong{font-variant-numeric:tabular-nums}
+body.site-admin .zfilters.card{background:transparent!important;border:0!important;border-top:1px solid hsl(var(--ref-line))!important;border-bottom:1px solid hsl(var(--ref-line))!important;border-radius:0!important;padding:18px 0!important}
+body.site-admin .zfcount{align-self:end;min-height:38px;flex-wrap:wrap;gap:8px}
+body.site-admin .tablewrap{max-width:100%;overscroll-behavior-x:contain}
+body.site-admin :is(#content,.editor-grid,.editor-row,.card,.zui-plan-table){min-width:0;max-width:100%}
+body.site-admin .zui-plan-table{overflow-x:auto;overscroll-behavior-x:contain}
+body.site-admin .zui-plan-table table{min-width:760px}
+body.site-admin .tablewrap table{min-width:100%!important;table-layout:auto}
+body.site-admin :is(td,th){overflow-wrap:anywhere}
+body.site-admin :is(.status,.zlic,.online){white-space:nowrap;overflow-wrap:normal}
+body.site-admin td:last-child{width:1%;min-width:0!important;max-width:none!important}
+body.site-admin td code{font-size:12px!important}
+body.site-admin :is(.zptable,.zpool table){min-width:0!important}
+body.site-admin .zp-device-actions{position:relative}
+body.site-admin .zp-device-actions[open]>div{z-index:20;border:1px solid hsl(var(--ref-line))!important;background:hsl(var(--ref-raised))!important;box-shadow:var(--ref-shadow)!important}
+body.site-admin :is(.modalbox,.zpl-box){border-radius:8px!important;max-height:calc(100dvh - 32px)!important;background:hsl(var(--ref-raised))!important;border-color:hsl(var(--ref-line))!important;color:hsl(var(--ref-ink))!important}
+body.site-admin .zpl-body{min-height:0;overscroll-behavior:contain}
+body.site-admin :is(.zpl-head,.zpl-foot){flex-shrink:0;border-color:hsl(var(--ref-line))!important}
+body.site-admin .zpl-item{border-radius:6px!important;background:transparent!important;border-color:hsl(var(--ref-line))!important}
+body.site-admin .zpl-item.on{border-color:hsl(var(--ref-blue))!important;box-shadow:inset 3px 0 hsl(var(--ref-blue))!important}
+body.site-admin :is(.zpl-head p,.zpl-info small,.zpl-form label,.zpl-foot,.zpl-empty){color:hsl(var(--ref-muted))!important}
+body.site-admin .zpl-form{border-color:hsl(var(--ref-line))!important}
+body.site-admin .zpl-err{color:hsl(var(--ref-danger))!important}
+body.site-admin .zpl-overlay{background:hsl(var(--ref-overlay)/.8)!important}
+body.site-admin .zpl-tag{background:hsl(var(--ref-green)/.12)!important;color:hsl(var(--ref-green))!important}
+body.site-admin .zpl-tag.lock{background:hsl(var(--ref-warning)/.12)!important;color:hsl(var(--ref-warning))!important}
+body.zui-partner-public .section{border-top:1px solid hsl(var(--ref-line));padding-top:48px}
+body.zui-partner-public :is(.step,.platform,.pool-plan){border-radius:8px!important}
+body.zui-partner-public header{box-shadow:none!important;border-bottom:1px solid hsl(var(--ref-line))}
+body.zui-partner-public :is(.filters,.platform-filters){padding-bottom:16px;border-bottom:1px solid hsl(var(--ref-line))}
+@media(hover:hover){
+ body:is(.zv-public,.site-admin,.zui-partner-public) :is(button,.btn,.zv-btn):not(:disabled):hover{border-color:hsl(var(--ref-blue))!important;box-shadow:var(--ref-shadow)!important}
+ body.site-admin .sidebar nav button:hover{background:hsl(var(--ref-raised))!important}
+ body.site-admin tbody tr:hover{background:hsl(var(--ref-blue)/.035)}
+ body.zv-public .zv-card:hover{border-color:hsl(var(--ref-blue)/.4)!important;transform:translateY(-2px)!important}
+}
+@keyframes zui-ref-enter{from{opacity:.75;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:no-preference){body.site-admin #content,body.zv-public :is(#accountView,#editor:not([hidden])){animation:zui-ref-enter .2s ease-out}}
+@media(max-width:760px){
+ body.site-admin .sidebar{top:var(--site-header-height,64px)!important}
+ body.site-admin .tablewrap td:last-child{width:auto!important;min-width:0!important}
+ body.site-admin :is(.modal,.zpl-overlay){padding:12px!important;align-items:center!important}
+ body.site-admin :is(.modalbox,.zpl-box){max-height:calc(100dvh - 24px)!important;border-radius:8px!important;padding-bottom:env(safe-area-inset-bottom)}
+ body.site-admin .zpl-foot{align-items:center;gap:8px}
+ body.site-admin .zpl-acts button{min-height:44px}
+ body.site-admin .zfilters{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px!important}
+ body.site-admin .zfilters .zfcount{grid-column:1/-1;display:flex}
+ body.site-admin .toolbar button{max-width:100%;white-space:normal}
+ body.site-admin #content .tablewrap tr{border-radius:8px!important;border-color:hsl(var(--ref-line))!important}
+ body.site-admin .pagination{justify-content:center}
+ body.zv-public #loginForm{padding:22px!important}
+ body.zv-public :is(input,select,textarea){font-size:16px!important}
+ body.zv-public :is(.zv-foot-row,.zv-foot-row nav){align-items:flex-start;gap:14px}
+ body.zv-public .zv-foot-row nav a{font-size:13px}
+ body.zv-public .actions button{min-height:44px}
+}
+@media(prefers-reduced-motion:reduce){body:is(.zv-public,.site-admin,.zui-partner-public) *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
