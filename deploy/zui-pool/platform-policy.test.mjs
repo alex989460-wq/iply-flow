@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {PLATFORM_DEFAULTS,platformCatalogue,validatePlatform,platformUrl} from './platform-policy.mjs';
+test('Roku is available as confirmed by the owner',()=>{
+ assert.equal(platformCatalogue({settings:{}}).find(p=>p.id==='roku').status,'available');
+});
 test('Web is absent from the public platform catalogue, without altering devices',()=>{
  const devices=[{id:'browser',platform:'web'}],db={devices,settings:{}};
  assert.equal(platformCatalogue(db).some(p=>p.id==='web'),false);assert.equal(db.devices[0].platform,'web');

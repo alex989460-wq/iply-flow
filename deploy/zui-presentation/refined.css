@@ -5,6 +5,13 @@ body.zv-public,body.site-admin,body.zui-partner-public{
  --ref-shadow:0 8px 24px -16px hsl(var(--ref-ink)/.18);--ref-overlay:220 30% 5%;
  --ref-danger:0 67% 42%;--ref-warning:36 85% 33%;letter-spacing:0;
 }
+body.zv-public,body.zui-partner-public{
+ --ref-backdrop:212 16% 91%;--ref-band:212 16% 94%;
+ --camo-bg:var(--ref-backdrop);--bg:hsl(var(--ref-backdrop));
+ background:hsl(var(--ref-backdrop))!important;
+}
+body.zv-public :is(.zv-faq,.zv-legal){background-color:hsl(var(--ref-band))!important}
+body.zui-partner-public .section:nth-of-type(even){background-color:hsl(var(--ref-band))}
 body.site-admin{
  --ref-ink:210 25% 96%;--ref-paper:225 22% 8%;--ref-blue:217 91% 64%;--ref-green:158 64% 56%;
  --ref-line:225 15% 23%;--ref-muted:220 12% 72%;--ref-raised:225 19% 12%;
