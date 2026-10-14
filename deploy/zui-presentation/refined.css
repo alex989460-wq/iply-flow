@@ -6,10 +6,17 @@ body.zv-public,body.site-admin,body.zui-partner-public{
  --ref-danger:0 67% 42%;--ref-warning:36 85% 33%;letter-spacing:0;
 }
 body.zv-public,body.zui-partner-public{
- --ref-backdrop:212 16% 91%;--ref-band:212 16% 94%;
+ --ref-backdrop:215 32% 87%;--ref-band:215 28% 92%;--ref-raised:215 28% 92%;--ref-line:214 22% 80%;
  --camo-bg:var(--ref-backdrop);--bg:hsl(var(--ref-backdrop));
- background:hsl(var(--ref-backdrop))!important;
+ --camo-raised:var(--ref-raised);--organized-raised:var(--ref-raised);
+ --camo-border:var(--ref-line);--organized-line:var(--ref-line);--rx-border:var(--ref-line);
+ --hero-shade:linear-gradient(90deg,hsl(var(--ref-backdrop) / .99),hsl(var(--ref-backdrop) / .93) 48%,hsl(var(--ref-backdrop) / .14));
+ background-color:hsl(var(--ref-backdrop))!important;
+ background-image:radial-gradient(820px 420px at 84% -4%,hsl(215 52% 76% / .55),transparent 70%)!important;
 }
+body.zv-public,body.zui-partner-public{--ref-muted:218 14% 32%;--camo-muted:var(--ref-muted);--organized-muted:var(--ref-muted)}
+body.zui-partner-public :is(.hero p,.platform-lead p){color:hsl(218 16% 24%)!important}
+body.zv-public .zv-art-note{color:hsl(218 14% 32%)!important}
 body.zv-public :is(.zv-faq,.zv-legal){background-color:hsl(var(--ref-band))!important}
 body.zui-partner-public .section:nth-of-type(even){background-color:hsl(var(--ref-band))}
 body.site-admin{
@@ -31,6 +38,7 @@ body.zv-public :is(.card,.form-card,.activation-card,.loginbox){border-color:hsl
 body.zv-public :is(.zv-section,.zv-legal,.zv-foot){border-color:hsl(var(--ref-line))!important}
 body.zv-public .zv-head{padding-left:16px;border-left:3px solid hsl(var(--ref-green))}
 body.zv-public .zv-legal{border-radius:0!important;box-shadow:none!important;background:transparent!important;border-top:1px solid hsl(var(--ref-line));border-bottom:1px solid hsl(var(--ref-line))}
+body.zv-public .site-header{border-bottom:1px solid hsl(var(--ref-line))!important}
 body.zv-public .zv-foot{background:hsl(var(--ref-paper))!important}
 body.zv-public .zv-foot-row nav{display:flex;flex-wrap:wrap;gap:12px 20px}
 body.zv-public .zv-foot-row nav a{line-height:1.6;overflow-wrap:anywhere}
@@ -78,6 +86,8 @@ body.site-admin .zpl-tag.lock{background:hsl(var(--ref-warning)/.12)!important;c
 body.zui-partner-public .section{border-top:1px solid hsl(var(--ref-line));padding-top:48px}
 body.zui-partner-public :is(.step,.platform,.pool-plan){border-radius:8px!important}
 body.zui-partner-public header{box-shadow:none!important;border-bottom:1px solid hsl(var(--ref-line))}
+body.zui-partner-public :is(.hero,.platform-lead):after{background:var(--hero-shade),linear-gradient(180deg,transparent 58%,hsl(var(--ref-backdrop)/.88))!important}
+@media(max-width:760px){body.zui-partner-public :is(.hero .copy,.platform-lead .lead){background:hsl(var(--ref-backdrop)/.93);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:10px;padding:16px 18px}}
 body.zui-partner-public :is(.filters,.platform-filters){padding-bottom:16px;border-bottom:1px solid hsl(var(--ref-line))}
 @media(hover:hover){
  body:is(.zv-public,.site-admin,.zui-partner-public) :is(button,.btn,.zv-btn):not(:disabled):hover{border-color:hsl(var(--ref-blue))!important;box-shadow:var(--ref-shadow)!important}

@@ -1,4 +1,4 @@
 /* Public catalogue/Pool palette, independent from device and playback themes. */
-:root{--bg:hsl(210 20% 98%);--surface:hsl(0 0% 100%);--surface-raised:hsl(210 20% 95%);--fg:hsl(220 24% 17%);--muted:hsl(218 12% 39%);--blue:hsl(215 72% 40%);--green:hsl(160 68% 29%);--line:hsl(214 18% 85%);--focus:var(--blue);--light-paper:hsl(0 0% 100%);--hero-shade:linear-gradient(90deg,hsl(210 20% 98% / .99),hsl(210 20% 98% / .94) 48%,hsl(210 20% 98% / .16));--hover-shadow:0 12px 32px hsl(220 24% 17% / .08)}
+:root{--bg:hsl(215 32% 87%);--surface:hsl(0 0% 100%);--surface-raised:hsl(215 28% 92%);--fg:hsl(220 24% 17%);--muted:hsl(218 12% 39%);--blue:hsl(215 72% 40%);--green:hsl(160 68% 29%);--line:hsl(214 22% 80%);--focus:var(--blue);--light-paper:hsl(0 0% 100%);--hero-shade:linear-gradient(90deg,hsl(215 32% 87% / .99),hsl(215 32% 87% / .93) 48%,hsl(215 32% 87% / .14));--hover-shadow:0 12px 32px hsl(220 24% 17% / .08)}
 body{color-scheme:light}.btn.primary,.hero .btn.primary{color:var(--light-paper)}.platform img{filter:none}.platform-lead:after,.hero:after{background:var(--hero-shade)}
-@media(max-width:760px){:root{--hero-shade:linear-gradient(90deg,hsl(210 20% 98% / .98),hsl(210 20% 98% / .9))}}
+@media(max-width:760px){:root{--hero-shade:linear-gradient(90deg,hsl(215 32% 87% / .98),hsl(215 32% 87% / .9))}}

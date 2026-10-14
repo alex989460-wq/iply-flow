@@ -1,11 +1,11 @@
 /* Public-site-only palette. App and administrative tools remain unchanged. */
 body.zv-public {
- --camo-bg:210 20% 98%;--camo-text:220 24% 17%;--camo-primary:215 72% 40%;
- --camo-card:0 0% 100%;--camo-raised:210 20% 95%;--camo-border:214 18% 85%;
+ --camo-bg:215 32% 87%;--camo-text:220 24% 17%;--camo-primary:215 72% 40%;
+ --camo-card:0 0% 100%;--camo-raised:215 28% 92%;--camo-border:214 22% 80%;
  --camo-muted:218 12% 39%;--camo-success:160 68% 29%;--camo-glass:0 0% 100%;
  --rx-blue:215 72% 40%;--rx-blue-deep:215 72% 34%;--rx-lavender:215 25% 65%;
- --rx-glass:0 0% 100%;--rx-border:214 18% 85%;--rx-shine:220 24% 17%;
- --organized-surface:0 0% 100%;--organized-raised:210 20% 95%;--organized-line:214 18% 85%;
+ --rx-glass:0 0% 100%;--rx-border:214 22% 80%;--rx-shine:220 24% 17%;
+ --organized-surface:0 0% 100%;--organized-raised:215 28% 92%;--organized-line:214 22% 80%;
  --organized-text:220 24% 17%;--organized-muted:218 12% 39%;--organized-blue:215 72% 40%;--organized-green:160 68% 29%;
  --public-ink:220 24% 17%;--public-paper:0 0% 100%;
  --rx-shadow:0 12px 36px -24px hsl(var(--public-ink) / .18);--organized-shadow:var(--rx-shadow);
