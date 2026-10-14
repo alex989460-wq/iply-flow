@@ -31,7 +31,8 @@ body.site-admin .zpl-cell{cursor:pointer;text-decoration:underline dotted #3b82f
  body.site-admin #modalClose{min-width:40px;min-height:40px}
  /* Tabela de aparelhos vira cartões */
  body.site-admin #content .tablewrap{overflow:visible!important;border:0!important;background:none!important}
- body.site-admin #content .tablewrap table,body.site-admin #content .tablewrap tbody{display:block;width:100%}
+ body.site-admin #content .tablewrap table,body.site-admin #content .tablewrap tbody{display:block!important;width:100%!important;min-width:0!important;max-width:100%!important}
+ body.site-admin #content .tablewrap tr{box-sizing:border-box;width:100%!important;min-width:0!important}
  body.site-admin #content .tablewrap thead{display:none}
  body.site-admin #content .tablewrap tr{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;padding:14px;margin:0 0 10px;border:1px solid #253246;border-radius:12px;background:#0d1420}
  body.site-admin #content .tablewrap td{display:block;padding:0!important;border:0!important;min-width:0;white-space:normal!important;word-break:break-word}
