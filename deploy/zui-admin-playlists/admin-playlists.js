@@ -50,6 +50,32 @@
   if (target) new MutationObserver(inject).observe(target, { childList: true, subtree: true });
   inject();
 
+
+  /* ---------- Servidores parceiros > Aparelhos: playlists e desativar ---------- */
+  function injectPartner() {
+    const t = document.getElementById('zpdt'); if (!t || t.dataset.zpl) return; t.dataset.zpl = '1';
+    const rows = t.querySelectorAll('tr');
+    rows.forEach((tr, i) => {
+      const cell = document.createElement(i ? 'td' : 'th');
+      if (!i) cell.textContent = 'Ações';
+      else {
+        const mac = tr.children[1]?.textContent.trim(), d = list().find(x => x.mac === mac);
+        if (d) cell.innerHTML = '<div class="zpl-acts" style="justify-content:flex-start"><button type="button" data-zpl="' + esc(d.id) + '">Playlists (' + (d.playlists || []).length + ')</button><button type="button" data-zpl-en="' + esc(d.id) + '">' + (d.enabled ? 'Desativar' : 'Ativar') + '</button></div>';
+      }
+      tr.appendChild(cell);
+    });
+  }
+  document.addEventListener('click', async e => {
+    const b = e.target instanceof Element && e.target.closest('[data-zpl-en]'); if (!b) return;
+    const d = list().find(x => x.id === b.dataset.zplEn); if (!d) return;
+    if (d.enabled && !confirm('Desativar o aparelho ' + d.mac + '? Ele para de reproduzir até ser ativado de novo.')) return;
+    b.disabled = true;
+    try { await call('admin/devices/' + d.id + '/enabled', 'PUT', { enabled: !d.enabled }); d.enabled = !d.enabled; b.textContent = d.enabled ? 'Desativar' : 'Ativar'; say(d.enabled ? 'Aparelho ativado.' : 'Aparelho desativado.'); try { if (typeof refresh === 'function') refresh(); } catch {} }
+    catch (err) { say(err.message); }
+    b.disabled = false;
+  });
+  new MutationObserver(injectPartner).observe(document.body, { childList: true, subtree: true });
+
   /* ---------- gestor ---------- */
   let current = null;
   function closeBox() { document.getElementById('zplOverlay')?.remove(); document.body.classList.remove('zpl-lock'); current = null; }
