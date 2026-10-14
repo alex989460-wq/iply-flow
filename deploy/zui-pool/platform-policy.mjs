@@ -1,5 +1,7 @@
 // Public catalogue metadata only: never changes installed clients or device identity.
 export const PLATFORM_DEFAULTS = [
+ {id:'windows',name:'Computadores Windows',icon:'windows',status:'available',description:'ZUI Player disponível para PC na Microsoft Store.',url:'https://apps.microsoft.com/detail/9NX9KT313W7P',visible:true},
+ {id:'xbox',name:'Xbox',icon:'xbox',status:'pending',description:'A loja ainda informa compatibilidade apenas com PC. Disponibilidade no Xbox em confirmação.',url:'https://apps.microsoft.com/detail/9NX9KT313W7P',visible:true},
  {id:'lg',name:'LG webOS',icon:'lg',status:'guided',description:'Instalação orientada conforme modelo e região.',url:'',visible:true},
  {id:'roku',name:'Roku TV',icon:'roku',status:'guided',description:'Cliente Roku com instalação orientada pelo atendimento.',url:'',visible:true},
  {id:'android',name:'Android / Android TV',icon:'android',status:'pending',description:'Disponibilidade de pacote a confirmar.',url:'',visible:true},
