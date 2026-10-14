@@ -18,6 +18,8 @@
  }};
  syncPublicNav();
  document.addEventListener('DOMContentLoaded',syncPublicNav);
+ let navScheduled=false;
+ new MutationObserver(()=>{if(navScheduled)return;navScheduled=true;requestAnimationFrame(()=>{navScheduled=false;syncPublicNav()})}).observe(document.body,{childList:true,subtree:true});
  const closeMenus=()=>{
   document.body.classList.remove('panel-nav-open');
   document.querySelector('.site-header')?.classList.remove('zv-open');

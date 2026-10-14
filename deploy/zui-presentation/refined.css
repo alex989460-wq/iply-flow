@@ -85,6 +85,8 @@ body.site-admin .zpl-tag.lock{background:hsl(var(--ref-warning)/.12)!important;c
 body.zui-partner-public .section{border-top:1px solid hsl(var(--ref-line));padding-top:48px}
 body.zui-partner-public :is(.step,.platform,.pool-plan){border-radius:8px!important}
 body.zui-partner-public header{box-shadow:none!important;border-bottom:1px solid hsl(var(--ref-line))}
+body.zui-partner-public .hero:after{background:var(--hero-shade),linear-gradient(180deg,transparent 58%,hsl(var(--ref-backdrop)/.88))!important}
+@media(max-width:760px){body.zui-partner-public .hero .copy{background:hsl(var(--ref-backdrop)/.84);border-radius:10px;padding:16px 18px}}
 body.zui-partner-public :is(.filters,.platform-filters){padding-bottom:16px;border-bottom:1px solid hsl(var(--ref-line))}
 @media(hover:hover){
  body:is(.zv-public,.site-admin,.zui-partner-public) :is(button,.btn,.zv-btn):not(:disabled):hover{border-color:hsl(var(--ref-blue))!important;box-shadow:var(--ref-shadow)!important}
