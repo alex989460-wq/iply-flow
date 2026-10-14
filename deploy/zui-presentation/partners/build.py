@@ -11,6 +11,7 @@ css=fonts+'''
 @media(prefers-reduced-motion:no-preference){.btn{transition:transform .18s}.btn:hover{transform:translateY(-2px)}}
 '''
 css += pathlib.Path(__file__).with_name('modern.css').read_text()
+css += pathlib.Path(__file__).with_name('trust-light.css').read_text()
 logo='/site-assets/branding/logo.png?v=official-blue-1210-4'
 nav=f'<header><nav><a href="/" aria-label="ZUI Player início"><img src="{logo}" alt="ZUI Player"></a><div><a href="/disponivel">Disponível</a><a href="/pool">Parceiros</a><a href="/pool#parceria" class="nav-contact">Fale com a gente ↗</a></div></nav></header>'
 foot='<footer><span>© ZUI Player · Seu conteúdo. Seu player.</span><div><a href="/pool">Parcerias</a><a href="/disponivel">Plataformas</a><a href="/politica-de-privacidade">Privacidade</a><a href="/termos-de-uso">Termos de uso</a></div></footer>'
