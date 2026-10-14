@@ -8,6 +8,7 @@ import {license} from './commerce.mjs';
 import {fail,origin,visibleAccounts,audit} from './security.mjs';
 import {partnershipExpiry,partnershipActive,partnershipDate} from './partnership-policy.mjs';
 import {platformCatalogue,validatePlatform} from './platform-policy.mjs';
+import {devicePresence} from './presence.mjs';
 
 export const POOL_PLANS=[
  {id:'inicial',name:'Inicial',slots:100,monthly:199},
@@ -114,7 +115,7 @@ export async function zuiPool(req,res,url,user,db,input,ctx){
  if(path==='/api/admin/partner-servers/devices'&&req.method==='GET'){
   const s=db.servers.find(s=>s.id===url.searchParams.get('id'));if(!s||!canManage(db,user,s))fail('Servidor não encontrado.',404);
   const now=Date.now(),owners=new Map(db.users.map(u=>[u.id,u.name])),playing=new Set(database.activePlaybackDevices());
-  const rows=db.devices.filter(d=>deviceUsesServer(d,s)).map(d=>{const l=license(d,now);return {id:d.id,name:d.name,mac:d.mac,platform:d.platform||'',status:l.status,expiresAt:l.expiresAt||null,online:!!d.lastSeenAt&&now-d.lastSeenAt<90000,playing:playing.has(d.id),lastSeenAt:d.lastSeenAt||null,owner:owners.get(d.resellerId)||'Administrador'};});
+  const rows=db.devices.filter(d=>deviceUsesServer(d,s)).map(d=>{const l=license(d,now);return {id:d.id,name:d.name,mac:d.mac,platform:d.platform||'',status:l.status,expiresAt:l.expiresAt||null,...devicePresence(d,playing.has(d.id),now),lastSeenAt:d.lastSeenAt||null,owner:owners.get(d.resellerId)||'Administrador'};});
   send(res,200,{server:{id:s.id,code:s.code,name:s.name},devices:rows.slice(0,2000),total:rows.length});return true;
  }
  const dns=path.match(/^\/api\/admin\/partner-servers\/(dns|migrate)\/(preview|execute)$/);

@@ -8,7 +8,7 @@
   let f; try { f = { ...defaults, ...JSON.parse(sessionStorage.getItem(KEY) || '{}') }; } catch { f = { ...defaults }; }
   let zp = 0, lastQuery = '';
   const save = () => sessionStorage.setItem(KEY, JSON.stringify(f));
-  const online = d => Date.now() - (d.lastSeenAt || 0) < 90000;
+  const online = d => typeof d.online === 'boolean' ? d.online : !!d.lastSeenAt && Date.now() - d.lastSeenAt < 90000;
   const plat = d => { const p=String(d.platform||'').toLowerCase(); return /roku/.test(p)?'roku':/webos|lgwebos/.test(p)?'webos':/tizen|samsung/.test(p)?'tizen':/android/.test(p)?'android':/fire/.test(p)?'firetv':/ios|iphone|ipad/.test(p)?'ios':/web|browser/.test(p)?'browser':'outro'; };
   const platName = p => ({ webos: 'LG webOS', lg: 'LG webOS', roku: 'Roku TV', tizen: 'Samsung Tizen', samsung: 'Samsung Tizen', android: 'Android', androidtv: 'Android TV', web: 'Navegador', browser: 'Navegador', ios: 'iPhone / iPad', firetv: 'Fire TV', outro: 'Outro aparelho' }[p] || p.toUpperCase());
   const lic = d => d.license || {};
@@ -127,4 +127,14 @@
     if (page === 'dashboard' || page === 'devices' || page === 'playlists') bind();
   };
   if (typeof user !== 'undefined' && user) render();
+  let presenceBusy = false;
+  async function updatePresence() {
+    if (!user || !['devices', 'playlists'].includes(page) || document.hidden || presenceBusy || refreshBusy) return;
+    if (!document.getElementById('modal')?.classList.contains('hidden') || document.querySelector('details[open]') || /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement?.tagName || '')) return;
+    presenceBusy = true;
+    try { devices = (await api('admin/devices')).devices; render(); } catch { /* Manual refresh retains existing error handling. */ }
+    finally { presenceBusy = false; }
+  }
+  setInterval(updatePresence, 15000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) void updatePresence(); });
 })();
