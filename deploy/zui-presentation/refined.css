@@ -28,6 +28,42 @@ body.zui-partner-public :is(.hero p,.platform-lead p){color:hsl(220 16% 78%)!imp
 body.zv-public .zv-art-note{color:hsl(218 14% 68%)!important}
 body.zv-public :is(.zv-faq,.zv-legal){background-color:hsl(var(--ref-band))!important}
 body.zui-partner-public .section:nth-of-type(even){background-color:hsl(var(--ref-band))}
+/* Partner templates consume complete CSS colors, not HSL channel tuples. */
+body.zui-partner-public{
+ --bg:hsl(var(--ref-backdrop));--surface:hsl(var(--ref-paper));--surface-raised:hsl(var(--ref-raised));
+ --fg:hsl(var(--ref-ink));--muted:hsl(var(--ref-muted));--line:hsl(var(--ref-line));
+ --blue:hsl(var(--ref-blue));--ref-green:158 64% 56%;--green:hsl(var(--ref-green));--focus:hsl(var(--ref-blue));
+ color:var(--fg);
+}
+body.zui-partner-public .platform{
+ padding:24px;min-height:244px;background:var(--surface);border-color:var(--line);
+ transition:border-color .22s,background-color .22s,transform .22s,box-shadow .22s;
+}
+body.zui-partner-public .platform.available{border-color:hsl(var(--ref-blue)/.4)}
+body.zui-partner-public .platform .platform-top{margin-bottom:22px;min-height:32px}
+body.zui-partner-public .platform img{
+ width:36px;height:28px;object-fit:contain;filter:brightness(0) invert(1);opacity:.92;flex-shrink:0;
+}
+body.zui-partner-public .platform.pending img{opacity:.72}
+body.zui-partner-public .platform svg{width:36px;height:28px;stroke:var(--fg)}
+body.zui-partner-public .platform-filters{min-height:0;justify-content:flex-start;gap:28px;padding:0 0 12px}
+body.zui-partner-public :is(.platform-filters a,.badge,.platform p,.item p,.plan p,.metrics span){color:var(--muted)}
+body.zui-partner-public .platform-filters a[aria-current=true]{color:var(--fg);border-color:var(--blue)}
+body.zui-partner-public .platform.available .badge{color:var(--green)}
+body.zui-partner-public .platform a{color:var(--green)}
+body.zui-partner-public :is(.platform,.plan){position:relative;overflow:hidden}
+body.zui-partner-public :is(.platform,.plan):before{
+ content:'';position:absolute;top:0;left:18px;right:18px;height:1px;pointer-events:none;
+ background:linear-gradient(90deg,transparent,hsl(var(--ref-blue)/.65),transparent);opacity:.5;transition:opacity .22s;
+}
+body.zui-partner-public .item{transition:border-color .22s}
+@media(hover:hover) and (pointer:fine){
+ body.zui-partner-public :is(.platform,.plan):hover{background:var(--surface-raised);border-color:var(--blue);transform:translateY(-3px);box-shadow:var(--hover-shadow)}
+ body.zui-partner-public :is(.platform,.plan):hover:before{opacity:1}
+ body.zui-partner-public .item:hover{border-color:var(--blue)}
+}
+@media(prefers-reduced-motion:no-preference){body.zui-partner-public :is(.platform,.item,.plan){animation:zui-ref-enter .35s ease-out both}}
+@media(max-width:760px){body.zui-partner-public .platform{min-height:220px;padding:22px}body.zui-partner-public .platform-filters{gap:18px}}
 body.site-admin{
  --ref-ink:210 25% 96%;--ref-paper:225 22% 8%;--ref-blue:217 91% 64%;--ref-green:158 64% 56%;
  --ref-line:225 15% 23%;--ref-muted:220 12% 72%;--ref-raised:225 19% 12%;
