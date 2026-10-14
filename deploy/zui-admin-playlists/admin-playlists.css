@@ -16,6 +16,7 @@ body.site-admin .zpl-cell{cursor:pointer;text-decoration:underline dotted #3b82f
 .zpl-acts button,.zpl-foot button{min-height:40px;padding:8px 14px;border-radius:8px;font-size:13px}
 .zpl-acts .danger{color:#fca5a5;border-color:#7f1d1d}
 .zpl-form{display:grid;gap:10px;border-top:1px dashed #253246;padding-top:10px}
+.zpl-form[hidden]{display:none!important}
 .zpl-form label{display:grid;gap:4px;font-size:12px;color:#9fb2cd}.zpl-form em{font-style:normal;opacity:.7}
 .zpl-form input{width:100%;box-sizing:border-box;min-height:44px;font-size:16px}
 .zpl-err{color:#fca5a5;font-size:13px;margin:0;min-height:0}

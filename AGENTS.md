@@ -5,3 +5,4 @@
 - Keep ZUI platform availability in the isolated Pool metadata module and render the public catalogue from its validated endpoint; never infer installed-device identity from availability settings.
 - Keep public partner-page presentation in the isolated page generator and its shared stylesheet; deploy page assets atomically with rollback and protected app/API hashes so catalogue polish cannot alter playback.
 - Guard ZUI partner-code deletion and edits to bound codes before operational handlers, preserving audited DNS migrations and existing playback rules.
+- Keep ZUI admin playlist management in deploy/zui-admin-playlists (server route via apply-server.py, inline UI via apply-admin.py) reusing owns/resolveSourceInput/saveDb, so licence reconciliation and partner bindings stay authoritative; re-apply after API/admin upgrades.

@@ -92,7 +92,7 @@
 - [x] Transferência de MAC em /minhas-listas: troca licença+playlists entre aparelhos, exige MAC+chave do novo, limite 3, auditado; testado em cópia isolada. Backup /root/zui-mac-transfer-before-1791917825.
 
 ## ZUI (14/10/2026 tarde)
-- [ ] Admin/revenda: ver e editar playlists cadastradas do MAC.
-- [ ] Admin/revenda: melhorar celular (abas/janelas que não fecham).
-- [ ] Roku: código parceiro mostrou "vence em 7 dias" — investigar.
+- [x] Admin/revenda: ver, trocar, editar e excluir playlists do MAC (testado em cópia e publicado).
+- [x] Admin/revenda no celular: menu fecha, aparelhos em cartões, menus ••• e janelas fecham.
+- [ ] Roku 7 dias: códigos 4100/4101 não estão marcados como parceiro (só 002) — aguarda decisão do usuário.
 - [ ] XUI One VPLAYSERVICO2: abertura de canais mais rápida (aguarda escopo).
