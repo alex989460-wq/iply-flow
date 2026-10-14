@@ -4,7 +4,7 @@
  const store='https://apps.microsoft.com/detail/9NX9KT313W7P';
  function update(){
   const lang=(document.documentElement.lang||'pt').slice(0,2),w=words[lang]||words.pt;
-  for(const container of document.querySelectorAll('body.site-home .site-links,body.site-home .zv-foot')){
+  for(const container of document.querySelectorAll('body.site-home .site-links,body.site-home .zv-foot nav')){
    for(const [i,href] of ['/disponivel','/pool'].entries()){
     let link=container.querySelector('[data-home-link="'+i+'"]');
     if(!link){link=document.createElement('a');link.href=href;link.dataset.homeLink=String(i);container.append(link)}
