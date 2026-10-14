@@ -38,7 +38,7 @@ body:is(.zv-public,.site-admin,.zui-partner-public) :is(input,select,textarea){b
 body:is(.zv-public,.site-admin,.zui-partner-public) :is(input,textarea)::placeholder{color:hsl(var(--ref-muted));opacity:1}
 body:is(.zv-public,.site-admin,.zui-partner-public) :is(button,a,input,select,textarea,summary):focus-visible{outline:2px solid hsl(var(--ref-blue))!important;outline-offset:3px}
 body:is(.zv-public,.site-admin,.zui-partner-public) :is(button,.btn,.zv-btn){border-radius:6px!important;transition:background-color .18s,border-color .18s,box-shadow .18s,transform .18s}
-body:is(.zv-public,.site-admin,.zui-partner-public) :is(button.primary,.btn.primary,.zv-btn.primary){background:hsl(var(--ref-blue))!important;color:hsl(var(--ref-on-primary,0 0% 100%))!important;border-color:hsl(var(--ref-blue))!important;box-shadow:var(--ref-shadow)!important}
+body:is(.zv-public,.site-admin,.zui-partner-public) :is(button.primary,.btn.primary,.zv-btn.primary){background:hsl(var(--ref-blue))!important;color:hsl(var(--ref-on-primary,var(--ref-paper)))!important;border-color:hsl(var(--ref-blue))!important;box-shadow:var(--ref-shadow)!important}
 body:is(.zv-public,.site-admin,.zui-partner-public) button:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
 body:is(.zv-public,.site-admin,.zui-partner-public) :is(.actions,.row,.toolbar,.zprow,.zpl-acts,.zpl-foot){flex-wrap:wrap}
 body:is(.zv-public,.site-admin,.zui-partner-public) :is(.row,.formrow,.grid,.two,.zfilters)>*{min-width:0}
