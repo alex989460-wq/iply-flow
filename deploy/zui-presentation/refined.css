@@ -15,7 +15,7 @@ body.zv-public,body.zui-partner-public{
  background-image:radial-gradient(820px 420px at 84% -4%,hsl(215 52% 76% / .55),transparent 70%)!important;
 }
 body.zv-public,body.zui-partner-public{--ref-muted:218 14% 32%;--camo-muted:var(--ref-muted);--organized-muted:var(--ref-muted)}
-body.zui-partner-public .hero p{color:hsl(218 16% 24%)!important}
+body.zui-partner-public :is(.hero p,.platform-lead p){color:hsl(218 16% 24%)!important}
 body.zv-public .zv-art-note{color:hsl(218 14% 32%)!important}
 body.zv-public :is(.zv-faq,.zv-legal){background-color:hsl(var(--ref-band))!important}
 body.zui-partner-public .section:nth-of-type(even){background-color:hsl(var(--ref-band))}
