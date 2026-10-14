@@ -1,6 +1,7 @@
 # Roadmap
 
 ## ZUI (14/10/2026)
+- [x] Fundo público cinza suave um pouco mais escuro, superfícies claras preservadas; Roku salvo disponível no painel e relido no catálogo público. Cinco páginas verificadas em 390/1280 sem overflow/erros, seis testes passaram; backup /root/zui-refined-before-1792013116, 1452 arquivos protegidos intactos, serviços ativos sem reiniciar.
 - [x] Revisar presença LG/Roku/demais: mesma evidência de contato/lease; nenhum online durante esta consulta, sem fabricar estado. Oito páginas modernizadas com divisões, contraste, efeitos leves e foco; 20 abas conferidas em computador/celular, pagamentos sem overflow, filtros Windows corretos, editor preservado por 16s e fechado por Esc; Pool/Disponibilidade mantêm aba no reload. Backup /root/zui-refined-before-1792012411; 1452 arquivos protegidos intactos, nenhum serviço reiniciado. Sessão real de revenda/TV e transações não testadas.
 - [x] Presença corrigida: contato recente ou reprodução válida; listagem atualiza a cada 15s sem interromper editor. Painel autenticado mostrou Android online, API confirmou online=1/playing=1 e atualização preservou filtro; três testes passaram. Backup /root/zui-presence-light-before-1792011303; só ZUI reiniciado, ZapCRM ativo; TV/revenda real não testadas.
 - [x] Site público, Disponível e Pool com superfícies claras e azul discreto; computador/celular sem overflow ou erros de página, identidade preservada. 84 arquivos operacionais protegidos intactos, sem alterações de licenças/listas.
