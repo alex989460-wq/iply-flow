@@ -46,6 +46,9 @@ body.site-admin .zcard strong{font-variant-numeric:tabular-nums}
 body.site-admin .zfilters.card{background:transparent!important;border:0!important;border-top:1px solid hsl(var(--ref-line))!important;border-bottom:1px solid hsl(var(--ref-line))!important;border-radius:0!important;padding:18px 0!important}
 body.site-admin .zfcount{align-self:end;min-height:38px;flex-wrap:wrap;gap:8px}
 body.site-admin .tablewrap{max-width:100%;overscroll-behavior-x:contain}
+body.site-admin :is(#content,.editor-grid,.editor-row,.card,.zui-plan-table){min-width:0;max-width:100%}
+body.site-admin .zui-plan-table{overflow-x:auto;overscroll-behavior-x:contain}
+body.site-admin .zui-plan-table table{min-width:760px}
 body.site-admin .tablewrap table{min-width:100%!important;table-layout:auto}
 body.site-admin :is(td,th){overflow-wrap:anywhere}
 body.site-admin :is(.status,.zlic,.online){white-space:nowrap;overflow-wrap:normal}
