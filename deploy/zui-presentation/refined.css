@@ -98,6 +98,11 @@ body.zui-partner-public header{box-shadow:none!important;border-bottom:1px solid
 body.zui-partner-public :is(.hero,.platform-lead):after{background:var(--hero-shade),linear-gradient(180deg,transparent 58%,hsl(var(--ref-backdrop)/.88))!important}
 @media(max-width:760px){body.zui-partner-public :is(.hero .copy,.platform-lead .lead){background:hsl(var(--ref-backdrop)/.93);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:10px;padding:16px 18px}}
 body.zui-partner-public :is(.filters,.platform-filters){padding-bottom:16px;border-bottom:1px solid hsl(var(--ref-line))}
+body.zui-partner-public :is(h1,h2,h3,h4){color:hsl(var(--ref-ink))!important}
+body.zui-partner-public .btn:not(.primary){color:hsl(var(--ref-ink))!important;border-color:hsl(var(--ref-line))!important}
+body.zui-partner-public :is(footer p,footer small){color:hsl(var(--ref-muted))!important}
+body.zui-partner-public footer a{color:hsl(var(--ref-muted))!important}
+body.zui-partner-public footer a:hover{color:hsl(var(--ref-ink))!important}
 @media(hover:hover){
  body:is(.zv-public,.site-admin,.zui-partner-public) :is(button,.btn,.zv-btn):not(:disabled):hover{border-color:hsl(var(--ref-blue))!important;box-shadow:var(--ref-shadow)!important}
  body.site-admin .sidebar nav button:hover{background:hsl(var(--ref-raised))!important}
