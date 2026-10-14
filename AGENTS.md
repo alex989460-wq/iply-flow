@@ -7,3 +7,4 @@
 - Guard ZUI partner-code deletion and edits to bound codes before operational handlers, preserving audited DNS migrations and existing playback rules.
 - Keep ZUI admin playlist management in deploy/zui-admin-playlists (server route via apply-server.py, inline UI via apply-admin.py) reusing owns/resolveSourceInput/saveDb, so licence reconciliation and partner bindings stay authoritative; re-apply after API/admin upgrades.
 - Report ZUI presence through the shared read-only presence helper using recent device contact or a valid playback lease, and refresh device lists without interrupting open editors; playback-only clients must not appear offline.
+- Apply shared ZUI page polish through deploy/zui-presentation/apply-refined.py with scoped CSS and navigation/focus-only JavaScript, backups and protected playback/API hashes; presentation updates must not restart services.
