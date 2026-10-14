@@ -2,11 +2,16 @@
 (() => {
  'use strict';
  const isAdmin=location.pathname.startsWith('/admin');
+ const navPaths=[['/disponivel','Disponível'],['/pool','Parceiros']];
+ const samePath=(a,url)=>{try{return new URL(a.href,location.href).pathname===url}catch(e){return false}};
  const syncPublicNav=()=>{if(!isAdmin){
-  document.querySelectorAll('.site-links,.zv-foot-row nav').forEach(nav=>{
-   [['/disponivel','Disponível'],['/pool','Parceiros']].forEach(([url,label])=>{
-    if(nav.querySelector('a[href="'+url+'"]'))return;
-    const a=document.createElement('a');a.href=url;a.textContent=label;nav.append(a);
+  document.querySelectorAll('.site-links,.zv-foot-row nav,.zv-foot nav').forEach(nav=>{
+   navPaths.forEach(([url,label])=>{
+    const found=[...nav.querySelectorAll('a')].filter(a=>samePath(a,url));
+    let keep=found.find(a=>a.hasAttribute('data-home-link'))||found[0];
+    if(!keep){keep=document.createElement('a');keep.href=url;nav.append(keep)}
+    found.filter(a=>a!==keep).forEach(a=>a.remove());
+    if(!keep.hasAttribute('data-home-link')&&keep.textContent.trim()!==label)keep.textContent=label;
    });
   });
   document.querySelectorAll('.site-links a').forEach(a=>{if(a.pathname===location.pathname)a.setAttribute('aria-current','page');});
