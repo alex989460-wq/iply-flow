@@ -2,7 +2,7 @@
 (() => {
  'use strict';
  const isAdmin=location.pathname.startsWith('/admin');
- if(!isAdmin){
+ const syncPublicNav=()=>{if(!isAdmin){
   document.querySelectorAll('.site-links,.zv-foot-row nav').forEach(nav=>{
    [['/disponivel','Disponível'],['/pool','Parceiros']].forEach(([url,label])=>{
     if(nav.querySelector('a[href="'+url+'"]'))return;
@@ -10,7 +10,9 @@
    });
   });
   document.querySelectorAll('.site-links a').forEach(a=>{if(a.pathname===location.pathname)a.setAttribute('aria-current','page');});
- }
+ }};
+ syncPublicNav();
+ document.addEventListener('DOMContentLoaded',syncPublicNav);
  const closeMenus=()=>{
   document.body.classList.remove('panel-nav-open');
   document.querySelector('.site-header')?.classList.remove('zv-open');

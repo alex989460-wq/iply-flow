@@ -48,6 +48,7 @@ body.site-admin .zfcount{align-self:end;min-height:38px;flex-wrap:wrap;gap:8px}
 body.site-admin .tablewrap{max-width:100%;overscroll-behavior-x:contain}
 body.site-admin .tablewrap table{min-width:100%!important;table-layout:auto}
 body.site-admin :is(td,th){overflow-wrap:anywhere}
+body.site-admin :is(.status,.zlic,.online){white-space:nowrap;overflow-wrap:normal}
 body.site-admin td:last-child{width:1%;min-width:0!important;max-width:none!important}
 body.site-admin td code{font-size:12px!important}
 body.site-admin :is(.zptable,.zpool table){min-width:0!important}
