@@ -10,7 +10,9 @@ source = Path(sys.argv[2])
 original = page.read_text()
 if original.count('</body>') != 1:
     raise RuntimeError('Unexpected homepage structure')
-backup = page.with_name(page.name + '.before-links-' + str(time.time_ns()))
+backup_dir = Path(sys.argv[3]) if len(sys.argv) > 3 else Path('/root') / ('zui-home-links-before-' + str(time.time_ns()))
+backup_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+backup = backup_dir / page.name
 shutil.copy2(page, backup)
 clean = re.sub(r'<script id="zui-home-links">[\s\S]*?</script>', '', original)
 result = clean.replace('</body>', '<script id="zui-home-links">' + source.read_text() + '</script></body>')
