@@ -1,6 +1,7 @@
 # Roadmap
 
 ## ZUI (14/10/2026)
+- [ ] Revisar presença LG/Roku/demais aparelhos e modernizar todas as páginas ZUI, campos, divisões e efeitos; preservar serviços/dados com backup e validar navegação pública/admin/mobile.
 - [x] Presença corrigida: contato recente ou reprodução válida; listagem atualiza a cada 15s sem interromper editor. Painel autenticado mostrou Android online, API confirmou online=1/playing=1 e atualização preservou filtro; três testes passaram. Backup /root/zui-presence-light-before-1792011303; só ZUI reiniciado, ZapCRM ativo; TV/revenda real não testadas.
 - [x] Site público, Disponível e Pool com superfícies claras e azul discreto; computador/celular sem overflow ou erros de página, identidade preservada. 84 arquivos operacionais protegidos intactos, sem alterações de licenças/listas.
 - [x] Página inicial com Disponível e Parceiros no menu e rodapé, mais link Xbox e computadores; Xbox habilitado via controle admin no mesmo link Microsoft, conforme confirmação do usuário. Navegação e catálogo verificados em computador/celular, sem erros ou overflow. Backup /root/zui-home-links-before-1791989349; 1458 arquivos protegidos intactos; nenhum serviço reiniciado.
