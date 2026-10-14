@@ -1,5 +1,9 @@
 # Roadmap
 
+## ZUI (14/10/2026)
+- [ ] Limpar apenas MACs comprovadamente criados em testes, sem uso há mais de três dias, com backup e preservação dos clientes reais.
+- [ ] Modernizar Disponível e Parceiros, remover chamada pública Web/Abrir player e divulgar computadores/Xbox com o link Microsoft fornecido, mantendo edição no admin.
+
 ## Em andamento
 - [x] Diagnosticar HTTP 502 do código 4101 no Web Player: rota Direto; navegador HTTPS envia catálogo HTTP pelo relay da VPS; provedor respondeu 403 via HTTP e HTTPS no teste público, sem credenciais. Não alterado nenhum aplicativo/lista/serviço. Windows não é identificado como cliente nativo pela versão web analisada.
 - [ ] Correção Web/Windows 4101 depende de DNS HTTPS com CORS acessível ao cliente ou liberação do IP da VPS pelo provedor; alternativa Windows exige identificar o pacote e suporte a transporte nativo, sem simplesmente desativar segurança do navegador.
