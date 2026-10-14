@@ -1,8 +1,8 @@
 # Roadmap
 
 ## ZUI (14/10/2026)
-- [ ] Limpar apenas MACs comprovadamente criados em testes, sem uso há mais de três dias, com backup e preservação dos clientes reais.
-- [ ] Modernizar Disponível e Parceiros, remover chamada pública Web/Abrir player e divulgar computadores/Xbox com o link Microsoft fornecido, mantendo edição no admin.
+- [ ] Limpeza antiga: zero MACs restantes no manifesto do estresse ou nos identificadores históricos comprovados; 173 aparelhos preservados. Para excluir outros inativos há mais de três dias falta identificação confiável de quais eram testes; não inferir pelo nome genérico ou lista vazia.
+- [x] Disponível e Parceiros modernizados; Abrir player retirado dessas páginas sem desativar app Web. Windows disponível no link Microsoft fornecido; Xbox editável, em confirmação pois loja informa apenas PC. Nove testes passaram; painel autenticado salvou/releu Windows e catálogo público confirmou. Computador/celular sem overflow/imagens quebradas/erros de página. Backup /root/zui-platform-refresh-before-1791988855, 1452 arquivos protegidos intactos; apenas ZUI reiniciado, ZapCRM ativo.
 
 ## Em andamento
 - [x] Diagnosticar HTTP 502 do código 4101 no Web Player: rota Direto; navegador HTTPS envia catálogo HTTP pelo relay da VPS; provedor respondeu 403 via HTTP e HTTPS no teste público, sem credenciais. Não alterado nenhum aplicativo/lista/serviço. Windows não é identificado como cliente nativo pela versão web analisada.
