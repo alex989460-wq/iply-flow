@@ -6,9 +6,13 @@ body.zv-public,body.site-admin,body.zui-partner-public{
  --ref-danger:0 67% 42%;--ref-warning:36 85% 33%;letter-spacing:0;
 }
 body.zv-public,body.zui-partner-public{
- --ref-backdrop:212 16% 91%;--ref-band:212 16% 94%;
+ --ref-backdrop:215 32% 87%;--ref-band:215 28% 92%;--ref-raised:215 28% 92%;--ref-line:214 22% 80%;
  --camo-bg:var(--ref-backdrop);--bg:hsl(var(--ref-backdrop));
- background:hsl(var(--ref-backdrop))!important;
+ --camo-raised:var(--ref-raised);--organized-raised:var(--ref-raised);
+ --camo-border:var(--ref-line);--organized-line:var(--ref-line);--rx-border:var(--ref-line);
+ --hero-shade:linear-gradient(90deg,hsl(var(--ref-backdrop) / .99),hsl(var(--ref-backdrop) / .93) 48%,hsl(var(--ref-backdrop) / .14));
+ background-color:hsl(var(--ref-backdrop))!important;
+ background-image:radial-gradient(820px 420px at 84% -4%,hsl(215 52% 76% / .55),transparent 70%)!important;
 }
 body.zv-public :is(.zv-faq,.zv-legal){background-color:hsl(var(--ref-band))!important}
 body.zui-partner-public .section:nth-of-type(even){background-color:hsl(var(--ref-band))}
