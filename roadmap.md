@@ -1,6 +1,7 @@
 # Roadmap
 
 ## ZUI (14/10/2026)
+- [ ] Acrescentar Disponível e Parceiros na página inicial zuiplayer.com e publicar Xbox disponível com o mesmo link Microsoft, conforme confirmação do usuário; preservar player e serviços.
 - [ ] Limpeza antiga: zero MACs restantes no manifesto do estresse ou nos identificadores históricos comprovados; 173 aparelhos preservados. Para excluir outros inativos há mais de três dias falta identificação confiável de quais eram testes; não inferir pelo nome genérico ou lista vazia.
 - [x] Disponível e Parceiros modernizados; Abrir player retirado dessas páginas sem desativar app Web. Windows disponível no link Microsoft fornecido; Xbox editável, em confirmação pois loja informa apenas PC. Nove testes passaram; painel autenticado salvou/releu Windows e catálogo público confirmou. Computador/celular sem overflow/imagens quebradas/erros de página. Backup /root/zui-platform-refresh-before-1791988855, 1452 arquivos protegidos intactos; apenas ZUI reiniciado, ZapCRM ativo.
 
