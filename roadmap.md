@@ -1,5 +1,8 @@
 # Roadmap
 
+## ZUI (15/10/2026)
+- [x] Compactar Servidores parceiros, seleção de parceiro e menu de ações; nove servidores reais conferidos, busca e consulta de aparelhos funcionando, sem erros ou overflow. Aplicado somente no admin com backup; 1459 arquivos protegidos, nenhum serviço reiniciado ou dado alterado.
+
 ## ZUI (14/10/2026)
 - [x] Contraste corrigido em Disponível e Parceiros: cores completas para os templates, ícones claros de 36×28, cartões compactos, brilho nas bordas e movimento discreto com redução de movimento respeitada. Duas páginas verificadas em 1280/390, filtros funcionando, imagens carregadas e sem erros/overflow. Backup /root/zui-refined-before-1792017888; 1458 arquivos protegidos intactos, apenas duas páginas alteradas, nenhum serviço reiniciado.
 - [x] Fundo público trocado para o degradê preto+azul estilo zuxoplayer.com solicitado: base hsl(222 38% 5%) com dois brilhos radiais nos azuis da logo (azure #0080F0 e marinho #002050) no topo, superfícies/bordas/textos invertidos para tema escuro em todas as 8 páginas públicas (home, minhas-listas, ativar, privacidade, termos, client, Pool, Disponível); títulos/botões fantasma/rodapé das páginas de parceiro que tinham preto fixo corrigidos; botões primários com texto branco e azul da logo; color-scheme dark. Painel admin intocado (login conferido igual ao anterior). Seis páginas verificadas em 390/1280 sem overflow e sem erros de página. Backups /root/zui-refined-before-1792016669 a 1792016821; 1452 arquivos protegidos intactos; nenhum serviço reiniciado.

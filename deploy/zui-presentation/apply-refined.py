@@ -4,8 +4,8 @@ import hashlib,json,os,pathlib,re,shutil,sqlite3,sys,time
 root=pathlib.Path(sys.argv[1]);stage=pathlib.Path(sys.argv[2]);public=root/'admin-api/public'
 targets=[public/n for n in ['home.html','index.html','client.html','activation.html','privacy.html','terms.html','partner-pages/pool.html','partner-pages/disponivel.html']]
 if len(sys.argv)>3:
- assert sys.argv[3:] == ['--partner-only'],'Unknown presentation scope'
- targets=[p for p in targets if p.parent.name=='partner-pages']
+ assert sys.argv[3:] in [['--partner-only'],['--admin-only']],'Unknown presentation scope'
+ targets=[p for p in targets if p.parent.name=='partner-pages'] if sys.argv[3]=='--partner-only' else [public/'index.html']
 assert all(p.is_file() for p in targets),'Missing installed page'
 backup=pathlib.Path('/root/zui-refined-before-'+str(int(time.time())));backup.mkdir(mode=0o700)
 protected={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for folder in [root/'dist',root/'admin-api'] for p in folder.rglob('*') if p.is_file() and p not in targets}

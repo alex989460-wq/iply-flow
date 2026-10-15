@@ -117,6 +117,46 @@ body.site-admin td code{font-size:12px!important}
 body.site-admin :is(.zptable,.zpool table){min-width:0!important}
 body.site-admin .zp-device-actions{position:relative}
 body.site-admin .zp-device-actions[open]>div{z-index:20;border:1px solid hsl(var(--ref-line))!important;background:hsl(var(--ref-raised))!important;box-shadow:var(--ref-shadow)!important}
+/* Compact partner-server catalogue: preserve the existing controls and handlers. */
+body.site-admin .zui-server-list{padding:0!important;background:transparent!important;border:0!important;overflow:visible}
+body.site-admin .zui-server-list>#zpq{width:100%;max-width:440px!important;min-height:40px;padding:10px 14px;margin:0 0 18px}
+body.site-admin #zpst{table-layout:fixed;width:100%;margin:0;font-size:13px;border-collapse:collapse;white-space:normal}
+body.site-admin #zpst th{padding:12px 10px;color:hsl(var(--ref-muted));background:hsl(var(--ref-raised));font-size:11px;font-weight:600}
+body.site-admin #zpst :is(th,td){border-bottom:1px solid hsl(var(--ref-line));text-align:left}
+body.site-admin #zpst td{padding:14px 10px;vertical-align:middle;min-width:0!important}
+body.site-admin #zpst th:nth-child(1){width:25%}
+body.site-admin #zpst th:nth-child(2){width:8%}
+body.site-admin #zpst th:nth-child(3){width:26%}
+body.site-admin #zpst th:nth-child(4),body.site-admin #zpst th:nth-child(5){width:10%}
+body.site-admin #zpst th:nth-child(6){width:13%}
+body.site-admin #zpst th:nth-child(7){width:8%}
+body.site-admin #zpst td:first-child b{display:inline-block;margin-bottom:5px;font-size:14px}
+body.site-admin #zpst td:first-child span{display:block;line-height:1.5;color:hsl(var(--ref-muted))!important}
+body.site-admin #zpst td:first-child br{display:none}
+body.site-admin #zpst [data-owner]{width:100%;min-height:36px;height:36px;padding:6px 30px 6px 10px;font-size:13px}
+body.site-admin #zpst .sourcehint{display:inline-block;margin:7px 6px 0 0;font-size:11px;color:hsl(var(--ref-muted))}
+body.site-admin #zpst [data-expiry]{padding:3px 6px;font-size:11px;min-height:24px;background:transparent;border-color:transparent;color:hsl(var(--ref-blue))}
+body.site-admin #zpst td:nth-child(2){font-variant-numeric:tabular-nums;color:hsl(var(--ref-blue));font-weight:600}
+body.site-admin #zpst td:nth-child(4),body.site-admin #zpst td:nth-child(5){font-variant-numeric:tabular-nums}
+body.site-admin #zpst .zpact{display:table-cell!important;width:auto!important;min-width:0!important}
+body.site-admin .zui-server-actions summary{list-style:none;cursor:pointer;display:grid;place-items:center;width:36px;height:36px;padding:0!important;white-space:nowrap;overflow-wrap:normal;border:1px solid hsl(var(--ref-line));border-radius:6px;color:hsl(var(--ref-ink));font-weight:700;font-size:17px}
+body.site-admin .zui-server-actions summary::-webkit-details-marker{display:none}
+body.site-admin .zui-server-actions[open] summary{background:hsl(var(--ref-blue)/.12);border-color:hsl(var(--ref-blue))}
+body.site-admin .zui-server-actions{position:relative}
+body.site-admin .zui-server-action-list{position:absolute;right:0;top:100%;z-index:30;display:grid;gap:4px;width:210px;margin-top:8px;padding:8px;border:1px solid hsl(var(--ref-line));border-radius:6px;background:hsl(var(--ref-raised));box-shadow:var(--ref-shadow)}
+body.site-admin #zpst .zui-server-action-list button{width:100%;text-align:left;padding:8px 10px;min-height:34px;font-size:12px;border-color:transparent;background:transparent;white-space:normal}
+body.site-admin #zpst [data-deletepartner]{color:hsl(var(--ref-danger))}
+@media(max-width:760px){
+ body.site-admin #zpst,body.site-admin #zpst tbody{display:block;width:100%;overflow:visible;white-space:normal}
+ body.site-admin #zpst tr:has(th){display:none}
+ body.site-admin #zpst tr:has(td){display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;padding:18px 0!important;margin:0!important;border-bottom:1px solid hsl(var(--ref-line));border-radius:0!important}
+ body.site-admin #zpst td{display:block!important;padding:0!important;margin:0!important;min-height:0!important;border:0!important;width:auto!important;max-width:100%;text-align:left!important}
+ body.site-admin #zpst td:before{content:attr(data-label);display:block;font-size:10px;color:hsl(var(--ref-muted));margin-bottom:6px}
+ body.site-admin #zpst td:first-child{grid-column:1/-1}
+ body.site-admin #zpst td:last-child{grid-column:1/-1;display:block!important}
+ body.site-admin .zui-server-action-list{position:static;width:100%;box-sizing:border-box;grid-template-columns:repeat(2,minmax(0,1fr))}
+ body.site-admin #zpst [data-owner]{height:40px;font-size:14px}
+}
 body.site-admin :is(.modalbox,.zpl-box){border-radius:8px!important;max-height:calc(100dvh - 32px)!important;background:hsl(var(--ref-raised))!important;border-color:hsl(var(--ref-line))!important;color:hsl(var(--ref-ink))!important}
 body.site-admin .zpl-body{min-height:0;overscroll-behavior:contain}
 body.site-admin :is(.zpl-head,.zpl-foot){flex-shrink:0;border-color:hsl(var(--ref-line))!important}

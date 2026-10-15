@@ -35,6 +35,26 @@
  const dialogSelector='#modal:not(.hidden) .modalbox,#zplBox,#editor:not([hidden]) #editForm,#deleteDialog:not([hidden]) .dialog';
  let activeDialog=null,returnFocus=null;
  const decorate=()=>{
+  const serverTable=document.querySelector('#zpst');
+  if(serverTable){
+   const serverList=serverTable.closest('.card');
+   if(serverList&&!serverList.classList.contains('zui-server-list'))serverList.classList.add('zui-server-list');
+   serverTable.querySelectorAll('tr').forEach(row=>{
+    const cells=[...row.querySelectorAll('td')];if(cells.length!==7)return;
+    const labels=['Servidor','Código','Parceiro','Aparelhos','Assistindo','Situação','Ações'];
+    cells.forEach((cell,i)=>cell.dataset.label=labels[i]);
+    const owner=row.querySelector('[data-owner]');
+    if(owner)owner.setAttribute('aria-label','Parceiro de '+(cells[0].querySelector('b')?.textContent||'servidor'));
+    const actions=cells[6];
+    if(actions.querySelector('details')||!actions.querySelector('button'))return;
+    const menu=document.createElement('details');menu.className='zui-server-actions';
+    const summary=document.createElement('summary');summary.textContent='•••';
+    summary.title='Ações do servidor';summary.setAttribute('aria-label','Ações de '+(cells[0].querySelector('b')?.textContent||'servidor'));
+    const panel=document.createElement('div');panel.className='zui-server-action-list';
+    panel.append(...actions.childNodes);menu.append(summary,panel);actions.append(menu);
+    menu.addEventListener('toggle',()=>{if(menu.open)serverTable.querySelectorAll('details[open]').forEach(other=>{if(other!==menu)other.open=false;});});
+   });
+  }
   document.querySelectorAll('input[id],select[id],textarea[id]').forEach(input=>{
    if(input.closest('label')||document.querySelector('label[for="'+CSS.escape(input.id)+'"]'))return;
    const previous=input.previousElementSibling;
@@ -50,6 +70,7 @@
  };
  new MutationObserver(decorate).observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['hidden','class']});decorate();
  document.addEventListener('keydown',e=>{
+  if(e.key==='Escape')document.querySelectorAll('.zui-server-actions[open]').forEach(menu=>menu.open=false);
   if(e.key!=='Tab'||!activeDialog)return;
   const items=[...activeDialog.querySelectorAll('button,input,select,textarea,a[href],[tabindex="0"]')].filter(x=>!x.disabled&&x.getClientRects().length);
   const first=items[0],last=items[items.length-1];if(!first||!last)return;
@@ -57,6 +78,10 @@
   else if(!e.shiftKey&&(document.activeElement===last||!activeDialog.contains(document.activeElement))){e.preventDefault();first.focus();}
  });
  if(!isAdmin)return;
+ document.addEventListener('click',e=>{
+  const target=e.target instanceof Element?e.target:null;
+  document.querySelectorAll('.zui-server-actions[open]').forEach(menu=>{if(!target||!menu.contains(target)||target.closest('button'))menu.open=false;});
+ });
  const views=new Set(['pool','partner-servers','platforms','contacts','resellers']);
  const requested=()=>new URLSearchParams(location.search).get('view')||location.pathname.split('/')[2]||'dashboard';
  const pathFor=v=>v==='platforms'?'/admin?view=platforms':v==='dashboard'?'/admin':'/admin/'+v;
