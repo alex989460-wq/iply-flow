@@ -37,7 +37,8 @@
  const decorate=()=>{
   const serverTable=document.querySelector('#zpst');
   if(serverTable){
-   serverTable.closest('.card')?.classList.add('zui-server-list');
+   const serverList=serverTable.closest('.card');
+   if(serverList&&!serverList.classList.contains('zui-server-list'))serverList.classList.add('zui-server-list');
    serverTable.querySelectorAll('tr').forEach(row=>{
     const cells=[...row.querySelectorAll('td')];if(cells.length!==7)return;
     const labels=['Servidor','Código','Parceiro','Aparelhos','Assistindo','Situação','Ações'];
