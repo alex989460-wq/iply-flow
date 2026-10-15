@@ -5,6 +5,7 @@
 - Track ZUI web-app and API versions separately; frontend-only releases must not relabel or restart the API, because their compatible versions can legitimately differ.
 - Promote a reviewed ZUI web release by copying its static dependencies before atomically replacing the /app/ entry HTML, with protected site/API hashes and a rollback copy; this preserves the public site and avoids restarting operational services.
 - Keep deployable ZUI presentation overrides in deploy/zui-presentation and scope admin selectors to site-admin, so reviewed styling is reproducible without changing operational handlers.
+- Compact partner-server rows through the shared presentation decorator, moving existing action controls into disclosure menus without replacing their listeners; use apply-refined.py --admin-only for admin polish so public pages and operational assets stay untouched.
 - Embed reviewed ZUI presentation CSS and self-contained font faces in the existing served HTML when custom asset routes are unavailable, so typography works under the existing security policy without relaxing it.
 - Apply ZUI motion as a site-scoped CSS-only override with reduced-motion support and keep security headers isolated to reviewed Nginx locations, because site polish must not modify device authentication or playback compatibility.
 - Keep ZUI backup decompression bounded and test oversized valid archives plus tamper rejection; accumulated static releases can exceed the upstream bound without indicating a wrong encryption key.
