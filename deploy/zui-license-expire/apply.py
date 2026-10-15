@@ -26,11 +26,11 @@ swap('commerce.mjs', "  if(device.adminExpiredAt&&!(Number(device.activeUntil||0
 
 # 2. TV code login on a partner server records the login moment (verified or Direct).
 swap('server.mjs', "d.serverCode=activeServer.code;if(!unverified)recordPartnerAuthorization(",
-     "d.serverCode=activeServer.code;if(activeServer.partner===true)d.partnerLoginAt=Date.now();if(!unverified)recordPartnerAuthorization(")
+     "d.serverCode=activeServer.code;if(activeServer.partner===true){d.partnerLoginAt=Date.now();delete d.adminExpiredAt;}if(!unverified)recordPartnerAuthorization(")
 
 # 3. Verified partner authorisation (TV and /minhas-listas) also records it.
 swap('partners.mjs', " device.partnerAccessRequired=true;\n confirmedLicense(db,device,playlist,server,expiresAt,now,providerExpiryDetails(info));return true;",
-     " device.partnerAccessRequired=true;device.partnerLoginAt=now;\n confirmedLicense(db,device,playlist,server,expiresAt,now,providerExpiryDetails(info));return true;")
+     " device.partnerAccessRequired=true;device.partnerLoginAt=now;delete device.adminExpiredAt;\n confirmedLicense(db,device,playlist,server,expiresAt,now,providerExpiryDetails(info));return true;")
 
 for n, text in src.items():
     chk = '/tmp/zui-le-check-' + n
