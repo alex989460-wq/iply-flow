@@ -106,3 +106,4 @@
 - [x] Admin/revenda no celular: menu fecha, aparelhos em cartões, menus ••• e janelas fecham.
 - [ ] Roku 7 dias: códigos 4100/4101 não estão marcados como parceiro (só 002) — aguarda decisão do usuário.
 - [ ] XUI One VPLAYSERVICO2: abertura de canais mais rápida (aguarda escopo).
+- [x] Jogos Prime Video/HBO Max/Apple TV não apareciam: correspondência de canais corrigida em todas as 25 versões do app (17/10/2026, backup /root/zui-games-channels-*).
